@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-screen;
+    overscroll-behavior: none;
+  }
+
+  /* Scrollbar estilizada para dark mode */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-500 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-surface-600;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-600 hover:bg-brand-700 active:bg-brand-800
+           text-white font-semibold rounded-xl px-6 py-3.5
+           transition-all duration-200 ease-out
+           focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-surface-900
+           disabled:opacity-40 disabled:cursor-not-allowed
+           min-h-[48px] select-none;
+  }
+
+  .btn-success {
+    @apply bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
+           text-white font-semibold rounded-xl px-6 py-3.5
+           transition-all duration-200 ease-out
+           focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-surface-900
+           disabled:opacity-40 disabled:cursor-not-allowed
+           min-h-[48px] select-none;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-700 active:bg-red-800
+           text-white font-semibold rounded-xl px-6 py-3.5
+           transition-all duration-200 ease-out
+           focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-surface-900
+           disabled:opacity-40 disabled:cursor-not-allowed
+           min-h-[48px] select-none;
+  }
+
+  .btn-ghost {
+    @apply bg-surface-700 hover:bg-surface-600 active:bg-surface-500
+           text-gray-300 font-medium rounded-xl px-6 py-3.5
+           transition-all duration-200 ease-out
+           focus:outline-none focus:ring-2 focus:ring-surface-500 focus:ring-offset-2 focus:ring-offset-surface-900
+           disabled:opacity-40 disabled:cursor-not-allowed
+           min-h-[48px] select-none;
+  }
+
+  .card {
+    @apply bg-surface-800 border border-surface-600 rounded-2xl p-4
+           shadow-lg shadow-black/20;
+  }
+
+  .input-field {
+    @apply w-full bg-surface-700 border border-surface-500 rounded-xl
+           px-4 py-3.5 text-gray-100 placeholder-gray-500
+           focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500
+           transition-all duration-200
+           min-h-[48px];
+  }
+}
+
+/* Animação de pulse suave */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* Toast animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+/* Modal fade & scale animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+

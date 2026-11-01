@@ -1,0 +1,13 @@
+# Regras do Projeto — Escala CRM
+
+Sempre leia o arquivo `PROJECT_MEMORY.md` antes de propor ou executar qualquer alteração neste projeto.
+
+Diretrizes essenciais:
+- Aplicação React + Vite + Tailwind CSS (Mobile-First, Dark Mode padrão).
+- Backend Supabase (PostgreSQL + Realtime + RLS + RPCs com lock anti-race conditions).
+- A tabela `pontos` gerencia os pontos de captação (Mercado Extra, Roldão, etc.).
+- A tabela `turnos` armazena os horários agrupados por dia da semana e ponto.
+- A tabela `reservas` armazena as vagas dos corretores identificados por `device_id` no localStorage.
+- Visão do Admin protegida por PIN (`1234` na tabela `config`).
+- Mantenha a consistência de UI/UX, classes utilitárias e toque generoso (min-h-[48px]).
+
