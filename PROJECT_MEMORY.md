@@ -92,7 +92,9 @@ e:\Escala\
         ├── TurnoCard.jsx        # Card de turno na visão do corretor (progresso, botões contextuais)
         ├── NomeModal.jsx        # Modal bottom-sheet para solicitar nome do corretor no 1º uso
         ├── ConfirmModal.jsx     # Modal universal assíncrono de confirmação/exclusão (useConfirm)
-        ├── AdminView.jsx        # Painel completo do Administrador
+        ├── AdminView.jsx        # Painel do Administrador (turnos e acordeon)
+        ├── PontosManager.jsx    # Gestão de pontos (criação limpa, drag-and-drop de reordenação, duplicar e renomear)
+        ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
         └── Toast.jsx            # Notificações visuais animadas
 ```
 
@@ -115,19 +117,21 @@ e:\Escala\
 
 ### 5.2. Fluxo do Admin (Protegido por PIN)
 1. **Acesso**: Ícone de escudo discreto no header com PIN verificado no Supabase (`1234`).
-2. **Gestão de Pontos de Captação**:
-   - Criar novos pontos.
+2. **Gestão de Pontos de Captação ([PontosManager.jsx](file:///e:/Escala/src/components/PontosManager.jsx))**:
+   - Criar novos pontos com ordem calculada automaticamente (sem campo de número manual).
+   - **Arrastar e Soltar (SortableJS)**: Reordenar pontos via pegador `⠿` (`GripVertical`) com animação fluida e salvamento em tempo real no Supabase.
    - Renomear inline com o botão de lápis.
    - **Duplicar Ponto Inteiro**: Ícone de cópia 📋 que clona todos os turnos de um ponto existente para o novo ponto, iniciando as reservas zeradas.
    - Limpar reservas de um ponto específico (ícone de alerta ⚠️).
    - Excluir ponto (com cascade nos turnos e reservas).
-3. **Criação e Duplicação de Turnos**:
-   - Criar turnos por dia, horário, capacidade e ordem.
-   - **Duplicar Horários de um Dia**: Botão `Duplicar horários` ao lado de cada dia para replicar a grade (ex: Segunda) para outros dias selecionados ou atalhos ("Seg a Sex", "Fim de Semana", "Marcar Todos").
+3. **Criação e Gestão de Turnos ([TurnosDiaList.jsx](file:///e:/Escala/src/components/TurnosDiaList.jsx))**:
+   - Criar turnos por ponto, dia, horário e capacidade (ordem calculada automaticamente ao fim do dia).
+   - **Arrastar e Soltar nos Turnos**: Reordenar horários dentro de cada dia arrastando pelo pegador `⠿`, com animação física e persistência imediata no Supabase.
+   - **Duplicar Horários de um Dia**: Botão `Duplicar horários` ao lado de cada dia para replicar a grade (ex: Segunda) para outros dias selecionados ou atalhos ("Seg a Sex", "Fim de Semana", "Marcar Todos"), preservando a ordem personalizada.
 4. **Gestão de Pessoas por Turno (Excluir e Incluir)**:
    - Exibe lista de corretores escalados com chips visuais individuais.
    - **Excluir corretor**: Botão `✖` em cada corretor para cancelar apenas a reserva dele sem apagar o turno.
-   - **Incluir corretor manual**: Botão `+ Incluir` para adicionar um corretor diretamente pelo Admin (via modal com validação).
+   - **Incluir corretor manual**: Botão `+ Incluir` para adicionar um corretor diretamente pelo Admin (via modal com validação). Atualiza silenciosamente sem resetar o scroll da página.
    - **Excluir turno**: Botão de lixeira 🗑️ para deletar o horário por completo.
 5. **Accordion / Sanfona de Pontos**:
    - Setinha 🔽 retrátil em cada ponto cadastrado para recolher/expandir dias e horários, permitindo navegar entre múltiplos pontos rapidamente. Inicia recolhido por padrão e salva a preferência do usuário no `localStorage` (`escala_admin_pontos_expandidos`).

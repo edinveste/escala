@@ -58,32 +58,40 @@ export default function App() {
   }, [])
 
   // ─── Carregamento inicial de dados ───────────────────────────
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [pontosRes, turnosRes, reservasRes] = await Promise.all([
-        supabase.from('pontos').select('*').eq('ativo', true).order('ordem', { ascending: true }),
-        supabase.from('turnos').select('*').order('ordem', { ascending: true }),
-        supabase.from('reservas').select('*').order('created_at', { ascending: true }),
-      ])
+  // isSilent = true por padrão nas recargas posteriores para evitar desmontar a tela e resetar o scroll
+  const fetchData = useCallback(
+    async (isSilent = true) => {
+      if (!isSilent) {
+        setLoading(true)
+      }
+      try {
+        const [pontosRes, turnosRes, reservasRes] = await Promise.all([
+          supabase.from('pontos').select('*').eq('ativo', true).order('ordem', { ascending: true }),
+          supabase.from('turnos').select('*').order('ordem', { ascending: true }),
+          supabase.from('reservas').select('*').order('created_at', { ascending: true }),
+        ])
 
-      if (pontosRes.error) throw pontosRes.error
-      if (turnosRes.error) throw turnosRes.error
-      if (reservasRes.error) throw reservasRes.error
+        if (pontosRes.error) throw pontosRes.error
+        if (turnosRes.error) throw turnosRes.error
+        if (reservasRes.error) throw reservasRes.error
 
-      setPontos(pontosRes.data || [])
-      setTurnos(turnosRes.data || [])
-      setReservas(reservasRes.data || [])
-    } catch (err) {
-      console.error('Erro ao carregar dados:', err)
-      showToast('Erro ao carregar dados. Verifique a conexão.', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }, [showToast])
+        setPontos(pontosRes.data || [])
+        setTurnos(turnosRes.data || [])
+        setReservas(reservasRes.data || [])
+      } catch (err) {
+        console.error('Erro ao carregar dados:', err)
+        showToast('Erro ao carregar dados. Verifique a conexão.', 'error')
+      } finally {
+        if (!isSilent) {
+          setLoading(false)
+        }
+      }
+    },
+    [showToast]
+  )
 
   useEffect(() => {
-    fetchData()
+    fetchData(false) // Apenas a 1ª carga mostra o spinner de tela cheia
   }, [fetchData])
 
   // ─── Realtime: escuta INSERT e DELETE em reservas ────────────

@@ -140,4 +140,39 @@
   animation: scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ═══ SORTABLE DRAG & DROP (PONTOS DE CAPTAÇÃO E TURNOS) ═══ */
+.sortable-ghost {
+  opacity: 0.25 !important;
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  border: 2px dashed rgba(59, 130, 246, 0.5) !important;
+  border-radius: 0.75rem !important;
+  transition: none !important;
+}
+
+.sortable-chosen {
+  cursor: grabbing !important;
+}
+
+.sortable-fallback,
+.sortable-drag {
+  opacity: 1 !important;
+  background-color: #1e293b !important; /* surface-800 */
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(59, 130, 246, 0.9) !important;
+  border-radius: 0.75rem !important;
+  transform: scale(1.02);
+  z-index: 999999 !important;
+  cursor: grabbing !important;
+  /* CRÍTICO: pointer-events: none impede que o clone intercepte cliques, mouseup ou bloqueie o elementFromPoint do SortableJS */
+  pointer-events: none !important;
+  transition: none !important;
+}
+
+/* Garante que todos os elementos internos do clone (botões, textos, ícones) também ignorem o ponteiro */
+.sortable-fallback *,
+.sortable-drag * {
+  pointer-events: none !important;
+}
+
+
 

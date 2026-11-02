@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useConfirm } from './ConfirmModal'
+import PontosManager from './PontosManager'
+import TurnosDiaList from './TurnosDiaList'
 import {
   Plus,
   Trash2,
@@ -8,11 +10,8 @@ import {
   Calendar,
   Clock,
   Users,
-  Hash,
   ChevronDown,
   MapPin,
-  Pencil,
-  Store,
   Check,
   X,
   Copy,
@@ -41,21 +40,11 @@ export default function AdminView({
 }) {
   const confirm = useConfirm()
 
-  // Estado do formulário de ponto
-  const [formPontoNome, setFormPontoNome] = useState('')
-  const [formPontoOrdem, setFormPontoOrdem] = useState(0)
-  const [addingPonto, setAddingPonto] = useState(false)
-
-  // Estado de edição de nome do ponto
-  const [editingPontoId, setEditingPontoId] = useState(null)
-  const [editingPontoNome, setEditingPontoNome] = useState('')
-
   // Estado do formulário de turno
   const [formPontoId, setFormPontoId] = useState('')
   const [formDia, setFormDia] = useState('SÁBADO')
   const [formHorario, setFormHorario] = useState('')
   const [formCapacidade, setFormCapacidade] = useState(3)
-  const [formOrdem, setFormOrdem] = useState(0)
   const [addingTurno, setAddingTurno] = useState(false)
 
   // Estado para duplicação de dia
@@ -106,63 +95,6 @@ export default function AdminView({
     }
     setPontosExpandidos(todos)
   }, [pontos])
-
-  // Estado para duplicação de ponto inteiro
-  const [modalDuplicarPonto, setModalDuplicarPonto] = useState(null)
-  const [nomeNovoPonto, setNomeNovoPonto] = useState('')
-  const [duplicandoPonto, setDuplicandoPonto] = useState(false)
-
-  const abrirModalDuplicarPonto = useCallback((ponto, totalTurnos) => {
-    setModalDuplicarPonto({ ponto, totalTurnos })
-    setNomeNovoPonto(`${ponto.nome} (Cópia)`)
-  }, [])
-
-  const handleConfirmDuplicarPonto = useCallback(async (e) => {
-    if (e) e.preventDefault()
-    if (!modalDuplicarPonto || !nomeNovoPonto.trim()) {
-      showToast('Digite um nome para o novo ponto.', 'warning')
-      return
-    }
-
-    setDuplicandoPonto(true)
-    try {
-      const pontoOrigem = modalDuplicarPonto.ponto
-      const { data: novoPonto, error: erroPonto } = await supabase
-        .from('pontos')
-        .insert({
-          nome: nomeNovoPonto.trim(),
-          ordem: (pontoOrigem.ordem || 0) + 1,
-        })
-        .select()
-        .single()
-
-      if (erroPonto) throw erroPonto
-
-      const turnosOrigem = turnos.filter((t) => t.ponto_id === pontoOrigem.id)
-      if (turnosOrigem.length > 0) {
-        const novosTurnos = turnosOrigem.map((t) => ({
-          ponto_id: novoPonto.id,
-          dia: t.dia,
-          horario: t.horario,
-          capacidade: t.capacidade,
-          ordem: t.ordem,
-        }))
-
-        const { error: erroTurnos } = await supabase.from('turnos').insert(novosTurnos)
-        if (erroTurnos) throw erroTurnos
-      }
-
-      showToast(`Ponto "${nomeNovoPonto.trim()}" duplicado com ${turnosOrigem.length} turnos! ✅`, 'success')
-      setModalDuplicarPonto(null)
-      setNomeNovoPonto('')
-      onDataChanged()
-    } catch (err) {
-      console.error('Erro ao duplicar ponto:', err)
-      showToast('Erro ao duplicar ponto.', 'error')
-    } finally {
-      setDuplicandoPonto(false)
-    }
-  }, [modalDuplicarPonto, nomeNovoPonto, turnos, onDataChanged, showToast])
 
   // ─── Gestão de Pessoas nas Reservas (Admin) ───────────────────
   const [modalIncluirPessoa, setModalIncluirPessoa] = useState(null)
@@ -231,91 +163,6 @@ export default function AdminView({
     [modalIncluirPessoa, nomeCorretorManual, onDataChanged, showToast]
   )
 
-  // ─── CRUD Pontos ─────────────────────────────────────────────
-
-  const handleAddPonto = useCallback(
-    async (e) => {
-      e.preventDefault()
-      if (!formPontoNome.trim()) {
-        showToast('Preencha o nome do ponto.', 'error')
-        return
-      }
-
-      setAddingPonto(true)
-      try {
-        const { error } = await supabase.from('pontos').insert({
-          nome: formPontoNome.trim(),
-          ordem: formPontoOrdem,
-        })
-
-        if (error) throw error
-
-        showToast('Ponto de captação criado! ✅', 'success')
-        setFormPontoNome('')
-        setFormPontoOrdem((prev) => prev + 1)
-        onDataChanged()
-      } catch (err) {
-        console.error('Erro ao criar ponto:', err)
-        showToast('Erro ao criar ponto.', 'error')
-      } finally {
-        setAddingPonto(false)
-      }
-    },
-    [formPontoNome, formPontoOrdem, onDataChanged, showToast]
-  )
-
-  const handleRenamePonto = useCallback(
-    async (pontoId) => {
-      if (!editingPontoNome.trim()) {
-        showToast('Nome não pode ser vazio.', 'error')
-        return
-      }
-
-      try {
-        const { error } = await supabase
-          .from('pontos')
-          .update({ nome: editingPontoNome.trim() })
-          .eq('id', pontoId)
-
-        if (error) throw error
-
-        showToast('Ponto renomeado com sucesso! ✅', 'success')
-        setEditingPontoId(null)
-        setEditingPontoNome('')
-        onDataChanged()
-      } catch (err) {
-        console.error('Erro ao renomear ponto:', err)
-        showToast('Erro ao renomear ponto.', 'error')
-      }
-    },
-    [editingPontoNome, onDataChanged, showToast]
-  )
-
-  const handleDeletePonto = useCallback(
-    async (pontoId, pontoNome) => {
-      const ok = await confirm({
-        title: 'Excluir ponto?',
-        message: `Tem certeza que deseja excluir o ponto "${pontoNome}"?\n\nTodos os turnos e reservas deste ponto serão removidos permanentemente!`,
-        confirmText: 'Apagar tudo',
-        cancelText: 'Cancelar',
-        variant: 'danger',
-      })
-      if (!ok) return
-
-      try {
-        const { error } = await supabase.from('pontos').delete().eq('id', pontoId)
-        if (error) throw error
-
-        showToast('Ponto excluído.', 'info')
-        onDataChanged()
-      } catch (err) {
-        console.error('Erro ao excluir ponto:', err)
-        showToast('Erro ao excluir ponto.', 'error')
-      }
-    },
-    [confirm, onDataChanged, showToast]
-  )
-
   // ─── CRUD Turnos ─────────────────────────────────────────────
 
   const handleAddTurno = useCallback(
@@ -333,19 +180,26 @@ export default function AdminView({
 
       setAddingTurno(true)
       try {
+        const turnosMesmoDia = turnos.filter(
+          (t) => t.ponto_id === formPontoId && t.dia === formDia
+        )
+        const proximaOrdem =
+          turnosMesmoDia.length > 0
+            ? Math.max(...turnosMesmoDia.map((t) => (Number.isFinite(t.ordem) ? t.ordem : 0))) + 1
+            : 0
+
         const { error } = await supabase.from('turnos').insert({
           ponto_id: formPontoId,
           dia: formDia,
           horario: formHorario.trim(),
           capacidade: Math.max(1, formCapacidade),
-          ordem: formOrdem,
+          ordem: proximaOrdem,
         })
 
         if (error) throw error
 
         showToast('Turno adicionado com sucesso! ✅', 'success')
         setFormHorario('')
-        setFormOrdem((prev) => prev + 1)
         onDataChanged()
       } catch (err) {
         console.error('Erro ao adicionar turno:', err)
@@ -354,7 +208,7 @@ export default function AdminView({
         setAddingTurno(false)
       }
     },
-    [formPontoId, formDia, formHorario, formCapacidade, formOrdem, onDataChanged, showToast]
+    [formPontoId, formDia, formHorario, formCapacidade, turnos, onDataChanged, showToast]
   )
 
   const handleDeleteTurno = useCallback(
@@ -520,164 +374,16 @@ export default function AdminView({
         </div>
       </div>
 
-      {/* ═══ SEÇÃO: PONTOS DE CAPTAÇÃO ═══ */}
-      <div className="card">
-        <h2 className="text-base font-bold text-gray-200 mb-4 flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-brand-400" />
-          Pontos de Captação
-        </h2>
-
-        {/* Formulário de novo ponto */}
-        <form onSubmit={handleAddPonto} className="space-y-3 mb-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={formPontoNome}
-              onChange={(e) => setFormPontoNome(e.target.value)}
-              placeholder="Nome do ponto (ex: Mercado Extra)"
-              className="input-field flex-1"
-              maxLength={100}
-            />
-            <input
-              type="number"
-              value={formPontoOrdem}
-              onChange={(e) => setFormPontoOrdem(parseInt(e.target.value) || 0)}
-              min={0}
-              className="input-field w-20 text-center"
-              title="Ordem"
-              placeholder="#"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={addingPonto}
-            className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
-          >
-            {addingPonto ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Criando...
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" />
-                Criar Ponto de Captação
-              </>
-            )}
-          </button>
-        </form>
-
-        {/* Lista de pontos existentes */}
-        {pontos.length > 0 && (
-          <div className="space-y-2 border-t border-surface-600 pt-4">
-            {pontos.map((ponto) => {
-              const qtdTurnos = turnosPorPonto[ponto.id]?.length || 0
-              const isEditing = editingPontoId === ponto.id
-
-              return (
-                <div
-                  key={ponto.id}
-                  className="flex items-center gap-2 py-2.5 px-3 rounded-xl bg-surface-700/50"
-                >
-                  <Store className="w-4 h-4 text-brand-400 flex-shrink-0" />
-
-                  {isEditing ? (
-                    <div className="flex-1 flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={editingPontoNome}
-                        onChange={(e) => setEditingPontoNome(e.target.value)}
-                        className="input-field py-1.5 text-sm flex-1"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleRenamePonto(ponto.id)
-                          if (e.key === 'Escape') setEditingPontoId(null)
-                        }}
-                      />
-                      <button
-                        onClick={() => handleRenamePonto(ponto.id)}
-                        className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-400 transition-colors"
-                        title="Salvar"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setEditingPontoId(null)}
-                        className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-500 transition-colors"
-                        title="Cancelar"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      {(() => {
-                        const info = vagasPorPonto[ponto.id] || {}
-                        const temVagas = info.vagasLivres > 0
-                        return (
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-200 truncate">
-                              {ponto.nome}
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs text-gray-500">
-                                {qtdTurnos} turno{qtdTurnos !== 1 ? 's' : ''}
-                              </span>
-                              {info.totalCapacidade > 0 && (
-                                <span className={`text-xs font-medium ${temVagas ? 'text-emerald-400' : 'text-red-400'}`}>
-                                  • {temVagas
-                                    ? `${info.vagasLivres} vaga${info.vagasLivres !== 1 ? 's' : ''} livre${info.vagasLivres !== 1 ? 's' : ''}`
-                                    : 'Lotado'}
-                                </span>
-                              )}
-                              <span className="text-xs text-gray-600">• Ordem: {ponto.ordem}</span>
-                            </div>
-                          </div>
-                        )
-                      })()}
-
-                      <button
-                        onClick={() => {
-                          setEditingPontoId(ponto.id)
-                          setEditingPontoNome(ponto.nome)
-                        }}
-                        className="p-2 rounded-lg hover:bg-brand-500/10 text-gray-600 hover:text-brand-400 transition-colors flex-shrink-0"
-                        title="Renomear ponto"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => abrirModalDuplicarPonto(ponto, qtdTurnos)}
-                        className="p-2 rounded-lg hover:bg-emerald-500/10 text-gray-600 hover:text-emerald-400 transition-colors flex-shrink-0"
-                        title={`Duplicar ponto e seus ${qtdTurnos} turnos`}
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => onLimparEscala(ponto.id)}
-                        className="p-2 rounded-lg hover:bg-amber-500/10 text-gray-600 hover:text-amber-400 transition-colors flex-shrink-0"
-                        title="Limpar reservas deste ponto"
-                      >
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => handleDeletePonto(ponto.id, ponto.nome)}
-                        className="p-2 rounded-lg hover:bg-red-500/10 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0"
-                        title="Excluir ponto"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      {/* ═══ SEÇÃO: PONTOS DE CAPTAÇÃO (COMPONENTIZADO COM DRAG & DROP) ═══ */}
+      <PontosManager
+        pontos={pontos}
+        turnos={turnos}
+        turnosPorPonto={turnosPorPonto}
+        vagasPorPonto={vagasPorPonto}
+        onLimparEscala={onLimparEscala}
+        onDataChanged={onDataChanged}
+        showToast={showToast}
+      />
 
       {/* ═══ SEÇÃO: TURNOS ═══ */}
       <div className="card">
@@ -754,35 +460,21 @@ export default function AdminView({
               />
             </div>
 
-            {/* Capacidade e Ordem */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5" />
-                  Capacidade
-                </label>
-                <input
-                  type="number"
-                  value={formCapacidade}
-                  onChange={(e) => setFormCapacidade(parseInt(e.target.value) || 1)}
-                  min={1}
-                  max={50}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1.5">
-                  <Hash className="w-3.5 h-3.5" />
-                  Ordem
-                </label>
-                <input
-                  type="number"
-                  value={formOrdem}
-                  onChange={(e) => setFormOrdem(parseInt(e.target.value) || 0)}
-                  min={0}
-                  className="input-field"
-                />
-              </div>
+            {/* Capacidade */}
+            <div>
+              <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" />
+                Capacidade de vagas neste horário
+              </label>
+              <input
+                type="number"
+                value={formCapacidade}
+                onChange={(e) => setFormCapacidade(parseInt(e.target.value) || 1)}
+                min={1}
+                max={50}
+                className="input-field"
+                placeholder="Ex: 2 ou 3 vagas"
+              />
             </div>
 
             <button
@@ -928,134 +620,23 @@ export default function AdminView({
                             (a, b) => DIAS_OPCOES.indexOf(a) - DIAS_OPCOES.indexOf(b)
                           )
 
-                        return diasOrdenados.map((dia) => {
-                          const ts = porDia[dia]
-                          return (
-                            <div key={dia} className="mb-3">
-                              <div className="flex items-center justify-between mb-1.5 px-1">
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                                  {dia}
-                                </p>
-                                <button
-                                  onClick={() => abrirModalDuplicar(ponto.id, ponto.nome, dia, ts)}
-                                  className="flex items-center gap-1.5 text-xs font-semibold text-brand-300 hover:text-brand-200 bg-brand-500/15 hover:bg-brand-500/25 px-2.5 py-1 rounded-lg transition-colors border border-brand-500/20"
-                                  title={`Copiar turnos de ${dia} para outros dias da semana`}
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                  Duplicar horários
-                                </button>
-                              </div>
-                              {ts.sort((a, b) => a.ordem - b.ordem).map((turno) => {
-                                const reservasTurno = reservas.filter(
-                                  (r) => r.turno_id === turno.id
-                                )
-                                const lotado = reservasTurno.length >= turno.capacidade
-
-                                return (
-                                  <div
-                                    key={turno.id}
-                                    className="p-3 rounded-xl bg-surface-700/60 border border-surface-600/40 mb-2 space-y-2.5 transition-all"
-                                  >
-                                    {/* Linha superior: Horário, vagas e botões de ação */}
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <Clock className="w-4 h-4 text-brand-400 flex-shrink-0" />
-                                        <p className="text-sm font-bold text-gray-100 truncate">
-                                          {turno.horario}
-                                        </p>
-                                        <span
-                                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border flex-shrink-0 ${
-                                            lotado
-                                              ? 'bg-red-500/15 text-red-400 border-red-500/20'
-                                              : reservasTurno.length > 0
-                                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/20'
-                                              : 'bg-surface-800 text-gray-400 border-surface-600'
-                                          }`}
-                                        >
-                                          {reservasTurno.length}/{turno.capacidade} vagas
-                                        </span>
-                                      </div>
-
-                                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                                        <button
-                                          onClick={() =>
-                                            handleAbrirIncluirPessoa(
-                                              turno.id,
-                                              turno.horario,
-                                              dia,
-                                              ponto.nome
-                                            )
-                                          }
-                                          className="flex items-center gap-1 text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 px-2.5 py-1 rounded-lg transition-colors border border-emerald-500/30"
-                                          title="Incluir corretor neste horário"
-                                        >
-                                          <UserPlus className="w-3.5 h-3.5" />
-                                          Incluir
-                                        </button>
-
-                                        <button
-                                          onClick={() =>
-                                            handleDeleteTurno(
-                                              turno.id,
-                                              `${ponto.nome} — ${dia} ${turno.horario}`
-                                            )
-                                          }
-                                          className="p-1.5 rounded-lg hover:bg-red-500/15 text-gray-500 hover:text-red-400 transition-colors"
-                                          title="Excluir este turno inteiro"
-                                          aria-label="Excluir turno"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </div>
-
-                                    {/* Lista de pessoas escaladas neste turno */}
-                                    <div className="pt-2 border-t border-surface-600/40">
-                                      <p className="text-[11px] font-medium text-gray-400 flex items-center gap-1 mb-1.5">
-                                        <Users className="w-3 h-3 text-gray-500" />
-                                        Corretores escalados:
-                                      </p>
-
-                                      {reservasTurno.length === 0 ? (
-                                        <p className="text-xs text-gray-500 italic">
-                                          Nenhum corretor escalado neste horário.
-                                        </p>
-                                      ) : (
-                                        <div className="flex flex-wrap gap-1.5">
-                                          {reservasTurno.map((r) => (
-                                            <div
-                                              key={r.id}
-                                              className="flex items-center gap-1.5 bg-surface-800 text-gray-200 text-xs px-2.5 py-1 rounded-lg border border-surface-600/70 shadow-sm"
-                                            >
-                                              <User className="w-3 h-3 text-brand-400" />
-                                              <span className="font-medium">
-                                                {r.corretor_nome}
-                                              </span>
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  handleRemoverReserva(
-                                                    r.id,
-                                                    r.corretor_nome,
-                                                    `${dia} ${turno.horario}`
-                                                  )
-                                                }
-                                                className="ml-1 p-0.5 rounded text-gray-400 hover:text-red-400 hover:bg-red-500/20 transition-colors"
-                                                title={`Excluir ${r.corretor_nome} deste turno`}
-                                              >
-                                                <X className="w-3 h-3 stroke-[2.5]" />
-                                              </button>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )
-                        })
+                          return diasOrdenados.map((dia) => (
+                            <TurnosDiaList
+                              key={dia}
+                              dia={dia}
+                              turnos={porDia[dia]}
+                              ponto={ponto}
+                              reservas={reservas}
+                              onAbrirIncluirPessoa={handleAbrirIncluirPessoa}
+                              onDeleteTurno={handleDeleteTurno}
+                              onRemoverReserva={handleRemoverReserva}
+                              onAbrirDuplicar={() =>
+                                abrirModalDuplicar(ponto.id, ponto.nome, dia, porDia[dia])
+                              }
+                              onDataChanged={onDataChanged}
+                              showToast={showToast}
+                            />
+                          ))
                       })())}
                     </div>
                   )}
@@ -1231,98 +812,6 @@ export default function AdminView({
         </div>
       )}
 
-      {/* ═══ MODAL DE DUPLICAÇÃO DE PONTO INTEIRO ═══ */}
-      {modalDuplicarPonto && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => !duplicandoPonto && setModalDuplicarPonto(null)}
-          />
-
-          <div className="relative w-full max-w-md bg-surface-800 border border-surface-600 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-slide-up z-10">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                  <Copy className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-gray-100">
-                    Duplicar Ponto de Captação
-                  </h3>
-                  <p className="text-xs text-gray-400">
-                    Copiando horários de{' '}
-                    <span className="text-emerald-300 font-medium">
-                      {modalDuplicarPonto.ponto.nome}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => !duplicandoPonto && setModalDuplicarPonto(null)}
-                className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-400 hover:text-gray-200 transition-colors"
-                disabled={duplicandoPonto}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="mb-4 p-3 bg-surface-900/60 rounded-xl border border-surface-700">
-              <p className="text-xs text-gray-300">
-                ✨ Serão clonados todos os{' '}
-                <strong className="text-emerald-400">{modalDuplicarPonto.totalTurnos} turnos</strong> (dias,
-                horários e capacidades) deste ponto. As reservas iniciarão zeradas para o novo ponto.
-              </p>
-            </div>
-
-            <form onSubmit={handleConfirmDuplicarPonto} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
-                  Nome do novo ponto de captação:
-                </label>
-                <input
-                  type="text"
-                  value={nomeNovoPonto}
-                  onChange={(e) => setNomeNovoPonto(e.target.value)}
-                  placeholder="Ex: Padaria Di Cunto"
-                  className="input-field text-base font-medium"
-                  autoFocus
-                  required
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setModalDuplicarPonto(null)}
-                  disabled={duplicandoPonto}
-                  className="btn-ghost flex-1 py-3 text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={duplicandoPonto || !nomeNovoPonto.trim()}
-                  className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700"
-                >
-                  {duplicandoPonto ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Duplicando...
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      Criar Cópia
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* ═══ MODAL DE INCLUSÃO MANUAL DE CORRETOR ═══ */}
       {modalIncluirPessoa && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -1351,6 +840,7 @@ export default function AdminView({
               </div>
 
               <button
+                type="button"
                 onClick={() => !salvandoPessoa && setModalIncluirPessoa(null)}
                 className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-400 hover:text-gray-200 transition-colors"
                 disabled={salvandoPessoa}
