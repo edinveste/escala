@@ -86,13 +86,27 @@ export default function CorretorView({
 
   // Gerar texto para copiar
   const gerarTextoEscala = () => {
-    let texto = '📋 *ESCALA DE CAPTAÇÃO*\n'
-    texto += '━━━━━━━━━━━━━━━━━━\n\n'
-
     // Se tem ponto selecionado, copia só dele; senão copia todos
     const pontosParaCopiar = selectedPontoId
       ? pontos.filter((p) => p.id === selectedPontoId)
       : pontos
+
+    // Identificar capacidade dos turnos para exibir no cabeçalho
+    const turnosParaCopiar = turnos.filter((t) =>
+      pontosParaCopiar.some((p) => p.id === t.ponto_id)
+    )
+    const capacidades = [
+      ...new Set(turnosParaCopiar.map((t) => t.capacidade).filter(Boolean)),
+    ]
+    let capTexto = '2 por horário'
+    if (capacidades.length === 1) {
+      capTexto = `${capacidades[0]} por horário`
+    } else if (capacidades.length > 1) {
+      capTexto = `${Math.min(...capacidades)} a ${Math.max(...capacidades)} por horário`
+    }
+
+    let texto = `📋 *ESCALA DE CAPTAÇÃO (${capTexto})*\n`
+    texto += '━━━━━━━━━━━━━━━━━━\n\n'
 
     for (const ponto of pontosParaCopiar) {
       const turnosDoPonto = turnos
@@ -117,16 +131,15 @@ export default function CorretorView({
       })
 
       for (const dia of diasOrd) {
-        texto += `📅 *${dia}*\n`
+        texto += `📅 *${dia}*\n\n`
         for (const turno of porDia[dia]) {
           const reservasTurno = reservasPorTurno[turno.id] || []
           const nomes = reservasTurno.map((r) => r.corretor_nome.toUpperCase()).join(' / ')
-          const vagasInfo = `(${reservasTurno.length}/${turno.capacidade})`
 
           if (nomes) {
-            texto += `🕐 ${turno.horario} ${vagasInfo}\n   → ${nomes}\n`
+            texto += `🕐 ${turno.horario}\n   → ${nomes}\n`
           } else {
-            texto += `🕐 ${turno.horario} ${vagasInfo}\n   → _vago_\n`
+            texto += `🕐 ${turno.horario}\n   → _vago_\n`
           }
         }
         texto += '\n'
