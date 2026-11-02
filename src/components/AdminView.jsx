@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useConfirm } from './ConfirmModal'
 import PontosManager from './PontosManager'
 import TurnosDiaList from './TurnosDiaList'
+import AlterarSenhaModal from './AlterarSenhaModal'
 import {
   Plus,
   Trash2,
@@ -18,6 +19,8 @@ import {
   Layers,
   User,
   UserPlus,
+  Key,
+  Lock,
 } from 'lucide-react'
 
 const DIAS_OPCOES = [
@@ -41,16 +44,41 @@ export default function AdminView({
   const confirm = useConfirm()
 
   // Estado do formulário de turno
+  const STORAGE_KEY_FORM_DIA = 'escala_admin_ultimo_dia'
+
   const [formPontoId, setFormPontoId] = useState('')
-  const [formDia, setFormDia] = useState('SÁBADO')
+  const [formDia, setFormDia] = useState(() => {
+    try {
+      const salvo = localStorage.getItem(STORAGE_KEY_FORM_DIA)
+      if (salvo && DIAS_OPCOES.includes(salvo)) {
+        return salvo
+      }
+    } catch (err) {
+      console.error('Erro ao ler preferência de dia:', err)
+    }
+    return 'SEGUNDA' // Padrão inicial para 1º uso: SEGUNDA
+  })
   const [formHorario, setFormHorario] = useState('')
   const [formCapacidade, setFormCapacidade] = useState(3)
   const [addingTurno, setAddingTurno] = useState(false)
+
+  const handleDiaChange = (e) => {
+    const novoDia = e.target.value
+    setFormDia(novoDia)
+    try {
+      localStorage.setItem(STORAGE_KEY_FORM_DIA, novoDia)
+    } catch (err) {
+      console.error('Erro ao salvar preferência de dia:', err)
+    }
+  }
 
   // Estado para duplicação de dia
   const [modalDuplicar, setModalDuplicar] = useState(null) // { pontoId, pontoNome, diaOrigem, turnos }
   const [diasDestino, setDiasDestino] = useState([])
   const [duplicando, setDuplicando] = useState(false)
+
+  // Estado para modal de alteração de senha
+  const [showModalSenha, setShowModalSenha] = useState(false)
 
   // Controle de sanfona (accordion) dos pontos na listagem de turnos
   // Padrão: tudo recolhido na 1ª abertura, com persistência no localStorage
@@ -374,6 +402,30 @@ export default function AdminView({
         </div>
       </div>
 
+      {/* ═══ SEGURANÇA: SENHA DO ADMIN ═══ */}
+      <div className="card flex items-center justify-between gap-3 bg-surface-800/90 border-surface-600">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex-shrink-0">
+            <Key className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-gray-200 truncate">
+              Senha de Administrador
+            </h3>
+            <p className="text-xs text-gray-400 truncate">
+              Altere o PIN de acesso ao painel de controle
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowModalSenha(true)}
+          className="btn-ghost text-xs px-3.5 py-2.5 flex items-center gap-1.5 flex-shrink-0 border border-surface-600 hover:border-amber-500/40 hover:text-amber-300 transition-colors"
+        >
+          <Lock className="w-3.5 h-3.5" />
+          Alterar Senha
+        </button>
+      </div>
+
       {/* ═══ SEÇÃO: PONTOS DE CAPTAÇÃO (COMPONENTIZADO COM DRAG & DROP) ═══ */}
       <PontosManager
         pontos={pontos}
@@ -432,7 +484,7 @@ export default function AdminView({
               <div className="relative">
                 <select
                   value={formDia}
-                  onChange={(e) => setFormDia(e.target.value)}
+                  onChange={handleDiaChange}
                   className="input-field appearance-none pr-10"
                 >
                   {DIAS_OPCOES.map((dia) => (
@@ -899,6 +951,13 @@ export default function AdminView({
           </div>
         </div>
       )}
+
+      {/* ═══ MODAL DE ALTERAÇÃO DE SENHA ═══ */}
+      <AlterarSenhaModal
+        isOpen={showModalSenha}
+        onClose={() => setShowModalSenha(false)}
+        showToast={showToast}
+      />
     </div>
   )
 }

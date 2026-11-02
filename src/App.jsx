@@ -3,9 +3,10 @@ import { supabase } from './lib/supabaseClient'
 import CorretorView from './components/CorretorView'
 import AdminView from './components/AdminView'
 import NomeModal from './components/NomeModal'
+import AdminLoginModal from './components/AdminLoginModal'
 import Toast from './components/Toast'
 import { useConfirm } from './components/ConfirmModal'
-import { Shield, ArrowLeft, CalendarCheck } from 'lucide-react'
+import { Shield, ArrowLeft, CalendarCheck, LogOut } from 'lucide-react'
 
 // Gera um UUID v4 simples
 function generateUUID() {
@@ -34,6 +35,7 @@ export default function App() {
   // Navegação simples
   const [view, setView] = useState('corretor') // 'corretor' | 'admin'
   const [isAdminAuth, setIsAdminAuth] = useState(false)
+  const [showAdminLoginModal, setShowAdminLoginModal] = useState(false)
 
   // Toast
   const [toast, setToast] = useState(null)
@@ -257,30 +259,18 @@ export default function App() {
     [deviceId, showToast]
   )
 
-  const handleAdminAccess = useCallback(async () => {
-    const pin = prompt('Digite o PIN de administrador:')
-    if (!pin) return
-
-    try {
-      const { data, error } = await supabase
-        .from('config')
-        .select('admin_pin')
-        .eq('id', 1)
-        .single()
-
-      if (error) throw error
-
-      if (data.admin_pin === pin) {
-        setIsAdminAuth(true)
-        setView('admin')
-        showToast('Acesso admin concedido.', 'success')
-      } else {
-        showToast('PIN incorreto!', 'error')
-      }
-    } catch (err) {
-      console.error('Erro ao verificar PIN:', err)
-      showToast('Erro ao verificar PIN.', 'error')
+  const handleAdminAccess = useCallback(() => {
+    if (isAdminAuth) {
+      setView('admin')
+      return
     }
+    setShowAdminLoginModal(true)
+  }, [isAdminAuth])
+
+  const handleAdminLogout = useCallback(() => {
+    setIsAdminAuth(false)
+    setView('corretor')
+    showToast('Você saiu do modo administrador.', 'info')
   }, [showToast])
 
   const handleLimparEscala = useCallback(async (pontoId = null) => {
@@ -330,7 +320,8 @@ export default function App() {
               <button
                 onClick={() => setView('corretor')}
                 className="p-2 -ml-2 rounded-xl hover:bg-surface-700 transition-colors"
-                aria-label="Voltar"
+                aria-label="Voltar para a escala"
+                title="Voltar para a escala"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-400" />
               </button>
@@ -358,9 +349,19 @@ export default function App() {
           )}
 
           {view === 'admin' && (
-            <span className="text-xs font-medium text-amber-400 bg-amber-400/10 px-3 py-1.5 rounded-full">
-              Admin
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded-full">
+                Admin
+              </span>
+              <button
+                onClick={handleAdminLogout}
+                className="flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-3 py-1.5 rounded-xl transition-all active:scale-95 min-h-[36px]"
+                title="Sair do modo administrador"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Sair
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -405,6 +406,17 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Modal de login admin */}
+      <AdminLoginModal
+        isOpen={showAdminLoginModal}
+        onClose={() => setShowAdminLoginModal(false)}
+        onSuccess={() => {
+          setIsAdminAuth(true)
+          setView('admin')
+        }}
+        showToast={showToast}
+      />
 
       {/* Toast */}
       {toast && (

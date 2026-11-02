@@ -59,9 +59,14 @@ O **Escala CRM - Controle de Captação** é uma Single Page Application (SPA) m
   - Permite que o corretor delete apenas sua própria vaga comparando `device_id`.
 - **`limpar_escala(p_ponto_id UUID DEFAULT NULL)`**:
   - Se `p_ponto_id` for informado, deleta apenas as reservas dos turnos daquele ponto. Se for `NULL`, limpa todas as reservas do sistema.
+- **`verificar_admin_pin(p_pin)`**:
+  - Valida o PIN informado sem expor a senha no tráfego de rede HTTP.
+- **`alterar_admin_pin(p_pin_atual, p_novo_pin)`**:
+  - Valida o PIN atual e define uma nova senha (mínimo de 4 dígitos, recomendado 8).
 
 ### Políticas de RLS (Row Level Security):
-- `config`, `pontos`, `turnos`: Leitura pública (`SELECT` liberado para `anon`). Modificação permitida para MVP/Admin.
+- `config`: Leitura e atualização protegidas (com RPCs `verificar_admin_pin` e `alterar_admin_pin`).
+- `pontos`, `turnos`: Leitura pública (`SELECT` liberado para `anon`). Modificação permitida para MVP/Admin.
 - `reservas`: Leitura pública, `INSERT` público (via RPC ou admin manual), `DELETE` permitido para o próprio device ou operações administrativas.
 - Realtime ativado para as tabelas: `pontos`, `turnos`, `reservas`.
 
@@ -80,6 +85,7 @@ e:\Escala\
 ├── index.html                   # Mobile-first viewport e meta tags PWA
 ├── supabase_schema.sql          # Schema SQL completo e atualizado
 ├── supabase_migration_pontos.sql# Migração para introdução de múltiplos pontos
+├── supabase_migration_pin.sql   # Migração para alteração e segurança de senha/PIN
 ├── PROJECT_MEMORY.md            # Este arquivo de contexto/memória da IA
 └── src/
     ├── main.jsx                 # Ponto de entrada do React
@@ -92,7 +98,9 @@ e:\Escala\
         ├── TurnoCard.jsx        # Card de turno na visão do corretor (progresso, botões contextuais)
         ├── NomeModal.jsx        # Modal bottom-sheet para solicitar nome do corretor no 1º uso
         ├── ConfirmModal.jsx     # Modal universal assíncrono de confirmação/exclusão (useConfirm)
-        ├── AdminView.jsx        # Painel do Administrador (turnos e acordeon)
+        ├── AdminLoginModal.jsx  # Modal estilizado para login do administrador com visibilidade de PIN
+        ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo próprio administrador
+        ├── AdminView.jsx        # Painel do Administrador (gestão de senha, turnos e acordeon)
         ├── PontosManager.jsx    # Gestão de pontos (criação limpa, drag-and-drop de reordenação, duplicar e renomear)
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
         └── Toast.jsx            # Notificações visuais animadas
@@ -116,27 +124,30 @@ e:\Escala\
    - Sticky footer com botão de copiar escala em texto estruturado e formatado com emojis (ótimo para colar em grupos de WhatsApp).
 
 ### 5.2. Fluxo do Admin (Protegido por PIN)
-1. **Acesso**: Ícone de escudo discreto no header com PIN verificado no Supabase (`1234`).
-2. **Gestão de Pontos de Captação ([PontosManager.jsx](file:///e:/Escala/src/components/PontosManager.jsx))**:
+1. **Acesso e Sessão**: Ícone de escudo discreto no header abrindo modal moderno de PIN com revelação de senha (`AdminLoginModal.jsx`) validado no Supabase. A seta de voltar (←) apenas alterna para a visualização pública mantendo a sessão ativa para navegação rápida. O botão explícito de **"Sair"** encerra a sessão (`isAdminAuth = false`), exigindo o PIN a cada novo acesso.
+2. **Alteração de Senha ([AlterarSenhaModal.jsx](file:///e:/Escala/src/components/AlterarSenhaModal.jsx))**:
+   - Card dedicado no topo do Painel com botão "Alterar Senha".
+   - Permite que o comprador altere o PIN sozinho, validando a senha atual, exigindo no mínimo 4 dígitos (com recomendação de 8 dígitos) e confirmação.
+3. **Gestão de Pontos de Captação ([PontosManager.jsx](file:///e:/Escala/src/components/PontosManager.jsx))**:
    - Criar novos pontos com ordem calculada automaticamente (sem campo de número manual).
    - **Arrastar e Soltar (SortableJS)**: Reordenar pontos via pegador `⠿` (`GripVertical`) com animação fluida e salvamento em tempo real no Supabase.
    - Renomear inline com o botão de lápis.
    - **Duplicar Ponto Inteiro**: Ícone de cópia 📋 que clona todos os turnos de um ponto existente para o novo ponto, iniciando as reservas zeradas.
    - Limpar reservas de um ponto específico (ícone de alerta ⚠️).
    - Excluir ponto (com cascade nos turnos e reservas).
-3. **Criação e Gestão de Turnos ([TurnosDiaList.jsx](file:///e:/Escala/src/components/TurnosDiaList.jsx))**:
-   - Criar turnos por ponto, dia, horário e capacidade (ordem calculada automaticamente ao fim do dia).
+4. **Criação e Gestão de Turnos ([TurnosDiaList.jsx](file:///e:/Escala/src/components/TurnosDiaList.jsx))**:
+   - Criar turnos por ponto, dia, horário e capacidade (ordem calculada automaticamente ao fim do dia). O campo Dia inicia por padrão em "SEGUNDA" na primeira utilização e memoriza a última escolha no `localStorage` (`escala_admin_ultimo_dia`).
    - **Arrastar e Soltar nos Turnos**: Reordenar horários dentro de cada dia arrastando pelo pegador `⠿`, com animação física e persistência imediata no Supabase.
    - **Duplicar Horários de um Dia**: Botão `Duplicar horários` ao lado de cada dia para replicar a grade (ex: Segunda) para outros dias selecionados ou atalhos ("Seg a Sex", "Fim de Semana", "Marcar Todos"), preservando a ordem personalizada.
-4. **Gestão de Pessoas por Turno (Excluir e Incluir)**:
+5. **Gestão de Pessoas por Turno (Excluir e Incluir)**:
    - Exibe lista de corretores escalados com chips visuais individuais.
    - **Excluir corretor**: Botão `✖` em cada corretor para cancelar apenas a reserva dele sem apagar o turno.
    - **Incluir corretor manual**: Botão `+ Incluir` para adicionar um corretor diretamente pelo Admin (via modal com validação). Atualiza silenciosamente sem resetar o scroll da página.
    - **Excluir turno**: Botão de lixeira 🗑️ para deletar o horário por completo.
-5. **Accordion / Sanfona de Pontos**:
+6. **Accordion / Sanfona de Pontos**:
    - Setinha 🔽 retrátil em cada ponto cadastrado para recolher/expandir dias e horários, permitindo navegar entre múltiplos pontos rapidamente. Inicia recolhido por padrão e salva a preferência do usuário no `localStorage` (`escala_admin_pontos_expandidos`).
    - Atalhos de "Recolher todos" e "Expandir todos".
-6. **Zona de Perigo**:
+7. **Zona de Perigo**:
    - Botão para limpar a escala inteira da semana (reseta todas as reservas de todos os pontos).
 
 ---

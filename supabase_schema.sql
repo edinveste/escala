@@ -57,6 +57,8 @@ ALTER TABLE reservas ENABLE ROW LEVEL SECURITY;
 -- CONFIG
 CREATE POLICY "config_select_public"
   ON config FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "config_update_public"
+  ON config FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- PONTOS
 CREATE POLICY "pontos_select_public"
@@ -173,6 +175,44 @@ BEGIN
   ELSE
     DELETE FROM reservas;
   END IF;
+END;
+$$;
+
+-- ============================================================
+-- RPC: verificar_admin_pin
+-- ============================================================
+CREATE OR REPLACE FUNCTION verificar_admin_pin(p_pin TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_valido BOOLEAN;
+BEGIN
+  SELECT (admin_pin = p_pin) INTO v_valido FROM config WHERE id = 1;
+  RETURN COALESCE(v_valido, FALSE);
+END;
+$$;
+
+-- ============================================================
+-- RPC: alterar_admin_pin
+-- ============================================================
+CREATE OR REPLACE FUNCTION alterar_admin_pin(p_pin_atual TEXT, p_novo_pin TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF length(trim(p_novo_pin)) < 4 THEN
+    RETURN FALSE;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM config WHERE id = 1 AND admin_pin = p_pin_atual) THEN
+    RETURN FALSE;
+  END IF;
+
+  UPDATE config SET admin_pin = p_novo_pin WHERE id = 1;
+  RETURN TRUE;
 END;
 $$;
 

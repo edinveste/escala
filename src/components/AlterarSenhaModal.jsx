@@ -1,0 +1,263 @@
+import { useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { Key, Lock, Eye, EyeOff, X, CheckCircle2, ShieldAlert } from 'lucide-react'
+
+export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
+  const [pinAtual, setPinAtual] = useState('')
+  const [novoPin, setNovoPin] = useState('')
+  const [confirmarPin, setConfirmarPin] = useState('')
+
+  const [showPinAtual, setShowPinAtual] = useState(false)
+  const [showNovoPin, setShowNovoPin] = useState(false)
+  const [showConfirmarPin, setShowConfirmarPin] = useState(false)
+
+  const [salvando, setSalvando] = useState(false)
+
+  if (!isOpen) return null
+
+  const handleSalvar = async (e) => {
+    if (e) e.preventDefault()
+
+    const atual = pinAtual.trim()
+    const novo = novoPin.trim()
+    const confirmacao = confirmarPin.trim()
+
+    if (!atual) {
+      showToast('Digite a senha atual.', 'warning')
+      return
+    }
+
+    if (novo.length < 4) {
+      showToast('A nova senha deve ter no mínimo 4 dígitos/caracteres.', 'warning')
+      return
+    }
+
+    if (novo === atual) {
+      showToast('A nova senha deve ser diferente da senha atual.', 'warning')
+      return
+    }
+
+    if (novo !== confirmacao) {
+      showToast('A confirmação da senha não coincide com a nova senha.', 'error')
+      return
+    }
+
+    setSalvando(true)
+    try {
+      // 1. Tentar alterar pela RPC segura
+      const { data: sucessoRpc, error: rpcError } = await supabase.rpc('alterar_admin_pin', {
+        p_pin_atual: atual,
+        p_novo_pin: novo,
+      })
+
+      if (!rpcError && typeof sucessoRpc === 'boolean') {
+        if (sucessoRpc) {
+          showToast('Senha alterada com sucesso! Guarde a nova senha. 🔐', 'success')
+          onClose()
+          return
+        } else {
+          showToast('A senha atual está incorreta. Tente novamente.', 'error')
+          return
+        }
+      }
+
+      // 2. Fallback caso a RPC ainda não esteja instalada no banco
+      const { data: configAtual, error: errSelect } = await supabase
+        .from('config')
+        .select('admin_pin')
+        .eq('id', 1)
+        .single()
+
+      if (errSelect) throw errSelect
+
+      if (configAtual.admin_pin !== atual) {
+        showToast('A senha atual está incorreta.', 'error')
+        return
+      }
+
+      const { error: errUpdate } = await supabase
+        .from('config')
+        .update({ admin_pin: novo })
+        .eq('id', 1)
+
+      if (errUpdate) throw errUpdate
+
+      showToast('Senha alterada com sucesso! 🔐', 'success')
+      onClose()
+    } catch (err) {
+      console.error('Erro ao alterar senha:', err)
+      showToast('Erro ao atualizar senha no banco. Verifique as permissões.', 'error')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/75 backdrop-blur-sm animate-fade-in"
+        onClick={() => !salvando && onClose()}
+      />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-md bg-surface-800 border border-surface-600 rounded-3xl p-6 shadow-2xl animate-scale-up z-10 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <Key className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-gray-100">
+                Alterar Senha do Admin
+              </h3>
+              <p className="text-xs text-gray-400">
+                Defina um novo PIN de acesso ao painel
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={salvando}
+            className="p-1 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Dica de Segurança */}
+        <div className="mb-4 p-3 rounded-xl bg-surface-700/50 border border-surface-600 text-xs text-gray-300 flex items-start gap-2.5">
+          <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-amber-300">Recomendação de Segurança:</p>
+            <p className="text-gray-400 mt-0.5">
+              Utilize uma senha com <strong className="text-gray-200">8 dígitos</strong> para proteger o painel contra tentativas de adivinhação.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSalvar} className="space-y-3.5">
+          {/* Senha Atual */}
+          <div>
+            <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
+              Senha Atual:
+            </label>
+            <div className="relative">
+              <input
+                type={showPinAtual ? 'text' : 'password'}
+                value={pinAtual}
+                onChange={(e) => setPinAtual(e.target.value)}
+                placeholder="Digite a senha atual (padrão: 1234)"
+                className="input-field pr-12 font-mono"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPinAtual(!showPinAtual)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 p-1"
+                tabIndex={-1}
+              >
+                {showPinAtual ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Nova Senha */}
+          <div>
+            <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
+              Nova Senha (mínimo 4 dígitos, recomendado 8):
+            </label>
+            <div className="relative">
+              <input
+                type={showNovoPin ? 'text' : 'password'}
+                value={novoPin}
+                onChange={(e) => setNovoPin(e.target.value)}
+                placeholder="Ex: 85934120"
+                className="input-field pr-12 font-mono"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowNovoPin(!showNovoPin)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 p-1"
+                tabIndex={-1}
+              >
+                {showNovoPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {novoPin.length > 0 && (
+              <p className={`text-[11px] mt-1 ${novoPin.length >= 8 ? 'text-emerald-400' : novoPin.length >= 4 ? 'text-amber-400' : 'text-red-400'}`}>
+                {novoPin.length} dígitos {novoPin.length >= 8 ? '— Excelente! Tamanho ideal.' : novoPin.length >= 4 ? '— Aceitável (recomendado 8 dígitos).' : '— Muito curta.'}
+              </p>
+            )}
+          </div>
+
+          {/* Confirmar Nova Senha */}
+          <div>
+            <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
+              Confirmar Nova Senha:
+            </label>
+            <div className="relative">
+              <input
+                type={showConfirmarPin ? 'text' : 'password'}
+                value={confirmarPin}
+                onChange={(e) => setConfirmarPin(e.target.value)}
+                placeholder="Digite a nova senha novamente"
+                className="input-field pr-12 font-mono"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmarPin(!showConfirmarPin)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 p-1"
+                tabIndex={-1}
+              >
+                {showConfirmarPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {confirmarPin.length > 0 && novoPin !== confirmarPin && (
+              <p className="text-[11px] text-red-400 mt-1">
+                As senhas não coincidem.
+              </p>
+            )}
+            {confirmarPin.length > 0 && novoPin === confirmarPin && (
+              <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Senhas coincidem perfeitamente.
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-2.5 pt-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={salvando}
+              className="btn-ghost flex-1 py-3 text-sm"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={salvando || !pinAtual || novoPin.length < 4 || novoPin !== confirmarPin}
+              className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700"
+            >
+              {salvando ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Lock className="w-4 h-4" />
+                  Salvar Nova Senha
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
