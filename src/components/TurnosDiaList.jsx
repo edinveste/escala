@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Sortable from 'sortablejs'
 import { supabase } from '../lib/supabaseClient'
+import { formatarNomeDia } from '../lib/diasSemana'
 import {
   Clock,
   Copy,
@@ -44,7 +45,7 @@ export default function TurnosDiaList({
             supabase.from('turnos').update({ ordem: idx }).eq('id', t.id)
           )
         )
-        showToast(`Ordem dos horários de ${dia} atualizada! ↕️`, 'success')
+        showToast(`Ordem dos horários de ${formatarNomeDia(dia)} atualizada! ↕️`, 'success')
         onDataChanged()
       } catch (err) {
         console.error('Erro ao salvar nova ordem dos turnos:', err)
@@ -106,7 +107,7 @@ export default function TurnosDiaList({
       <div className="flex items-center justify-between mb-2 px-1">
         <div className="flex items-center gap-1.5">
           <p className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-            {dia}
+            {formatarNomeDia(dia)}
           </p>
           <span className="text-[11px] text-gray-500 font-medium">
             ({listaTurnos.length} horário{listaTurnos.length !== 1 ? 's' : ''})
@@ -117,7 +118,7 @@ export default function TurnosDiaList({
           type="button"
           onClick={onAbrirDuplicar}
           className="flex items-center gap-1.5 text-xs font-semibold text-brand-300 hover:text-brand-200 bg-brand-500/15 hover:bg-brand-500/25 px-2.5 py-1 rounded-lg transition-colors border border-brand-500/20"
-          title={`Copiar turnos de ${dia} para outros dias da semana`}
+          title={`Copiar turnos de ${formatarNomeDia(dia)} para outros dias da semana`}
         >
           <Copy className="w-3.5 h-3.5" />
           Duplicar horários

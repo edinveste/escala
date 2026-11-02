@@ -4,6 +4,17 @@
 
 ---
 
+## 0. Perfil de Atuação e Padrões de Engenharia (Senior Software Engineer)
+- **Mindset de Engenheiro Sênior**: Em todas as tarefas, atue como um **Engenheiro de Software Sênior e Arquiteto de Soluções**. Pense de forma preventiva, prevendo casos de borda, concorrência, consistência de estado, segurança, manutenibilidade e alta performance.
+- **Componentização e Modularidade por Padrão**: Sempre que construir novas funcionalidades ou fluxos, crie o código **já modularizado e devidamente componentizado**. Evite componentes monolíticos; extraia responsabilidades em submódulos coesos, componentes reaproveitáveis e helpers/hooks dedicados.
+- **Tecnologia Moderna e Código Limpo**: Toda adição ou refatoração deve utilizar o que há de mais moderno, idiomático e consolidado no ecossistema (React 18+, Tailwind CSS, Supabase BaaS, ESNext), aplicando Clean Code, SOLID e código autoexplicativo com documentação pontual apenas onde houver regra de negócio complexa.
+- **Excelência em UI/UX e Design System**:
+  - Foco obsessivo na experiência do usuário: hierarquia visual clara, espaçamentos consistentes, tipografia legível e microinterações polidas.
+  - **Mobile-First rigoroso**: layout touch-friendly (zonas de clique com mínimo de 44–48px), sem quebras em telas estreitas, feedback imediato (estados de hover, active, loading, disabled e toasts contextuais).
+  - Prevenção de frustração: confirmações amigáveis em ações destrutivas, transições suaves e zero poluição visual ou elementos redundantes.
+
+---
+
 ## 1. Visão Geral e Objetivo
 O **Escala CRM - Controle de Captação** é uma Single Page Application (SPA) mobile-first voltada para imobiliárias e corretores de imóveis.  
 **Objetivo principal**: Substituir listas informais e manuais do WhatsApp por uma plataforma web moderna, rápida e em tempo real, onde corretores garantem e cancelam vagas em pontos de captação física sem sobreposição ou conflitos (*race conditions*).
@@ -38,7 +49,7 @@ O **Escala CRM - Controle de Captação** é uma Single Page Application (SPA) m
 3. **`turnos`** (Horários vinculados a um ponto e dia):
    - `id` (uuid, PK)
    - `ponto_id` (uuid, FK `pontos.id` ON DELETE CASCADE)
-   - `dia` (text: 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO')
+   - `dia` (text: 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO', 'DOMINGO')
    - `horario` (text, ex: '8 as 10 hs', '11:30 às 14hrs')
    - `capacidade` (int)
    - `ordem` (int)
@@ -85,6 +96,7 @@ e:\Escala\
 ├── supabase_schema.sql          # Schema SQL completo e atualizado
 ├── supabase_migration_pontos.sql# Migração para introdução de múltiplos pontos
 ├── supabase_migration_pin.sql   # Migração para alteração e segurança de senha/PIN
+├── supabase_migration_dias_semana.sql # Migração para nomes completos dos dias
 ├── AGENTS.md                    # Diretrizes e memória para Agentes de IA (este arquivo)
 ├── PROJECT_MEMORY.md            # Memória técnica persistente
 └── src/
@@ -92,7 +104,8 @@ e:\Escala\
     ├── index.css                # Tailwind + classes utilitárias (.card, .btn-*, scrollbar dark)
     ├── App.jsx                  # Estado raiz, roteamento por view, canal Realtime, autenticação de PIN
     ├── lib/
-    │   └── supabaseClient.js    # Instância do createClient configurada
+    │   ├── supabaseClient.js    # Instância do createClient configurada
+    │   └── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
     └── components/
         ├── CorretorView.jsx     # Tela pública do corretor (seleção de ponto, turnos e copiar WhatsApp)
         ├── TurnoCard.jsx        # Card de turno na visão do corretor (progresso, botões contextuais)

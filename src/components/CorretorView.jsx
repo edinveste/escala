@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import TurnoCard from './TurnoCard'
+import { formatarNomeDia, compararDias } from '../lib/diasSemana'
 import { Copy, ClipboardCheck, Calendar, MapPin, ArrowLeft, Store } from 'lucide-react'
 
 export default function CorretorView({
@@ -27,14 +28,15 @@ export default function CorretorView({
     [turnos, selectedPontoId]
   )
 
-  // Agrupar turnos por dia
+  // Agrupar turnos por dia (usando o padrão completo: SEGUNDA-FEIRA, etc.)
   const turnosPorDia = useMemo(() => {
     const grupos = {}
     for (const turno of turnosFiltrados) {
-      if (!grupos[turno.dia]) {
-        grupos[turno.dia] = []
+      const diaFormatado = formatarNomeDia(turno.dia)
+      if (!grupos[diaFormatado]) {
+        grupos[diaFormatado] = []
       }
-      grupos[turno.dia].push(turno)
+      grupos[diaFormatado].push(turno)
     }
     for (const dia of Object.keys(grupos)) {
       grupos[dia].sort((a, b) => a.ordem - b.ordem)
@@ -74,15 +76,8 @@ export default function CorretorView({
     return mapa
   }, [pontos, turnos, reservasPorTurno])
 
-  // Ordem fixa dos dias
-  const ordensDia = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO', 'DOMINGO']
-  const diasOrdenados = Object.keys(turnosPorDia).sort(
-    (a, b) => {
-      const idxA = ordensDia.indexOf(a.toUpperCase())
-      const idxB = ordensDia.indexOf(b.toUpperCase())
-      return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB)
-    }
-  )
+  // Ordem fixa dos dias cronológica (Segunda-feira a Domingo)
+  const diasOrdenados = Object.keys(turnosPorDia).sort(compararDias)
 
   // Gerar texto para copiar
   const gerarTextoEscala = () => {
@@ -117,18 +112,15 @@ export default function CorretorView({
 
       texto += `📍 *${ponto.nome.toUpperCase()}*\n\n`
 
-      // Agrupar por dia
+      // Agrupar por dia com formatação completa
       const porDia = {}
       for (const t of turnosDoPonto) {
-        if (!porDia[t.dia]) porDia[t.dia] = []
-        porDia[t.dia].push(t)
+        const diaFormatado = formatarNomeDia(t.dia)
+        if (!porDia[diaFormatado]) porDia[diaFormatado] = []
+        porDia[diaFormatado].push(t)
       }
 
-      const diasOrd = Object.keys(porDia).sort((a, b) => {
-        const idxA = ordensDia.indexOf(a.toUpperCase())
-        const idxB = ordensDia.indexOf(b.toUpperCase())
-        return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB)
-      })
+      const diasOrd = Object.keys(porDia).sort(compararDias)
 
       for (const dia of diasOrd) {
         texto += `📅 *${dia}*\n\n`
@@ -260,6 +252,9 @@ export default function CorretorView({
           })}
         </div>
 
+        {/* Espaçador para garantir visualização completa acima do footer fixo */}
+        <div className="h-28 sm:h-32 w-full pointer-events-none" aria-hidden="true" />
+
         {/* Footer com copiar */}
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface-900 border-t border-surface-700">
           <div className="max-w-xl mx-auto px-3 sm:px-4 py-3">
@@ -366,8 +361,11 @@ export default function CorretorView({
         </div>
       )}
 
+      {/* Espaçador robusto para garantir que o último turno fique 100% visível acima do footer fixo */}
+      <div className="h-32 sm:h-36 w-full pointer-events-none" aria-hidden="true" />
+
       {/* Footer com copiar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface-900 border-t border-surface-700">
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface-900 border-t border-surface-700 pb-[env(safe-area-inset-bottom)]">
         <div className="max-w-xl mx-auto px-3 sm:px-4 py-3">
           <button
             onClick={handleCopiar}

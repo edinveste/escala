@@ -147,8 +147,8 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
                 type={showPinAtual ? 'text' : 'password'}
                 value={pinAtual}
                 onChange={(e) => setPinAtual(e.target.value)}
-                placeholder="Digite a senha atual (padrão: 1234)"
-                className="input-field pr-12 font-mono"
+                placeholder="Digite a senha atual"
+                className="input-field pr-12 font-mono placeholder:font-sans placeholder:text-sm placeholder:text-gray-500"
                 required
               />
               <button
@@ -172,8 +172,8 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
                 type={showNovoPin ? 'text' : 'password'}
                 value={novoPin}
                 onChange={(e) => setNovoPin(e.target.value)}
-                placeholder="Ex: 85934120"
-                className="input-field pr-12 font-mono"
+                placeholder="Digite a nova senha"
+                className="input-field pr-12 font-mono placeholder:font-sans placeholder:text-sm placeholder:text-gray-500"
                 required
               />
               <button
@@ -202,8 +202,8 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
                 type={showConfirmarPin ? 'text' : 'password'}
                 value={confirmarPin}
                 onChange={(e) => setConfirmarPin(e.target.value)}
-                placeholder="Digite a nova senha novamente"
-                className="input-field pr-12 font-mono"
+                placeholder="Confirme a nova senha"
+                className="input-field pr-12 font-mono placeholder:font-sans placeholder:text-sm placeholder:text-gray-500"
                 required
               />
               <button

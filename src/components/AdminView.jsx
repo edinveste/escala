@@ -22,16 +22,15 @@ import {
   Key,
   Lock,
 } from 'lucide-react'
+import {
+  DIAS_SEMANA,
+  DIAS_UTEIS,
+  DIAS_FIM_DE_SEMANA,
+  formatarNomeDia,
+  compararDias,
+} from '../lib/diasSemana'
 
-const DIAS_OPCOES = [
-  'SEGUNDA',
-  'TERÇA',
-  'QUARTA',
-  'QUINTA',
-  'SEXTA',
-  'SÁBADO',
-  'DOMINGO',
-]
+const DIAS_OPCOES = DIAS_SEMANA
 
 export default function AdminView({
   pontos,
@@ -50,20 +49,23 @@ export default function AdminView({
   const [formDia, setFormDia] = useState(() => {
     try {
       const salvo = localStorage.getItem(STORAGE_KEY_FORM_DIA)
-      if (salvo && DIAS_OPCOES.includes(salvo)) {
-        return salvo
+      if (salvo) {
+        const norm = formatarNomeDia(salvo)
+        if (DIAS_OPCOES.includes(norm)) {
+          return norm
+        }
       }
     } catch (err) {
       console.error('Erro ao ler preferência de dia:', err)
     }
-    return 'SEGUNDA' // Padrão inicial para 1º uso: SEGUNDA
+    return 'SEGUNDA-FEIRA' // Padrão inicial para 1º uso: SEGUNDA-FEIRA
   })
   const [formHorario, setFormHorario] = useState('')
   const [formCapacidade, setFormCapacidade] = useState(3)
   const [addingTurno, setAddingTurno] = useState(false)
 
   const handleDiaChange = (e) => {
-    const novoDia = e.target.value
+    const novoDia = formatarNomeDia(e.target.value)
     setFormDia(novoDia)
     try {
       localStorage.setItem(STORAGE_KEY_FORM_DIA, novoDia)
@@ -208,8 +210,9 @@ export default function AdminView({
 
       setAddingTurno(true)
       try {
+        const diaNorm = formatarNomeDia(formDia)
         const turnosMesmoDia = turnos.filter(
-          (t) => t.ponto_id === formPontoId && t.dia === formDia
+          (t) => t.ponto_id === formPontoId && formatarNomeDia(t.dia) === diaNorm
         )
         const proximaOrdem =
           turnosMesmoDia.length > 0
@@ -218,7 +221,7 @@ export default function AdminView({
 
         const { error } = await supabase.from('turnos').insert({
           ponto_id: formPontoId,
-          dia: formDia,
+          dia: diaNorm,
           horario: formHorario.trim(),
           capacidade: Math.max(1, formCapacidade),
           ordem: proximaOrdem,
@@ -267,19 +270,21 @@ export default function AdminView({
   // ─── Duplicação de Turnos entre Dias ──────────────────────────
 
   const abrirModalDuplicar = useCallback((pontoId, pontoNome, diaOrigem, turnosDoDia) => {
+    const diaNorm = formatarNomeDia(diaOrigem)
     setModalDuplicar({
       pontoId,
       pontoNome,
-      diaOrigem,
+      diaOrigem: diaNorm,
       turnos: turnosDoDia,
     })
     // Pré-seleciona todos os outros dias exceto o de origem
-    setDiasDestino(DIAS_OPCOES.filter((d) => d !== diaOrigem))
+    setDiasDestino(DIAS_OPCOES.filter((d) => d !== diaNorm))
   }, [])
 
   const toggleDiaDestino = useCallback((dia) => {
+    const diaNorm = formatarNomeDia(dia)
     setDiasDestino((prev) =>
-      prev.includes(dia) ? prev.filter((d) => d !== dia) : [...prev, dia]
+      prev.includes(diaNorm) ? prev.filter((d) => d !== diaNorm) : [...prev, diaNorm]
     )
   }, [])
 
@@ -291,10 +296,10 @@ export default function AdminView({
         const outros = DIAS_OPCOES.filter((d) => d !== diaOrigem)
         setDiasDestino(diasDestino.length === outros.length ? [] : outros)
       } else if (tipo === 'uteis') {
-        const uteis = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA'].filter((d) => d !== diaOrigem)
+        const uteis = DIAS_UTEIS.filter((d) => d !== diaOrigem)
         setDiasDestino(uteis)
       } else if (tipo === 'fimdesemana') {
-        const fds = ['SÁBADO', 'DOMINGO'].filter((d) => d !== diaOrigem)
+        const fds = DIAS_FIM_DE_SEMANA.filter((d) => d !== diaOrigem)
         setDiasDestino(fds)
       }
     },
@@ -314,7 +319,7 @@ export default function AdminView({
         for (const t of modalDuplicar.turnos) {
           novosTurnos.push({
             ponto_id: modalDuplicar.pontoId,
-            dia: dia,
+            dia: formatarNomeDia(dia),
             horario: t.horario,
             capacidade: t.capacidade,
             ordem: t.ordem,
@@ -664,13 +669,12 @@ export default function AdminView({
                         (() => {
                           const porDia = {}
                           for (const t of turnosDoPonto) {
-                            if (!porDia[t.dia]) porDia[t.dia] = []
-                            porDia[t.dia].push(t)
+                            const diaFormatado = formatarNomeDia(t.dia)
+                            if (!porDia[diaFormatado]) porDia[diaFormatado] = []
+                            porDia[diaFormatado].push(t)
                           }
 
-                          const diasOrdenados = Object.keys(porDia).sort(
-                            (a, b) => DIAS_OPCOES.indexOf(a) - DIAS_OPCOES.indexOf(b)
-                          )
+                          const diasOrdenados = Object.keys(porDia).sort(compararDias)
 
                           return diasOrdenados.map((dia) => (
                             <TurnosDiaList
@@ -886,7 +890,7 @@ export default function AdminView({
                     <span className="text-brand-300 font-medium">
                       {modalIncluirPessoa.pontoNome}
                     </span>{' '}
-                    • {modalIncluirPessoa.dia} ({modalIncluirPessoa.horario})
+                    • {formatarNomeDia(modalIncluirPessoa.dia)} ({modalIncluirPessoa.horario})
                   </p>
                 </div>
               </div>

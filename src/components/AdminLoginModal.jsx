@@ -117,8 +117,8 @@ export default function AdminLoginModal({ isOpen, onClose, onSuccess, showToast 
                 type={showPin ? 'text' : 'password'}
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                placeholder="Ex: 1234 ou 8 dígitos"
-                className="input-field pr-12 text-center text-lg tracking-widest font-mono"
+                placeholder="Digite seu PIN"
+                className="input-field pr-12 text-center text-lg tracking-widest font-mono placeholder:font-sans placeholder:text-sm placeholder:tracking-normal placeholder:text-gray-500"
                 autoComplete="current-password"
                 required
               />

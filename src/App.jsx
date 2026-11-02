@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabaseClient'
+import { formatarNomeDia, migrarDiasLegados } from './lib/diasSemana'
 import CorretorView from './components/CorretorView'
 import AdminView from './components/AdminView'
 import NomeModal from './components/NomeModal'
@@ -77,9 +78,17 @@ export default function App() {
         if (turnosRes.error) throw turnosRes.error
         if (reservasRes.error) throw reservasRes.error
 
+        const turnosNormalizados = (turnosRes.data || []).map((t) => ({
+          ...t,
+          dia: formatarNomeDia(t.dia),
+        }))
+
         setPontos(pontosRes.data || [])
-        setTurnos(turnosRes.data || [])
+        setTurnos(turnosNormalizados)
         setReservas(reservasRes.data || [])
+
+        // Migra silenciosamente em background dias legados no banco (ex: 'SEGUNDA' -> 'SEGUNDA-FEIRA')
+        migrarDiasLegados(turnosRes.data)
       } catch (err) {
         console.error('Erro ao carregar dados:', err)
         showToast('Erro ao carregar dados. Verifique a conexão.', 'error')
@@ -123,7 +132,11 @@ export default function App() {
         () => {
           // Recarrega turnos ao mudar
           supabase.from('turnos').select('*').order('ordem', { ascending: true })
-            .then(({ data }) => { if (data) setTurnos(data) })
+            .then(({ data }) => {
+              if (data) {
+                setTurnos(data.map((t) => ({ ...t, dia: formatarNomeDia(t.dia) })))
+              }
+            })
         }
       )
       .on(
@@ -367,7 +380,7 @@ export default function App() {
       </header>
 
       {/* Conteúdo principal */}
-      <main className="flex-1 max-w-xl mx-auto w-full px-2 sm:px-4 py-3 sm:py-4 pb-28">
+      <main className="flex-1 max-w-xl mx-auto w-full px-2 sm:px-4 py-3 sm:py-4 pb-36 sm:pb-40">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
