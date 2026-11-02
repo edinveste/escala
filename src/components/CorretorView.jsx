@@ -261,8 +261,8 @@ export default function CorretorView({
         </div>
 
         {/* Footer com copiar */}
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface-900/95 backdrop-blur-md border-t border-surface-700">
-          <div className="max-w-lg mx-auto px-4 py-3">
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface-900 border-t border-surface-700">
+          <div className="max-w-xl mx-auto px-3 sm:px-4 py-3">
             <button
               onClick={handleCopiar}
               className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-semibold transition-all duration-200 min-h-[48px] select-none ${
@@ -367,8 +367,8 @@ export default function CorretorView({
       )}
 
       {/* Footer com copiar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface-900/95 backdrop-blur-md border-t border-surface-700">
-        <div className="max-w-lg mx-auto px-4 py-3">
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-surface-900 border-t border-surface-700">
+        <div className="max-w-xl mx-auto px-3 sm:px-4 py-3">
           <button
             onClick={handleCopiar}
             className={`w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-semibold transition-all duration-200 min-h-[48px] select-none ${

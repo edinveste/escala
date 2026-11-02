@@ -129,10 +129,12 @@ e:\Escala\
    - Card dedicado no topo do Painel com botão "Alterar Senha".
    - Permite que o comprador altere o PIN sozinho, validando a senha atual, exigindo no mínimo 4 dígitos (com recomendação de 8 dígitos) e confirmação.
 3. **Gestão de Pontos de Captação ([PontosManager.jsx](file:///e:/Escala/src/components/PontosManager.jsx))**:
-   - Criar novos pontos com ordem calculada automaticamente (sem campo de número manual).
+   - Criar novos pontos com ordem calculada automaticamente (iniciam como rascunho `ativo: false`, ocultos para os corretores enquanto o gestor monta a grade).
+   - **Controle de Visibilidade (Ícone de Olho 👁️ / 👁️‍🗨️)**: Permite ao gestor alternar entre Visível (`ativo: true`) e Oculto (`ativo: false`) com o ícone no mesmo padrão cinza discreto dos demais botões, sem poluição visual ou tags extras. Pontos ocultos não aparecem para corretores nem na exportação do WhatsApp.
    - **Arrastar e Soltar (SortableJS)**: Reordenar pontos via pegador `⠿` (`GripVertical`) com animação fluida e salvamento em tempo real no Supabase.
-   - Renomear inline com o botão de lápis.
-   - **Duplicar Ponto Inteiro**: Ícone de cópia 📋 que clona todos os turnos de um ponto existente para o novo ponto, iniciando as reservas zeradas.
+   - **Responsividade e Limpeza Visual**: Sem ícones desnecessários ao lado do nome; no mobile as ações ficam centralizadas exclusivamente no botão de 3 pontinhos (`⋮` `MoreVertical`) com menu dropdown (incluindo publicação/visibilidade, renomear, duplicar, limpar e excluir), e no desktop todos os botões ficam inline.
+   - Renomear inline com validação e atalhos Enter/Esc.
+   - **Duplicar Ponto Inteiro**: Clona todos os turnos de um ponto existente para o novo ponto, iniciando as reservas zeradas e status oculto para revisão prévia.
    - Limpar reservas de um ponto específico (ícone de alerta ⚠️).
    - Excluir ponto (com cascade nos turnos e reservas).
 4. **Criação e Gestão de Turnos ([TurnosDiaList.jsx](file:///e:/Escala/src/components/TurnosDiaList.jsx))**:
@@ -140,9 +142,10 @@ e:\Escala\
    - **Arrastar e Soltar nos Turnos**: Reordenar horários dentro de cada dia arrastando pelo pegador `⠿`, com animação física e persistência imediata no Supabase.
    - **Duplicar Horários de um Dia**: Botão `Duplicar horários` ao lado de cada dia para replicar a grade (ex: Segunda) para outros dias selecionados ou atalhos ("Seg a Sex", "Fim de Semana", "Marcar Todos"), preservando a ordem personalizada.
 5. **Gestão de Pessoas por Turno (Excluir e Incluir)**:
-   - Exibe lista de corretores escalados com chips visuais individuais.
+   - Exibe os corretores escalados diretamente com chips visuais individuais (sem rótulo redundante de "Corretores escalados" para economizar altura), ou *"Nenhum corretor escalado neste horário"* quando vazio.
+   - **Layout Vertical Otimizado**: O badge `0/2 vagas` fica no canto superior direito, com os botões de ação empilhados na vertical abaixo dele (ícone `+👤` para incluir e `🗑️` para excluir turno), liberando largura horizontal máxima para o horário não sofrer truncamento.
    - **Excluir corretor**: Botão `✖` em cada corretor para cancelar apenas a reserva dele sem apagar o turno.
-   - **Incluir corretor manual**: Botão `+ Incluir` para adicionar um corretor diretamente pelo Admin (via modal com validação). Atualiza silenciosamente sem resetar o scroll da página.
+   - **Incluir corretor manual**: Botão de ícone `+👤` para adicionar um corretor diretamente pelo Admin (via modal com validação). Atualiza silenciosamente sem resetar o scroll da página.
    - **Excluir turno**: Botão de lixeira 🗑️ para deletar o horário por completo.
 6. **Accordion / Sanfona de Pontos**:
    - Setinha 🔽 retrátil em cada ponto cadastrado para recolher/expandir dias e horários, permitindo navegar entre múltiplos pontos rapidamente. Inicia recolhido por padrão e salva a preferência do usuário no `localStorage` (`escala_admin_pontos_expandidos`).
@@ -171,4 +174,5 @@ npm run build
 - **Dark Mode**: Manter a consistência das classes `surface-900`, `surface-800`, `surface-700`, `brand-500` e estados de hover/active.
 - **Realtime**: Qualquer alteração em `reservas`, `turnos` ou `pontos` deve ser sincronizada via Supabase Channel para evitar divergência de telas entre corretores simultâneos.
 - **Race Condition**: Toda lógica de reserva de novas vagas deve passar pela RPC `reservar_vaga` com row-level lock.
+- **Mobile Touch e Drag-and-Drop**: O arrasto com SortableJS em telas touch deve sempre usar `delay: 150`, `delayOnTouchOnly: true` e `touchStartThreshold: 5`, restringindo a classe de handle (`.drag-handle`) exclusivamente ao ícone pegador (`⠿`). Evitar `forceFallback: true`, `touch-none` em cartões inteiros e `backdrop-blur` em headers fixos/pegajosos para prevenir desync do compositor do Chrome e artefatos visuais (smear/clones).
 

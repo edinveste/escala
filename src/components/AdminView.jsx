@@ -387,7 +387,7 @@ export default function AdminView({
   return (
     <div className="space-y-6">
       {/* Stats rápidos */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="card text-center">
           <p className="text-2xl font-bold text-brand-400">{pontos.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">Pontos</p>
@@ -590,17 +590,17 @@ export default function AdminView({
               return (
                 <div
                   key={ponto.id}
-                  className="border border-surface-700/80 rounded-2xl p-2.5 bg-surface-900/40 transition-colors"
+                  className="border border-surface-700/80 rounded-xl sm:rounded-2xl p-1.5 sm:p-2.5 bg-surface-900/40 transition-colors"
                 >
                   {/* Botão Acordeão / Sanfona do Ponto - Idêntico ao card da visão do corretor */}
                   <button
                     type="button"
                     onClick={() => togglePontoFechado(ponto.id)}
-                    className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-surface-700/40 transition-colors text-left select-none"
+                    className="w-full flex items-center justify-between p-1.5 sm:p-2 rounded-xl hover:bg-surface-700/40 transition-colors text-left select-none"
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20 flex-shrink-0">
-                        <MapPin className="w-5 h-5 text-brand-400" />
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                      <div className="p-2 sm:p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20 flex-shrink-0">
+                        <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-brand-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-100 text-[15px] truncate">

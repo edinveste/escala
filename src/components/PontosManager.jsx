@@ -5,7 +5,6 @@ import { useConfirm } from './ConfirmModal'
 import {
   MapPin,
   Plus,
-  Store,
   Pencil,
   Copy,
   AlertTriangle,
@@ -13,20 +12,10 @@ import {
   Check,
   X,
   GripVertical,
+  MoreVertical,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
-
-function limparClonesOrfaos() {
-  if (typeof document === 'undefined') return
-  document.querySelectorAll('.sortable-drag, .sortable-fallback').forEach((el) => {
-    if (
-      el.parentNode === document.body ||
-      el.style.position === 'fixed' ||
-      el.style.position === 'absolute'
-    ) {
-      el.remove()
-    }
-  })
-}
 
 export default function PontosManager({
   pontos,
@@ -51,6 +40,9 @@ export default function PontosManager({
   const [modalDuplicarPonto, setModalDuplicarPonto] = useState(null)
   const [nomeNovoPonto, setNomeNovoPonto] = useState('')
   const [duplicandoPonto, setDuplicandoPonto] = useState(false)
+
+  // Estado do menu 3 pontinhos no mobile
+  const [menuAbertoId, setMenuAbertoId] = useState(null)
 
   // Lista local para reordenação fluida e sem delay
   const [listaPontos, setListaPontos] = useState(pontos)
@@ -92,63 +84,35 @@ export default function PontosManager({
     salvarNovaOrdemRef.current = salvarNovaOrdem
   })
 
-  // Listener global de segurança para nunca deixar clones órfãos na tela se soltar fora
-  useEffect(() => {
-    const handleGlobalDropRelease = () => {
-      setTimeout(limparClonesOrfaos, 50)
-    }
-    window.addEventListener('pointerup', handleGlobalDropRelease)
-    window.addEventListener('mouseup', handleGlobalDropRelease)
-    window.addEventListener('touchend', handleGlobalDropRelease)
-    return () => {
-      window.removeEventListener('pointerup', handleGlobalDropRelease)
-      window.removeEventListener('mouseup', handleGlobalDropRelease)
-      window.removeEventListener('touchend', handleGlobalDropRelease)
-      limparClonesOrfaos()
-    }
-  }, [])
-
-  // ─── Inicialização do SortableJS (Suave, sem efeito fantasma) ──
+  // ─── Inicialização do SortableJS (Suave, sem travar scroll mobile) ──
   useEffect(() => {
     if (!listRef.current) return
 
-    sortableRef.current = Sortable.create(listRef.current, {
-      animation: 200, // animação suave de 200ms fazendo os outros cards abrirem espaço
-      handle: '.drag-handle', // arrasta pelo pegador ou pelo nome do ponto
-      ghostClass: 'sortable-ghost', // espaço reservado onde o card vai cair
-      chosenClass: 'sortable-chosen',
-      dragClass: 'sortable-drag', // card sólido e destacado sendo arrastado
-      forceFallback: true, // DESATIVA o ghost/fantasma nativo do navegador e usa elemento real!
-      fallbackClass: 'sortable-drag',
-      fallbackOnBody: true, // Garante que o clone vai para o document.body
-      fallbackTolerance: 3, // evita acionar em cliques simples
-      revertOnSpill: true, // Se soltar fora, reverte suavemente
-      removeCloneOnHide: true,
-      onEnd: (evt) => {
-        limparClonesOrfaos()
+    if (sortableRef.current) {
+      sortableRef.current.destroy()
+      sortableRef.current = null
+    }
 
-        const { oldIndex, newIndex, item } = evt
+    sortableRef.current = Sortable.create(listRef.current, {
+      animation: 150,
+      handle: '.drag-handle', // arrasta exclusivamente pelo pegador de 6 pontos
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      dragClass: 'sortable-drag',
+      delay: 150, // No celular: exige segurar 150ms no pegador antes de arrastar
+      delayOnTouchOnly: true, // No mouse desktop: arrasto imediato
+      touchStartThreshold: 5, // Se o dedo deslizar mais de 5px, cancela e permite rolagem normal
+      onEnd: (evt) => {
+        const { oldIndex, newIndex } = evt
         if (oldIndex == null || newIndex == null || oldIndex === newIndex) return
 
-        // Reverte a alteração direta no DOM feita pelo SortableJS para deixar o React assumir a renderização
-        const parent = item.parentNode
-        if (parent) {
-          const referenceNode = oldIndex < parent.children.length ? parent.children[oldIndex] : null
-          parent.insertBefore(item, referenceNode)
-        }
-
-        setTimeout(() => {
-          setListaPontos((prev) => {
-            const novaLista = [...prev]
-            const [movedItem] = novaLista.splice(oldIndex, 1)
-            novaLista.splice(newIndex, 0, movedItem)
-            salvarNovaOrdemRef.current(novaLista)
-            return novaLista
-          })
-        }, 0)
-      },
-      onSpill: () => {
-        limparClonesOrfaos()
+        setListaPontos((prev) => {
+          const novaLista = [...prev]
+          const [movedItem] = novaLista.splice(oldIndex, 1)
+          novaLista.splice(newIndex, 0, movedItem)
+          salvarNovaOrdemRef.current(novaLista)
+          return novaLista
+        })
       },
     })
 
@@ -157,9 +121,35 @@ export default function PontosManager({
         sortableRef.current.destroy()
         sortableRef.current = null
       }
-      limparClonesOrfaos()
     }
-  }, [])
+  }, [listaPontos.length > 0])
+
+  // ─── Alternar Visibilidade do Ponto (Ativo / Oculto) ────────────
+  const handleToggleAtivo = useCallback(
+    async (pontoId, statusAtual, nomePonto) => {
+      const novoStatus = !statusAtual
+      try {
+        const { error } = await supabase
+          .from('pontos')
+          .update({ ativo: novoStatus })
+          .eq('id', pontoId)
+
+        if (error) throw error
+
+        showToast(
+          novoStatus
+            ? `"${nomePonto}" agora está visível para os corretores! 👁️`
+            : `"${nomePonto}" agora está oculto para os corretores. 🔒`,
+          novoStatus ? 'success' : 'info'
+        )
+        onDataChanged()
+      } catch (err) {
+        console.error('Erro ao alterar visibilidade do ponto:', err)
+        showToast('Erro ao atualizar visibilidade.', 'error')
+      }
+    },
+    [onDataChanged, showToast]
+  )
 
   // ─── Criação de Ponto ───────────────────────────────────────────
   const handleAddPonto = useCallback(
@@ -180,11 +170,12 @@ export default function PontosManager({
         const { error } = await supabase.from('pontos').insert({
           nome: formPontoNome.trim(),
           ordem: proximaOrdem,
+          ativo: false, // Inicia oculto para corretores enquanto o gestor monta a grade!
         })
 
         if (error) throw error
 
-        showToast('Ponto de captação criado! ✅', 'success')
+        showToast('Ponto criado como rascunho (oculto)! Cadastre os turnos e clique no olho para publicar. 👁️', 'success')
         setFormPontoNome('')
         onDataChanged()
       } catch (err) {
@@ -278,6 +269,7 @@ export default function PontosManager({
           .insert({
             nome: nomeNovoPonto.trim(),
             ordem: proximaOrdem,
+            ativo: false, // Inicia oculto para corretores até o gestor revisar!
           })
           .select()
           .single()
@@ -371,21 +363,22 @@ export default function PontosManager({
               {listaPontos.map((ponto, index) => {
                 const qtdTurnos = turnosPorPonto?.[ponto.id]?.length || 0
                 const isEditing = editingPontoId === ponto.id
+                const info = vagasPorPonto?.[ponto.id] || {}
+                const temVagas = (info.vagasLivres || 0) > 0
 
                 return (
                   <div
                     key={ponto.id}
                     data-id={ponto.id}
-                    className="flex items-center gap-2 py-2.5 px-3 rounded-xl bg-surface-700/50 border border-surface-600/30 hover:border-surface-600 transition-colors select-none"
+                    className="relative flex items-center justify-between gap-1.5 sm:gap-2 py-2 px-2.5 sm:py-2.5 sm:px-3 rounded-xl bg-surface-700/50 border border-surface-600/30 hover:border-surface-600 transition-colors select-none"
                   >
                     {isEditing ? (
-                      <div className="flex-1 flex items-center gap-2">
-                        <Store className="w-4 h-4 text-brand-400 flex-shrink-0" />
+                      <div className="flex-1 flex items-center gap-2 py-0.5">
                         <input
                           type="text"
                           value={editingPontoNome}
                           onChange={(e) => setEditingPontoNome(e.target.value)}
-                          className="input-field py-1.5 text-sm flex-1"
+                          className="input-field py-1.5 px-3 text-sm flex-1 min-h-[40px]"
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleRenamePonto(ponto.id)
@@ -395,7 +388,7 @@ export default function PontosManager({
                         <button
                           type="button"
                           onClick={() => handleRenamePonto(ponto.id)}
-                          className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-400 transition-colors"
+                          className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
                           title="Salvar"
                         >
                           <Check className="w-4 h-4" />
@@ -403,7 +396,7 @@ export default function PontosManager({
                         <button
                           type="button"
                           onClick={() => setEditingPontoId(null)}
-                          className="p-1.5 rounded-lg hover:bg-surface-600 text-gray-500 transition-colors"
+                          className="p-2 rounded-lg bg-surface-600 text-gray-400 hover:text-gray-200 transition-colors"
                           title="Cancelar"
                         >
                           <X className="w-4 h-4" />
@@ -411,93 +404,208 @@ export default function PontosManager({
                       </div>
                     ) : (
                       <>
-                        {/* Bloco Arrastável (Pegador + Ícone + Nome do Ponto) */}
+                        {/* Pegador de Arrastar Dedicado (Apenas no ícone ⠿) */}
                         <div
-                          className="drag-handle flex items-center gap-2 flex-1 min-w-0 touch-none cursor-grab active:cursor-grabbing group/handle py-0.5"
-                          title="Segure e arraste para reordenar"
+                          className="drag-handle p-1.5 -ml-1 text-gray-500 hover:text-brand-400 active:text-brand-300 transition-colors flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
+                          title="Segure e arraste pelo ícone para reordenar"
                         >
-                          <div className="p-1.5 -ml-1 text-gray-500 group-hover/handle:text-brand-400 active:text-brand-300 transition-colors flex-shrink-0">
-                            <GripVertical className="w-4 h-4" />
-                          </div>
-
-                          <Store className="w-4 h-4 text-brand-400 flex-shrink-0" />
-
-                          {(() => {
-                            const info = vagasPorPonto?.[ponto.id] || {}
-                            const temVagas = info.vagasLivres > 0
-                            return (
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-200 truncate group-hover/handle:text-white transition-colors">
-                                  {ponto.nome}
-                                </p>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs text-gray-500">
-                                    {qtdTurnos} turno{qtdTurnos !== 1 ? 's' : ''}
-                                  </span>
-                                  {info.totalCapacidade > 0 && (
-                                    <span
-                                      className={`text-xs font-medium ${
-                                        temVagas ? 'text-emerald-400' : 'text-red-400'
-                                      }`}
-                                    >
-                                      •{' '}
-                                      {temVagas
-                                        ? `${info.vagasLivres} vaga${
-                                            info.vagasLivres !== 1 ? 's' : ''
-                                          } livre${info.vagasLivres !== 1 ? 's' : ''}`
-                                        : 'Lotado'}
-                                    </span>
-                                  )}
-                                  <span className="text-[11px] font-semibold text-gray-500 bg-surface-800/80 px-1.5 py-0.5 rounded border border-surface-600/40">
-                                    #{index + 1}
-                                  </span>
-                                </div>
-                              </div>
-                            )
-                          })()}
+                          <GripVertical className="w-4 h-4" />
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingPontoId(ponto.id)
-                            setEditingPontoNome(ponto.nome)
-                          }}
-                          className="p-2 rounded-lg hover:bg-brand-500/10 text-gray-500 hover:text-brand-400 transition-colors flex-shrink-0"
-                          title="Renomear ponto"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Informações do Ponto (Livre para rolagem normal da página) */}
+                        <div className="flex-1 min-w-0 pr-1 select-none">
+                          <p className="text-sm font-semibold text-gray-100 truncate">
+                            {ponto.nome}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                            <span className="text-xs text-gray-400">
+                              {qtdTurnos} turno{qtdTurnos !== 1 ? 's' : ''}
+                            </span>
+                            {info.totalCapacidade > 0 && (
+                              <span
+                                className={`text-xs font-medium ${
+                                  temVagas ? 'text-emerald-400' : 'text-red-400'
+                                }`}
+                              >
+                                •{' '}
+                                {temVagas
+                                  ? `${info.vagasLivres} vaga${
+                                      info.vagasLivres !== 1 ? 's' : ''
+                                    } livre${info.vagasLivres !== 1 ? 's' : ''}`
+                                  : 'Lotado'}
+                              </span>
+                            )}
+                            <span className="text-[11px] font-semibold text-gray-400 bg-surface-800/80 px-1.5 py-0.5 rounded border border-surface-600/40">
+                              #{index + 1}
+                            </span>
+                          </div>
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={() => abrirModalDuplicarPonto(ponto, qtdTurnos)}
-                          className="p-2 rounded-lg hover:bg-emerald-500/10 text-gray-500 hover:text-emerald-400 transition-colors flex-shrink-0"
-                          title={`Duplicar ponto e seus ${qtdTurnos} turnos`}
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Botões Inline em Desktop / Telas maiores */}
+                        <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0">
+                          {/* Botão de Visibilidade / Olho (Desktop) */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleToggleAtivo(ponto.id, ponto.ativo !== false, ponto.nome)
+                            }
+                            className="p-2 rounded-lg hover:bg-brand-500/10 text-gray-400 hover:text-brand-400 transition-colors"
+                            title={
+                              ponto.ativo !== false
+                                ? 'Ponto visível aos corretores (clique para ocultar)'
+                                : 'Ponto oculto aos corretores (clique para publicar)'
+                            }
+                          >
+                            {ponto.ativo !== false ? (
+                              <Eye className="w-3.5 h-3.5" />
+                            ) : (
+                              <EyeOff className="w-3.5 h-3.5" />
+                            )}
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => onLimparEscala(ponto.id)}
-                          className="p-2 rounded-lg hover:bg-amber-500/10 text-gray-500 hover:text-amber-400 transition-colors flex-shrink-0"
-                          title="Limpar reservas deste ponto"
-                        >
-                          <AlertTriangle className="w-3.5 h-3.5" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPontoId(ponto.id)
+                              setEditingPontoNome(ponto.nome)
+                            }}
+                            className="p-2 rounded-lg hover:bg-brand-500/10 text-gray-400 hover:text-brand-400 transition-colors"
+                            title="Renomear ponto"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePonto(ponto.id, ponto.nome)}
-                          className="p-2 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-colors flex-shrink-0"
-                          title="Excluir ponto"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
-                  </div>
+                          <button
+                            type="button"
+                            onClick={() => abrirModalDuplicarPonto(ponto, qtdTurnos)}
+                            className="p-2 rounded-lg hover:bg-emerald-500/10 text-gray-400 hover:text-emerald-400 transition-colors"
+                            title={`Duplicar ponto e seus ${qtdTurnos} turnos`}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => onLimparEscala(ponto.id)}
+                            className="p-2 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
+                            title="Limpar reservas deste ponto"
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePonto(ponto.id, ponto.nome)}
+                            className="p-2 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
+                            title="Excluir ponto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Ações no Celular (Mobile): Menu de 3 Pontinhos */}
+                        <div className="sm:hidden relative flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMenuAbertoId(menuAbertoId === ponto.id ? null : ponto.id)
+                            }
+                            className="p-2 rounded-lg text-gray-400 hover:text-gray-100 hover:bg-surface-600/60 active:bg-surface-600 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+                            title="Mais opções"
+                            aria-label="Mais opções"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          {/* Menu Dropdown Suspenso no Celular */}
+                          {menuAbertoId === ponto.id && (
+                            <>
+                              {/* Backdrop invisível para fechar ao tocar fora */}
+                              <div
+                                className="fixed inset-0 z-30"
+                                onClick={() => setMenuAbertoId(null)}
+                              />
+
+                              <div className="absolute right-0 top-10 z-40 w-48 py-1.5 bg-surface-800 border border-surface-600 rounded-xl shadow-2xl shadow-black/80 animate-scale-in">
+                                {/* Alternar visibilidade no menu */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuAbertoId(null)
+                                    handleToggleAtivo(ponto.id, ponto.ativo !== false, ponto.nome)
+                                  }}
+                                  className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-gray-200 hover:bg-surface-700/80 active:bg-surface-700 flex items-center gap-2.5 transition-colors"
+                                >
+                                  {ponto.ativo !== false ? (
+                                    <>
+                                      <EyeOff className="w-3.5 h-3.5 text-amber-400" />
+                                      Ocultar dos Corretores
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                                      Publicar para Corretores
+                                    </>
+                                  )}
+                                </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuAbertoId(null)
+                                      setEditingPontoId(ponto.id)
+                                      setEditingPontoNome(ponto.nome)
+                                    }}
+                                    className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-gray-200 hover:bg-surface-700/80 active:bg-surface-700 flex items-center gap-2.5 transition-colors"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 text-brand-400" />
+                                    Renomear
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuAbertoId(null)
+                                      abrirModalDuplicarPonto(ponto, qtdTurnos)
+                                    }}
+                                    className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-gray-200 hover:bg-surface-700/80 active:bg-surface-700 flex items-center gap-2.5 transition-colors"
+                                  >
+                                    <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                                    Duplicar Ponto
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuAbertoId(null)
+                                      onLimparEscala(ponto.id)
+                                    }}
+                                    className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-gray-200 hover:bg-surface-700/80 active:bg-surface-700 flex items-center gap-2.5 transition-colors"
+                                  >
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                                    Limpar Reservas
+                                  </button>
+
+                                  <div className="my-1 border-t border-surface-700/80" />
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuAbertoId(null)
+                                      handleDeletePonto(ponto.id, ponto.nome)
+                                    }}
+                                    className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-red-400 hover:bg-red-500/10 active:bg-red-500/20 flex items-center gap-2.5 transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Excluir Ponto
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                 )
               })}
             </div>

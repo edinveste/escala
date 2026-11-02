@@ -68,7 +68,7 @@ export default function App() {
       }
       try {
         const [pontosRes, turnosRes, reservasRes] = await Promise.all([
-          supabase.from('pontos').select('*').eq('ativo', true).order('ordem', { ascending: true }),
+          supabase.from('pontos').select('*').order('ordem', { ascending: true }),
           supabase.from('turnos').select('*').order('ordem', { ascending: true }),
           supabase.from('reservas').select('*').order('created_at', { ascending: true }),
         ])
@@ -131,7 +131,7 @@ export default function App() {
         { event: '*', schema: 'public', table: 'pontos' },
         () => {
           // Recarrega pontos ao mudar
-          supabase.from('pontos').select('*').eq('ativo', true).order('ordem', { ascending: true })
+          supabase.from('pontos').select('*').order('ordem', { ascending: true })
             .then(({ data }) => { if (data) setPontos(data) })
         }
       )
@@ -313,8 +313,8 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-surface-900">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-surface-900/95 backdrop-blur-md border-b border-surface-700">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-surface-900 border-b border-surface-700">
+        <div className="max-w-xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             {view === 'admin' && (
               <button
@@ -367,7 +367,7 @@ export default function App() {
       </header>
 
       {/* Conteúdo principal */}
-      <main className="flex-1 max-w-lg mx-auto w-full px-4 py-4 pb-28">
+      <main className="flex-1 max-w-xl mx-auto w-full px-2 sm:px-4 py-3 sm:py-4 pb-28">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
@@ -375,7 +375,7 @@ export default function App() {
           </div>
         ) : view === 'corretor' ? (
           <CorretorView
-            pontos={pontos}
+            pontos={pontos.filter((p) => p.ativo !== false)}
             turnos={turnos}
             reservas={reservas}
             deviceId={deviceId}

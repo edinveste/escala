@@ -7,13 +7,14 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  html {
-    scroll-behavior: smooth;
-  }
-
   body {
     @apply min-h-screen;
-    overscroll-behavior: none;
+  }
+
+  /* Previne tearing e dirty-rect smear no Android Chrome */
+  main {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
   }
 
   /* Scrollbar estilizada para dark mode */
@@ -72,7 +73,7 @@
   }
 
   .card {
-    @apply bg-surface-800 border border-surface-600 rounded-2xl p-4
+    @apply bg-surface-800 border border-surface-600 rounded-xl sm:rounded-2xl p-3 sm:p-4
            shadow-lg shadow-black/20;
   }
 
@@ -143,35 +144,22 @@
 /* ═══ SORTABLE DRAG & DROP (PONTOS DE CAPTAÇÃO E TURNOS) ═══ */
 .sortable-ghost {
   opacity: 0.25 !important;
-  background-color: rgba(59, 130, 246, 0.1) !important;
-  border: 2px dashed rgba(59, 130, 246, 0.5) !important;
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  border: 1px dashed rgba(59, 130, 246, 0.6) !important;
   border-radius: 0.75rem !important;
-  transition: none !important;
 }
 
 .sortable-chosen {
   cursor: grabbing !important;
 }
 
-.sortable-fallback,
 .sortable-drag {
-  opacity: 1 !important;
+  opacity: 0.95 !important;
   background-color: #1e293b !important; /* surface-800 */
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
-  border: 1px solid rgba(59, 130, 246, 0.9) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(59, 130, 246, 0.8) !important;
   border-radius: 0.75rem !important;
-  transform: scale(1.02);
-  z-index: 999999 !important;
   cursor: grabbing !important;
-  /* CRÍTICO: pointer-events: none impede que o clone intercepte cliques, mouseup ou bloqueie o elementFromPoint do SortableJS */
-  pointer-events: none !important;
-  transition: none !important;
-}
-
-/* Garante que todos os elementos internos do clone (botões, textos, ícones) também ignorem o ponteiro */
-.sortable-fallback *,
-.sortable-drag * {
-  pointer-events: none !important;
 }
 
 
