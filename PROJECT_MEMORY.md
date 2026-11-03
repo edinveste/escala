@@ -128,7 +128,11 @@ e:\Escala\
 1. **Identificação transparente**: Ao carregar, o sistema obtém ou gera um `device_id` no `localStorage`.
 2. **Seleção de Ponto de Captação**:
    - Exibe os pontos cadastrados (ex: Mercado Roldão, Mercado Extra, Padaria Di Cunto) com status de vagas disponíveis em tempo real.
-3. **Quadro de Horários**:
+3. **Quadro de Horários e Acordeon por Dia da Semana**:
+   - Agrupado pelos dias da semana na ordem cronológica natural (Segunda a Domingo).
+   - **Acordeon expansivo com memória**: Cada dia possui um cabeçalho clicável com seta animada (`ChevronDown`), indicador de total de turnos, status de vagas do dia e badge discreto de identificação caso o corretor já tenha vaga garantida no dia.
+   - **Padrão fechado e persistência**: Inicia por padrão 100% recolhido na primeira abertura e memoriza a preferência de cada dia no `localStorage` (`escala_corretor_dias_expandidos`).
+   - **Atalhos rápidos**: Botões de "Recolher todos" e "Expandir todos" no topo da listagem para navegação ágil.
    - Agrupado pelos dias da semana na ordem cronológica natural (Segunda a Domingo).
    - Mostra horário, contagem de vagas (ex: `1/3`), barra de progresso e nomes de quem já reservou.
    - Se houver vaga: Botão verde **"Garantir Vaga"** (se o nome não estiver salvo, abre o modal para digitação rápida e salva no `localStorage`).
