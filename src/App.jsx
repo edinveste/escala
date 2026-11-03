@@ -342,7 +342,7 @@ export default function App() {
             <CalendarCheck className="w-6 h-6 text-brand-400" />
             <div>
               <h1 className="text-lg font-bold text-gray-100 leading-tight">
-                Escala CRM
+                Escala<span className="text-brand-400">Fácil</span>
               </h1>
               <p className="text-[11px] text-gray-500 -mt-0.5">
                 Controle de Captação

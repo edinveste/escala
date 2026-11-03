@@ -1,4 +1,4 @@
-# PROJECT_MEMORY.md — Escala CRM (Controle de Captação)
+# PROJECT_MEMORY.md — EscalaFácil (Controle de Captação)
 
 > **Instrução para a IA**: Este documento serve como **memória persistente** e **contexto de arquitetura** do projeto. Leia este arquivo integralmente no início de cada novo chat para entender os objetivos, estrutura de dados, fluxos de UI/UX e regras de negócio antes de propor alterações.
 
@@ -16,7 +16,7 @@
 ---
 
 ## 1. Visão Geral e Objetivo
-O **Escala CRM - Controle de Captação** é uma Single Page Application (SPA) mobile-first voltada para imobiliárias e corretores de imóveis.  
+O **EscalaFácil - Controle de Captação** é uma Single Page Application (SPA) mobile-first voltada para imobiliárias e corretores de imóveis.  
 **Objetivo principal**: Substituir listas informais e manuais do WhatsApp por uma plataforma web moderna, rápida e em tempo real, onde corretores garantem e cancelam vagas em pontos de captação física sem sobreposição ou conflitos (*race conditions*).
 
 ---

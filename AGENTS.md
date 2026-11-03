@@ -1,6 +1,6 @@
-# AGENTS.md — Escala CRM (Controle de Captação)
+# AGENTS.md — EscalaFácil (Controle de Captação)
 
-> **Instrução para Agentes de IA**: Este arquivo define as diretrizes, contexto de arquitetura, modelo de dados e regras de negócio do **Escala CRM**. Leia este arquivo integralmente no início de cada sessão para manter consistência nas alterações.
+> **Instrução para Agentes de IA**: Este arquivo define as diretrizes, contexto de arquitetura, modelo de dados e regras de negócio do **EscalaFácil**. Leia este arquivo integralmente no início de cada sessão para manter consistência nas alterações.
 
 ---
 

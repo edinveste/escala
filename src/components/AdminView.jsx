@@ -408,7 +408,20 @@ export default function AdminView({
     return mapa
   }, [pontos, turnos, reservasPorTurno])
 
-  const totalReservas = reservas.length
+  // Contagem consistente: considera apenas turnos e reservas de pontos cadastrados
+  const pontoIdsSet = useMemo(() => new Set(pontos.map((p) => p.id)), [pontos])
+  const turnosValidos = useMemo(
+    () => turnos.filter((t) => t.ponto_id && pontoIdsSet.has(t.ponto_id)),
+    [turnos, pontoIdsSet]
+  )
+  const turnoIdsValidosSet = useMemo(
+    () => new Set(turnosValidos.map((t) => t.id)),
+    [turnosValidos]
+  )
+  const reservasValidas = useMemo(
+    () => reservas.filter((r) => turnoIdsValidosSet.has(r.turno_id)),
+    [reservas, turnoIdsValidosSet]
+  )
 
   return (
     <div className="space-y-6">
@@ -419,11 +432,11 @@ export default function AdminView({
           <p className="text-xs text-gray-500 mt-0.5">Pontos</p>
         </div>
         <div className="card text-center">
-          <p className="text-2xl font-bold text-neon-green">{turnos.length}</p>
+          <p className="text-2xl font-bold text-neon-green">{turnosValidos.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">Turnos</p>
         </div>
         <div className="card text-center">
-          <p className="text-2xl font-bold text-emerald-400">{totalReservas}</p>
+          <p className="text-2xl font-bold text-emerald-400">{reservasValidas.length}</p>
           <p className="text-xs text-gray-500 mt-0.5">Reservas</p>
         </div>
       </div>
