@@ -143,7 +143,7 @@ e:\Escala\
    - Sticky footer com botão de copiar escala em texto estruturado e formatado com emojis (ótimo para colar em grupos de WhatsApp).
 
 ### 5.2. Fluxo do Admin (Protegido por PIN)
-1. **Acesso e Sessão**: Ícone de escudo discreto no header abrindo modal moderno de PIN com revelação de senha (`AdminLoginModal.jsx`) validado no Supabase. A seta de voltar (←) apenas alterna para a visualização pública mantendo a sessão ativa para navegação rápida. O botão explícito de **"Sair"** encerra a sessão (`isAdminAuth = false`), exigindo o PIN a cada novo acesso.
+1. **Acesso e Sessão**: Ícone de escudo discreto no header abrindo modal moderno de PIN com revelação de senha (`AdminLoginModal.jsx`) validado no Supabase. A seta de voltar (←) apenas alterna para a visualização pública mantendo a sessão ativa para navegação rápida. O botão explícito de **"Sair"** encerra a sessão (`isAdminAuth = false`), exigindo o PIN a cada novo acesso. No mobile, os botões/indicadores de **Admin** e **Sair** exibem apenas seus respectivos ícones (`Shield` e `LogOut`), poupando espaço horizontal no header em smartphones estreitos, mantendo os rótulos de texto completos no desktop (`sm:`).
 2. **Alteração de Senha ([AlterarSenhaModal.jsx](file:///e:/Escala/src/components/AlterarSenhaModal.jsx))**:
    - Card dedicado no topo do Painel com botão "Alterar Senha".
    - Permite que o comprador altere o PIN sozinho, validando a senha atual, exigindo no mínimo 4 dígitos (com recomendação de 8 dígitos) e confirmação.

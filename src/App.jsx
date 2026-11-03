@@ -356,11 +356,12 @@ export default function App() {
               <ThemeToggle />
               <button
                 onClick={handleAdminAccess}
-                className="p-2.5 rounded-xl hover:bg-surface-700 transition-colors"
+                className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl text-gray-400 hover:text-gray-100 hover:bg-surface-700 transition-colors min-h-[40px] min-w-[40px]"
                 aria-label="Acesso admin"
                 title="Acesso Admin"
               >
                 <Shield className="w-5 h-5 text-gray-400 hover:text-gray-100 transition-colors" />
+                <span className="hidden sm:inline text-xs font-semibold">Admin</span>
               </button>
             </div>
           )}
@@ -368,16 +369,21 @@ export default function App() {
           {view === 'admin' && (
             <div className="flex items-center gap-1.5 sm:gap-2">
               <ThemeToggle />
-              <span className="text-xs font-semibold text-amber-500 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">
-                Admin
+              <span
+                className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-500 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2 sm:px-2.5 sm:py-1 rounded-xl sm:rounded-full min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0"
+                title="Modo Administrador"
+              >
+                <Shield className="w-4 h-4" />
+                <span className="hidden sm:inline">Admin</span>
               </span>
               <button
                 onClick={handleAdminLogout}
-                className="flex items-center gap-1.5 text-xs font-semibold text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-3 py-1.5 rounded-xl transition-all active:scale-95 min-h-[36px]"
+                className="flex items-center justify-center gap-1.5 text-xs font-semibold text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 p-2 sm:px-3 sm:py-1.5 rounded-xl transition-all active:scale-95 min-h-[40px] min-w-[40px] sm:min-w-0"
                 title="Sair do modo administrador"
+                aria-label="Sair do modo administrador"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                Sair
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sair</span>
               </button>
             </div>
           )}
