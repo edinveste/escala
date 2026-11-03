@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabaseClient'
 import { Shield, Eye, EyeOff, Lock, X } from 'lucide-react'
 
@@ -9,13 +10,29 @@ export default function AdminLoginModal({ isOpen, onClose, onSuccess, showToast 
   const inputRef = useRef(null)
 
   useEffect(() => {
-    if (isOpen) {
-      setPin('')
-      setShowPin(false)
-      setVerificando(false)
-      setTimeout(() => inputRef.current?.focus(), 100)
+    if (!isOpen) return
+
+    setPin('')
+    setShowPin(false)
+    setVerificando(false)
+    const timer = setTimeout(() => inputRef.current?.focus(), 100)
+
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !verificando) {
+        onClose()
+      }
     }
-  }, [isOpen])
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      clearTimeout(timer)
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, verificando, onClose])
 
   if (!isOpen) return null
 
@@ -73,16 +90,16 @@ export default function AdminLoginModal({ isOpen, onClose, onSuccess, showToast 
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/75 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 bg-black/75 backdrop-blur-sm animate-fade-in"
         onClick={() => !verificando && onClose()}
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-sm bg-surface-800 border border-surface-600 rounded-2xl p-6 shadow-2xl animate-scale-up z-10">
+      <div className="relative w-full max-w-sm bg-surface-800 border border-surface-600 rounded-2xl sm:rounded-3xl p-6 shadow-2xl animate-scale-in z-10 max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400">
@@ -162,7 +179,7 @@ export default function AdminLoginModal({ isOpen, onClose, onSuccess, showToast 
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
-

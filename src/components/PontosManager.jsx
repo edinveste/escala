@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Sortable from 'sortablejs'
 import { supabase } from '../lib/supabaseClient'
 import { useConfirm } from './ConfirmModal'
@@ -55,6 +56,25 @@ export default function PontosManager({
   useEffect(() => {
     setListaPontos(pontos)
   }, [pontos])
+
+  // Bloqueia rolagem do body e fecha no Esc quando modal de duplicação estiver aberto
+  useEffect(() => {
+    if (!modalDuplicarPonto) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !duplicandoPonto) {
+        setModalDuplicarPonto(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [modalDuplicarPonto, duplicandoPonto])
 
   // ─── Salvar Nova Ordem no Supabase ─────────────────────────────
   const salvarNovaOrdem = useCallback(
@@ -614,97 +634,99 @@ export default function PontosManager({
       </div>
 
       {/* ═══ MODAL DE DUPLICAÇÃO DE PONTO INTEIRO ═══ */}
-      {modalDuplicarPonto && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => !duplicandoPonto && setModalDuplicarPonto(null)}
-          />
+      {modalDuplicarPonto &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="fixed inset-0 bg-black/75 backdrop-blur-sm animate-fade-in"
+              onClick={() => !duplicandoPonto && setModalDuplicarPonto(null)}
+            />
 
-          <div className="relative w-full max-w-md bg-surface-800 border border-surface-600 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-slide-up z-10">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                  <Copy className="w-5 h-5" />
+            <div className="relative w-full max-w-md bg-surface-800 border border-surface-600 rounded-2xl sm:rounded-3xl p-6 shadow-2xl animate-scale-in z-10 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                    <Copy className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-100">
+                      Duplicar Ponto de Captação
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      Copiando horários de{' '}
+                      <span className="text-emerald-300 font-medium">
+                        {modalDuplicarPonto.ponto.nome}
+                      </span>
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-gray-100">
-                    Duplicar Ponto de Captação
-                  </h3>
-                  <p className="text-xs text-gray-400">
-                    Copiando horários de{' '}
-                    <span className="text-emerald-300 font-medium">
-                      {modalDuplicarPonto.ponto.nome}
-                    </span>
-                  </p>
-                </div>
-              </div>
 
-              <button
-                type="button"
-                onClick={() => !duplicandoPonto && setModalDuplicarPonto(null)}
-                className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-400 hover:text-gray-200 transition-colors"
-                disabled={duplicandoPonto}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="mb-4 p-3 bg-surface-900/60 rounded-xl border border-surface-700">
-              <p className="text-xs text-gray-300">
-                ✨ Serão clonados todos os{' '}
-                <strong className="text-emerald-400">{modalDuplicarPonto.totalTurnos} turnos</strong> (dias,
-                horários e capacidades) deste ponto. As reservas iniciarão zeradas para o novo ponto.
-              </p>
-            </div>
-
-            <form onSubmit={handleConfirmDuplicarPonto} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
-                  Nome do novo ponto de captação:
-                </label>
-                <input
-                  type="text"
-                  value={nomeNovoPonto}
-                  onChange={(e) => setNomeNovoPonto(e.target.value)}
-                  placeholder="Ex: Padaria Di Cunto"
-                  className="input-field text-base font-medium"
-                  autoFocus
-                  required
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setModalDuplicarPonto(null)}
+                  onClick={() => !duplicandoPonto && setModalDuplicarPonto(null)}
+                  className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-400 hover:text-gray-200 transition-colors"
                   disabled={duplicandoPonto}
-                  className="btn-ghost flex-1 py-3 text-sm"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={duplicandoPonto || !nomeNovoPonto.trim()}
-                  className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700"
-                >
-                  {duplicandoPonto ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Duplicando...
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      Criar Cópia
-                    </>
-                  )}
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+
+              <div className="mb-4 p-3 bg-surface-900/60 rounded-xl border border-surface-700">
+                <p className="text-xs text-gray-300">
+                  ✨ Serão clonados todos os{' '}
+                  <strong className="text-emerald-400">{modalDuplicarPonto.totalTurnos} turnos</strong> (dias,
+                  horários e capacidades) deste ponto. As reservas iniciarão zeradas para o novo ponto.
+                </p>
+              </div>
+
+              <form onSubmit={handleConfirmDuplicarPonto} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
+                    Nome do novo ponto de captação:
+                  </label>
+                  <input
+                    type="text"
+                    value={nomeNovoPonto}
+                    onChange={(e) => setNomeNovoPonto(e.target.value)}
+                    placeholder="Ex: Padaria Di Cunto"
+                    className="input-field text-base font-medium"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalDuplicarPonto(null)}
+                    disabled={duplicandoPonto}
+                    className="btn-ghost flex-1 py-3 text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={duplicandoPonto || !nomeNovoPonto.trim()}
+                    className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {duplicandoPonto ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Duplicando...
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        Criar Cópia
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   )
 }

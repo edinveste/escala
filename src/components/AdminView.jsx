@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useConfirm } from './ConfirmModal'
 import PontosManager from './PontosManager'
@@ -130,6 +131,26 @@ export default function AdminView({
   const [modalIncluirPessoa, setModalIncluirPessoa] = useState(null)
   const [nomeCorretorManual, setNomeCorretorManual] = useState('')
   const [salvandoPessoa, setSalvandoPessoa] = useState(false)
+
+  // Bloqueia rolagem do body quando modais de duplicação de dia ou inclusão manual estiverem abertos
+  useEffect(() => {
+    if (!modalDuplicar && !modalIncluirPessoa) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (modalDuplicar && !duplicando) setModalDuplicar(null)
+        if (modalIncluirPessoa && !salvandoPessoa) setModalIncluirPessoa(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [modalDuplicar, modalIncluirPessoa, duplicando, salvandoPessoa])
 
   const handleRemoverReserva = useCallback(
     async (reservaId, corretorNome, turnoDesc) => {
@@ -724,237 +745,241 @@ export default function AdminView({
       </div>
 
       {/* ═══ MODAL DE DUPLICAÇÃO DE DIAS ═══ */}
-      {modalDuplicar && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => !duplicando && setModalDuplicar(null)}
-          />
+      {modalDuplicar &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="fixed inset-0 bg-black/75 backdrop-blur-sm animate-fade-in"
+              onClick={() => !duplicando && setModalDuplicar(null)}
+            />
 
-          <div className="relative w-full max-w-lg bg-surface-800 border border-surface-600 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-slide-up z-10 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400">
-                  <Copy className="w-5 h-5" />
+            <div className="relative w-full max-w-lg bg-surface-800 border border-surface-600 rounded-2xl sm:rounded-3xl p-6 shadow-2xl animate-scale-in z-10 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400">
+                    <Copy className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-100">
+                      Duplicar Horários de {modalDuplicar.diaOrigem}
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      Ponto: <span className="text-brand-300 font-medium">{modalDuplicar.pontoNome}</span> ({modalDuplicar.turnos.length} turno{modalDuplicar.turnos.length !== 1 ? 's' : ''})
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-gray-100">
-                    Duplicar Horários de {modalDuplicar.diaOrigem}
-                  </h3>
-                  <p className="text-xs text-gray-400">
-                    Ponto: <span className="text-brand-300 font-medium">{modalDuplicar.pontoNome}</span> ({modalDuplicar.turnos.length} turno{modalDuplicar.turnos.length !== 1 ? 's' : ''})
-                  </p>
+
+                <button
+                  onClick={() => !duplicando && setModalDuplicar(null)}
+                  className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-400 hover:text-gray-200 transition-colors"
+                  disabled={duplicando}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Pré-visualização dos horários que serão copiados */}
+              <div className="mb-4 p-3 bg-surface-900/60 rounded-xl border border-surface-700">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                  Horários que serão replicados:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {modalDuplicar.turnos.map((t) => (
+                    <span
+                      key={t.id}
+                      className="text-xs bg-surface-700 text-gray-300 px-2.5 py-1 rounded-lg border border-surface-600 font-medium"
+                    >
+                      {t.horario} ({t.capacidade} vaga{t.capacidade !== 1 ? 's' : ''})
+                    </span>
+                  ))}
                 </div>
               </div>
 
-              <button
-                onClick={() => !duplicando && setModalDuplicar(null)}
-                className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-400 hover:text-gray-200 transition-colors"
-                disabled={duplicando}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Pré-visualização dos horários que serão copiados */}
-            <div className="mb-4 p-3 bg-surface-900/60 rounded-xl border border-surface-700">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
-                Horários que serão replicados:
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {modalDuplicar.turnos.map((t) => (
-                  <span
-                    key={t.id}
-                    className="text-xs bg-surface-700 text-gray-300 px-2.5 py-1 rounded-lg border border-surface-600 font-medium"
-                  >
-                    {t.horario} ({t.capacidade} vaga{t.capacidade !== 1 ? 's' : ''})
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Atalhos rápidos de seleção */}
-            <div className="mb-3">
-              <p className="text-xs font-semibold text-gray-300 mb-2">
-                Para quais dias deseja duplicar?
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => selecionarPresetDias('todos')}
-                  className="text-xs bg-surface-700 hover:bg-surface-600 text-gray-300 px-3 py-1.5 rounded-lg transition-colors font-medium border border-surface-600"
-                >
-                  {diasDestino.length === DIAS_OPCOES.filter((d) => d !== modalDuplicar.diaOrigem).length
-                    ? 'Desmarcar Todos'
-                    : 'Marcar Todos'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selecionarPresetDias('uteis')}
-                  className="text-xs bg-surface-700 hover:bg-surface-600 text-gray-300 px-3 py-1.5 rounded-lg transition-colors font-medium border border-surface-600"
-                >
-                  Seg a Sex
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selecionarPresetDias('fimdesemana')}
-                  className="text-xs bg-surface-700 hover:bg-surface-600 text-gray-300 px-3 py-1.5 rounded-lg transition-colors font-medium border border-surface-600"
-                >
-                  Fim de Semana
-                </button>
-              </div>
-            </div>
-
-            {/* Lista de dias para seleção */}
-            <div className="grid grid-cols-2 gap-2 mb-6">
-              {DIAS_OPCOES.filter((dia) => dia !== modalDuplicar.diaOrigem).map((dia) => {
-                const isSelected = diasDestino.includes(dia)
-                return (
+              {/* Atalhos rápidos de seleção */}
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-gray-300 mb-2">
+                  Para quais dias deseja duplicar?
+                </p>
+                <div className="flex flex-wrap gap-1.5">
                   <button
-                    key={dia}
                     type="button"
-                    onClick={() => toggleDiaDestino(dia)}
-                    className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium transition-all text-left ${
-                      isSelected
-                        ? 'bg-brand-500/15 border-brand-500/50 text-brand-200'
-                        : 'bg-surface-700/50 border-surface-600 text-gray-400 hover:bg-surface-700'
-                    }`}
+                    onClick={() => selecionarPresetDias('todos')}
+                    className="text-xs bg-surface-700 hover:bg-surface-600 text-gray-300 px-3 py-1.5 rounded-lg transition-colors font-medium border border-surface-600"
                   >
-                    <div
-                      className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                    {diasDestino.length === DIAS_OPCOES.filter((d) => d !== modalDuplicar.diaOrigem).length
+                      ? 'Desmarcar Todos'
+                      : 'Marcar Todos'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selecionarPresetDias('uteis')}
+                    className="text-xs bg-surface-700 hover:bg-surface-600 text-gray-300 px-3 py-1.5 rounded-lg transition-colors font-medium border border-surface-600"
+                  >
+                    Seg a Sex
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selecionarPresetDias('fimdesemana')}
+                    className="text-xs bg-surface-700 hover:bg-surface-600 text-gray-300 px-3 py-1.5 rounded-lg transition-colors font-medium border border-surface-600"
+                  >
+                    Fim de Semana
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista de dias para seleção */}
+              <div className="grid grid-cols-2 gap-2 mb-6">
+                {DIAS_OPCOES.filter((dia) => dia !== modalDuplicar.diaOrigem).map((dia) => {
+                  const isSelected = diasDestino.includes(dia)
+                  return (
+                    <button
+                      key={dia}
+                      type="button"
+                      onClick={() => toggleDiaDestino(dia)}
+                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium transition-all text-left ${
                         isSelected
-                          ? 'bg-brand-500 border-brand-500 text-white'
-                          : 'border-surface-500 bg-surface-800'
+                          ? 'bg-brand-500/15 border-brand-500/50 text-brand-200'
+                          : 'bg-surface-700/50 border-surface-600 text-gray-400 hover:bg-surface-700'
                       }`}
                     >
-                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                    </div>
-                    <span>{dia}</span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Botões de Ação */}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setModalDuplicar(null)}
-                disabled={duplicando}
-                className="btn-ghost flex-1 py-3 text-sm"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={executarDuplicacao}
-                disabled={duplicando || diasDestino.length === 0}
-                className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2"
-              >
-                {duplicando ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Duplicando...
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    Duplicar para {diasDestino.length} dia{diasDestino.length !== 1 ? 's' : ''}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══ MODAL DE INCLUSÃO MANUAL DE CORRETOR ═══ */}
-      {modalIncluirPessoa && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => !salvandoPessoa && setModalIncluirPessoa(null)}
-          />
-
-          <div className="relative w-full max-w-md bg-surface-800 border border-surface-600 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl animate-slide-up z-10">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                  <UserPlus className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-gray-100">
-                    Incluir Corretor no Turno
-                  </h3>
-                  <p className="text-xs text-gray-400">
-                    <span className="text-brand-300 font-medium">
-                      {modalIncluirPessoa.pontoNome}
-                    </span>{' '}
-                    • {formatarNomeDia(modalIncluirPessoa.dia)} ({modalIncluirPessoa.horario})
-                  </p>
-                </div>
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                          isSelected
+                            ? 'bg-brand-500 border-brand-500 text-white'
+                            : 'border-surface-500 bg-surface-800'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                      <span>{dia}</span>
+                    </button>
+                  )
+                })}
               </div>
 
-              <button
-                type="button"
-                onClick={() => !salvandoPessoa && setModalIncluirPessoa(null)}
-                className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-400 hover:text-gray-200 transition-colors"
-                disabled={salvandoPessoa}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleConfirmarIncluirPessoa} className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
-                  Nome do Corretor:
-                </label>
-                <input
-                  type="text"
-                  value={nomeCorretorManual}
-                  onChange={(e) => setNomeCorretorManual(e.target.value)}
-                  placeholder="Ex: Carlos Oliveira"
-                  className="input-field text-base font-medium"
-                  autoFocus
-                  required
-                />
-                <p className="text-[11px] text-gray-500 mt-1">
-                  O corretor será adicionado imediatamente a este horário.
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-2">
+              {/* Botões de Ação */}
+              <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setModalIncluirPessoa(null)}
-                  disabled={salvandoPessoa}
+                  onClick={() => setModalDuplicar(null)}
+                  disabled={duplicando}
                   className="btn-ghost flex-1 py-3 text-sm"
                 >
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  disabled={salvandoPessoa || !nomeCorretorManual.trim()}
-                  className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+                  type="button"
+                  onClick={executarDuplicacao}
+                  disabled={duplicando || diasDestino.length === 0}
+                  className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2"
                 >
-                  {salvandoPessoa ? (
+                  {duplicando ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Adicionando...
+                      Duplicando...
                     </>
                   ) : (
                     <>
-                      <UserPlus className="w-4 h-4" />
-                      Confirmar Inclusão
+                      <Copy className="w-4 h-4" />
+                      Duplicar para {diasDestino.length} dia{diasDestino.length !== 1 ? 's' : ''}
                     </>
                   )}
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* ═══ MODAL DE INCLUSÃO MANUAL DE CORRETOR ═══ */}
+      {modalIncluirPessoa &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="fixed inset-0 bg-black/75 backdrop-blur-sm animate-fade-in"
+              onClick={() => !salvandoPessoa && setModalIncluirPessoa(null)}
+            />
+
+            <div className="relative w-full max-w-md bg-surface-800 border border-surface-600 rounded-2xl sm:rounded-3xl p-6 shadow-2xl animate-scale-in z-10 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-100">
+                      Incluir Corretor no Turno
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      <span className="text-brand-300 font-medium">
+                        {modalIncluirPessoa.pontoNome}
+                      </span>{' '}
+                      • {formatarNomeDia(modalIncluirPessoa.dia)} ({modalIncluirPessoa.horario})
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => !salvandoPessoa && setModalIncluirPessoa(null)}
+                  className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-400 hover:text-gray-200 transition-colors"
+                  disabled={salvandoPessoa}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmarIncluirPessoa} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
+                    Nome do Corretor:
+                  </label>
+                  <input
+                    type="text"
+                    value={nomeCorretorManual}
+                    onChange={(e) => setNomeCorretorManual(e.target.value)}
+                    placeholder="Ex: Carlos Oliveira"
+                    className="input-field text-base font-medium"
+                    autoFocus
+                    required
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    O corretor será adicionado imediatamente a este horário.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalIncluirPessoa(null)}
+                    disabled={salvandoPessoa}
+                    className="btn-ghost flex-1 py-3 text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={salvandoPessoa || !nomeCorretorManual.trim()}
+                    className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {salvandoPessoa ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Adicionando...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        Confirmar Inclusão
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* ═══ MODAL DE ALTERAÇÃO DE SENHA ═══ */}
       <AlterarSenhaModal

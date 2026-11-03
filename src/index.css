@@ -11,12 +11,6 @@
     @apply min-h-screen;
   }
 
-  /* Previne tearing e dirty-rect smear no Android Chrome */
-  main {
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-  }
-
   /* Scrollbar estilizada para dark mode */
   ::-webkit-scrollbar {
     width: 6px;
@@ -137,7 +131,8 @@
   animation: fade-in 0.15s ease-out;
 }
 
-.animate-scale-in {
+.animate-scale-in,
+.animate-scale-up {
   animation: scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -161,6 +156,3 @@
   border-radius: 0.75rem !important;
   cursor: grabbing !important;
 }
-
-
-

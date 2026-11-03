@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Trash2, AlertTriangle, Info, X } from 'lucide-react'
 
 const ConfirmContext = createContext(null)
@@ -126,16 +127,16 @@ export default function ConfirmModal({
   const currentVariant = variantConfig[variant] || variantConfig.danger
   const IconComponent = currentVariant.icon
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-modal-title"
       onClick={onCancel}
     >
       <div
-        className="relative w-full max-w-sm sm:max-w-md bg-surface-800 border border-surface-600 rounded-2xl shadow-2xl overflow-hidden animate-scale-in text-gray-100"
+        className="relative w-full max-w-sm sm:max-w-md bg-surface-800 border border-surface-600 rounded-2xl shadow-2xl overflow-hidden animate-scale-in text-gray-100 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho */}
@@ -187,7 +188,8 @@ export default function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

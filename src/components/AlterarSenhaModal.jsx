@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabaseClient'
 import { Key, Lock, Eye, EyeOff, X, CheckCircle2, ShieldAlert } from 'lucide-react'
 
@@ -12,6 +13,33 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
   const [showConfirmarPin, setShowConfirmarPin] = useState(false)
 
   const [salvando, setSalvando] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPinAtual('')
+      setNovoPin('')
+      setConfirmarPin('')
+      setShowPinAtual(false)
+      setShowNovoPin(false)
+      setShowConfirmarPin(false)
+      return
+    }
+
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !salvando) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, salvando, onClose])
 
   if (!isOpen) return null
 
@@ -92,16 +120,16 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/75 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 bg-black/75 backdrop-blur-sm animate-fade-in"
         onClick={() => !salvando && onClose()}
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md bg-surface-800 border border-surface-600 rounded-3xl p-6 shadow-2xl animate-scale-up z-10 max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-md bg-surface-800 border border-surface-600 rounded-2xl sm:rounded-3xl p-6 shadow-2xl animate-scale-in z-10 max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
@@ -165,14 +193,14 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
           {/* Nova Senha */}
           <div>
             <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
-              Nova Senha (mínimo 4 dígitos, recomendado 8):
+              Nova Senha:
             </label>
             <div className="relative">
               <input
                 type={showNovoPin ? 'text' : 'password'}
                 value={novoPin}
                 onChange={(e) => setNovoPin(e.target.value)}
-                placeholder="Digite a nova senha"
+                placeholder="Mínimo 4 dígitos (ex: 8 dígitos)"
                 className="input-field pr-12 font-mono placeholder:font-sans placeholder:text-sm placeholder:text-gray-500"
                 required
               />
@@ -186,9 +214,23 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
               </button>
             </div>
             {novoPin.length > 0 && (
-              <p className={`text-[11px] mt-1 ${novoPin.length >= 8 ? 'text-emerald-400' : novoPin.length >= 4 ? 'text-amber-400' : 'text-red-400'}`}>
-                {novoPin.length} dígitos {novoPin.length >= 8 ? '— Excelente! Tamanho ideal.' : novoPin.length >= 4 ? '— Aceitável (recomendado 8 dígitos).' : '— Muito curta.'}
-              </p>
+              <div className="flex items-center gap-2 mt-1.5 text-[11px]">
+                <span
+                  className={
+                    novoPin.length >= 8
+                      ? 'text-emerald-400 font-semibold'
+                      : novoPin.length >= 4
+                      ? 'text-amber-400'
+                      : 'text-red-400'
+                  }
+                >
+                  {novoPin.length < 4
+                    ? `Faltam ${4 - novoPin.length} dígito(s) para o mínimo`
+                    : novoPin.length >= 8
+                    ? '✨ Senha forte (8 dígitos)'
+                    : `Aceita (${novoPin.length} dígitos), mas 8 dígitos é mais seguro`}
+                </span>
+              </div>
             )}
           </div>
 
@@ -202,7 +244,7 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
                 type={showConfirmarPin ? 'text' : 'password'}
                 value={confirmarPin}
                 onChange={(e) => setConfirmarPin(e.target.value)}
-                placeholder="Confirme a nova senha"
+                placeholder="Repita a nova senha"
                 className="input-field pr-12 font-mono placeholder:font-sans placeholder:text-sm placeholder:text-gray-500"
                 required
               />
@@ -215,20 +257,22 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
                 {showConfirmarPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {confirmarPin.length > 0 && novoPin !== confirmarPin && (
-              <p className="text-[11px] text-red-400 mt-1">
-                As senhas não coincidem.
-              </p>
-            )}
-            {confirmarPin.length > 0 && novoPin === confirmarPin && (
-              <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Senhas coincidem perfeitamente.
-              </p>
+            {confirmarPin.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-1.5 text-[11px]">
+                {novoPin === confirmarPin ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400 font-medium">As senhas coincidem</span>
+                  </>
+                ) : (
+                  <span className="text-red-400">As senhas não coincidem</span>
+                )}
+              </div>
             )}
           </div>
 
-          <div className="flex gap-2.5 pt-3">
+          {/* Botões de Ação */}
+          <div className="flex gap-3 pt-3">
             <button
               type="button"
               onClick={onClose}
@@ -257,7 +301,7 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
-
