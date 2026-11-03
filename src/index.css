@@ -2,16 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* ═══ SUPERFÍCIES NO MODO CLARO (SLATE LEVE & CLEAN) ═══ */
+  --surface-900: 248 250 252; /* #f8fafc - Fundo geral */
+  --surface-800: 255 255 255; /* #ffffff - Cards, modais e containers */
+  --surface-700: 241 245 249; /* #f1f5f9 - Subcamadas, chips de corretores, inputs */
+  --surface-600: 226 232 240; /* #e2e8f0 - Bordas sutis e divisores */
+  --surface-500: 203 213 225; /* #cbd5e1 - Bordas de input e foco */
+
+  /* ═══ TEXTOS NO MODO CLARO (ALTO CONTRASTE E LEGIBILIDADE) ═══ */
+  --color-gray-50:  15 23 42;    /* #0f172a */
+  --color-gray-100: 15 23 42;    /* #0f172a - Títulos principais */
+  --color-gray-200: 30 41 59;    /* #1e293b - Subtítulos */
+  --color-gray-300: 51 65 85;    /* #334155 - Textos de corpo / botões secundários */
+  --color-gray-400: 100 116 139; /* #64748b - Textos auxiliares e ícones */
+  --color-gray-500: 148 163 184; /* #94a3b8 - Legendas e placeholders */
+  --color-gray-600: 203 213 225; /* #cbd5e1 */
+  --color-gray-700: 226 232 240; /* #e2e8f0 */
+  --color-gray-800: 241 245 249; /* #f1f5f9 */
+  --color-gray-900: 248 250 252; /* #f8fafc */
+  --color-gray-950: 255 255 255; /* #ffffff */
+}
+
+.dark {
+  /* ═══ SUPERFÍCIES NO MODO ESCURO (ORIGINAL DO ESCALAFÁCIL) ═══ */
+  --surface-900: 15 17 23;    /* #0f1117 - Fundo original */
+  --surface-800: 23 25 35;    /* #171923 - Cards originais */
+  --surface-700: 30 34 51;    /* #1e2233 - Subsuperfície original */
+  --surface-600: 38 43 61;    /* #262b3d - Bordas originais */
+  --surface-500: 47 53 73;    /* #2f3549 - Bordas de input originais */
+
+  /* ═══ TEXTOS NO MODO ESCURO (ORIGINAL DO ESCALAFÁCIL) ═══ */
+  --color-gray-50:  249 250 251; /* #f9fafb */
+  --color-gray-100: 243 244 246; /* #f3f4f6 - Branco suave original */
+  --color-gray-200: 229 231 235; /* #e5e7eb */
+  --color-gray-300: 209 213 219; /* #d1d5db */
+  --color-gray-400: 156 163 175; /* #9ca3af */
+  --color-gray-500: 107 114 128; /* #6b7280 */
+  --color-gray-600: 75 85 99;    /* #4b5563 */
+  --color-gray-700: 55 65 81;    /* #374151 */
+  --color-gray-800: 31 41 55;    /* #1f2937 */
+  --color-gray-900: 17 24 39;    /* #111827 */
+  --color-gray-950: 3 7 18;      /* #030712 */
+}
+
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;
   }
 
-  body {
-    @apply min-h-screen;
+  html {
+    color-scheme: light dark;
   }
 
-  /* Scrollbar estilizada para dark mode */
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html:not(.dark) {
+    color-scheme: light;
+  }
+
+  body {
+    @apply min-h-screen transition-colors duration-200;
+  }
+
+  /* Scrollbar estilizada adaptável */
   ::-webkit-scrollbar {
     width: 6px;
   }
@@ -26,6 +82,11 @@
 
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-surface-600;
+  }
+
+  select.input-field option {
+    background-color: rgb(var(--surface-800));
+    color: rgb(var(--color-gray-100));
   }
 }
 
@@ -68,7 +129,7 @@
 
   .card {
     @apply bg-surface-800 border border-surface-600 rounded-xl sm:rounded-2xl p-3 sm:p-4
-           shadow-lg shadow-black/20;
+           shadow-sm sm:shadow-md shadow-slate-200/60 dark:shadow-lg dark:shadow-black/20;
   }
 
   .input-field {
@@ -149,10 +210,14 @@
 }
 
 .sortable-drag {
-  opacity: 0.95 !important;
-  background-color: #1e293b !important; /* surface-800 */
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  opacity: 0.98 !important;
+  background-color: rgb(var(--surface-800)) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25) !important;
   border: 1px solid rgba(59, 130, 246, 0.8) !important;
   border-radius: 0.75rem !important;
   cursor: grabbing !important;
+}
+
+.dark .sortable-drag {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
 }

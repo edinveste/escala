@@ -24,18 +24,18 @@ export default function TurnoCard({ turno, reservas, deviceId, onReservar, onCan
     : 'bg-emerald-500'
 
   const badgeColor = esgotado
-    ? 'bg-red-500/15 text-red-400 border-red-500/20'
+    ? 'bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20'
     : porcentagem >= 66
-    ? 'bg-amber-500/15 text-amber-400 border-amber-500/20'
-    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+    ? 'bg-amber-500/10 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20'
+    : 'bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
 
   return (
-    <div className={`card transition-all duration-200 ${minhaReserva ? 'ring-1 ring-brand-500/40' : ''}`}>
+    <div className={`card transition-all duration-200 ${minhaReserva ? 'ring-2 ring-brand-500 shadow-brand-500/10' : ''}`}>
       {/* Header do card */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-xl bg-surface-700">
-            <Clock className="w-4.5 h-4.5 text-brand-400" />
+            <Clock className="w-4.5 h-4.5 text-brand-500 dark:text-brand-400" />
           </div>
           <div>
             <h3 className="font-semibold text-gray-100 text-[15px] leading-tight">
@@ -44,7 +44,7 @@ export default function TurnoCard({ turno, reservas, deviceId, onReservar, onCan
           </div>
         </div>
 
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${badgeColor}`}>
+        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${badgeColor}`}>
           {vagasOcupadas}/{vagasTotal}
         </span>
       </div>
@@ -65,14 +65,14 @@ export default function TurnoCard({ turno, reservas, deviceId, onReservar, onCan
               key={reserva.id}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
                 reserva.device_id === deviceId
-                  ? 'bg-brand-500/10 text-brand-300 border border-brand-500/20'
-                  : 'bg-surface-700/50 text-gray-400'
+                  ? 'bg-brand-500/10 text-brand-600 dark:text-brand-300 border border-brand-500/20'
+                  : 'bg-surface-700/60 text-gray-400'
               }`}
             >
               <User className="w-3.5 h-3.5 flex-shrink-0" />
               <span className="truncate font-medium">{reserva.corretor_nome}</span>
               {reserva.device_id === deviceId && (
-                <span className="ml-auto text-[10px] bg-brand-500/20 text-brand-300 px-1.5 py-0.5 rounded font-medium">
+                <span className="ml-auto text-[10px] bg-brand-500/20 text-brand-600 dark:text-brand-300 px-1.5 py-0.5 rounded font-bold">
                   VOCÊ
                 </span>
               )}
@@ -110,4 +110,3 @@ export default function TurnoCard({ turno, reservas, deviceId, onReservar, onCan
     </div>
   )
 }
-

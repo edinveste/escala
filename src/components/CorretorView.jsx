@@ -257,7 +257,7 @@ export default function CorretorView({
         {corretorNome && (
           <div className="mb-4 px-1">
             <p className="text-sm text-gray-500">
-              Olá, <span className="text-brand-400 font-medium">{corretorNome}</span> 👋
+              Olá, <span className="text-brand-600 dark:text-brand-400 font-semibold">{corretorNome}</span> 👋
             </p>
           </div>
         )}
@@ -296,7 +296,7 @@ export default function CorretorView({
                         {info.totalTurnos || 0} turno{info.totalTurnos !== 1 ? 's' : ''}
                       </span>
                       {info.totalCapacidade > 0 && (
-                        <span className={`text-xs font-medium ${temVagas ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`text-xs font-medium ${temVagas ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold'}`}>
                           {temVagas
                             ? `${info.vagasLivres} vaga${info.vagasLivres !== 1 ? 's' : ''} livre${info.vagasLivres !== 1 ? 's' : ''}`
                             : 'Lotado'}
@@ -472,7 +472,7 @@ export default function CorretorView({
 
                   <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                     {usuarioTemVaga && (
-                      <span className="text-[11px] font-semibold text-brand-400 bg-brand-500/15 border border-brand-500/30 px-2 py-0.5 rounded-md hidden sm:inline-flex items-center gap-1">
+                      <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/15 border border-brand-500/30 px-2 py-0.5 rounded-md hidden sm:inline-flex items-center gap-1">
                         Sua vaga
                       </span>
                     )}
@@ -481,8 +481,8 @@ export default function CorretorView({
                       <span
                         className={`text-[11px] sm:text-xs font-medium px-2 py-0.5 rounded-md ${
                           temVagas
-                            ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
-                            : 'text-red-400 bg-red-500/10 border border-red-500/20'
+                            ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                            : 'text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/20'
                         }`}
                       >
                         {temVagas
@@ -493,7 +493,7 @@ export default function CorretorView({
 
                     <div
                       className={`p-1.5 rounded-lg bg-surface-700/80 text-gray-300 transition-transform duration-200 ${
-                        isAberto ? 'rotate-180 text-brand-400 bg-brand-500/20' : ''
+                        isAberto ? 'rotate-180 text-brand-500 dark:text-brand-400 bg-brand-500/20' : ''
                       }`}
                     >
                       <ChevronDown className="w-4 h-4" />

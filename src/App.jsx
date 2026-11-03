@@ -6,6 +6,7 @@ import AdminView from './components/AdminView'
 import NomeModal from './components/NomeModal'
 import AdminLoginModal from './components/AdminLoginModal'
 import Toast from './components/Toast'
+import ThemeToggle from './components/ThemeToggle'
 import { useConfirm } from './components/ConfirmModal'
 import { Shield, ArrowLeft, CalendarCheck, LogOut } from 'lucide-react'
 
@@ -351,24 +352,28 @@ export default function App() {
           </div>
 
           {view === 'corretor' && (
-            <button
-              onClick={handleAdminAccess}
-              className="p-2.5 rounded-xl hover:bg-surface-700 transition-colors"
-              aria-label="Acesso admin"
-              title="Acesso Admin"
-            >
-              <Shield className="w-5 h-5 text-gray-600 hover:text-gray-400 transition-colors" />
-            </button>
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <ThemeToggle />
+              <button
+                onClick={handleAdminAccess}
+                className="p-2.5 rounded-xl hover:bg-surface-700 transition-colors"
+                aria-label="Acesso admin"
+                title="Acesso Admin"
+              >
+                <Shield className="w-5 h-5 text-gray-400 hover:text-gray-100 transition-colors" />
+              </button>
+            </div>
           )}
 
           {view === 'admin' && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded-full">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <ThemeToggle />
+              <span className="text-xs font-semibold text-amber-500 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">
                 Admin
               </span>
               <button
                 onClick={handleAdminLogout}
-                className="flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-3 py-1.5 rounded-xl transition-all active:scale-95 min-h-[36px]"
+                className="flex items-center gap-1.5 text-xs font-semibold text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-3 py-1.5 rounded-xl transition-all active:scale-95 min-h-[36px]"
                 title="Sair do modo administrador"
               >
                 <LogOut className="w-3.5 h-3.5" />

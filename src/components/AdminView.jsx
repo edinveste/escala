@@ -458,7 +458,7 @@ export default function AdminView({
         </div>
         <button
           onClick={() => setShowModalSenha(true)}
-          className="btn-ghost text-xs px-3.5 py-2.5 flex items-center gap-1.5 flex-shrink-0 border border-surface-600 hover:border-amber-500/40 hover:text-amber-300 transition-colors"
+          className="btn-ghost text-xs px-3.5 py-2.5 flex items-center gap-1.5 flex-shrink-0 border border-surface-600 hover:border-amber-500/50 hover:bg-amber-50 hover:text-amber-800 dark:hover:bg-amber-500/10 dark:hover:border-amber-500/40 dark:hover:text-amber-300 transition-all font-semibold"
         >
           <Lock className="w-3.5 h-3.5" />
           Alterar Senha
@@ -650,7 +650,7 @@ export default function AdminView({
                             {info.totalTurnos || 0} turno{info.totalTurnos !== 1 ? 's' : ''}
                           </span>
                           {info.totalCapacidade > 0 && (
-                            <span className={`text-xs font-medium ${temVagas ? 'text-emerald-400' : 'text-red-400'}`}>
+                            <span className={`text-xs font-medium ${temVagas ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold'}`}>
                               {temVagas
                                 ? `${info.vagasLivres} vaga${info.vagasLivres !== 1 ? 's' : ''} livre${info.vagasLivres !== 1 ? 's' : ''}`
                                 : 'Lotado'}
@@ -777,7 +777,7 @@ export default function AdminView({
                       Duplicar Horários de {modalDuplicar.diaOrigem}
                     </h3>
                     <p className="text-xs text-gray-400">
-                      Ponto: <span className="text-brand-300 font-medium">{modalDuplicar.pontoNome}</span> ({modalDuplicar.turnos.length} turno{modalDuplicar.turnos.length !== 1 ? 's' : ''})
+                      Ponto: <span className="text-brand-600 dark:text-brand-300 font-semibold">{modalDuplicar.pontoNome}</span> ({modalDuplicar.turnos.length} turno{modalDuplicar.turnos.length !== 1 ? 's' : ''})
                     </p>
                   </div>
                 </div>
@@ -851,7 +851,7 @@ export default function AdminView({
                       onClick={() => toggleDiaDestino(dia)}
                       className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium transition-all text-left ${
                         isSelected
-                          ? 'bg-brand-500/15 border-brand-500/50 text-brand-200'
+                          ? 'bg-brand-500/15 border-brand-500/50 text-brand-700 dark:text-brand-200 font-semibold'
                           : 'bg-surface-700/50 border-surface-600 text-gray-400 hover:bg-surface-700'
                       }`}
                     >
@@ -924,7 +924,7 @@ export default function AdminView({
                       Incluir Corretor no Turno
                     </h3>
                     <p className="text-xs text-gray-400">
-                      <span className="text-brand-300 font-medium">
+                      <span className="text-brand-600 dark:text-brand-300 font-semibold">
                         {modalIncluirPessoa.pontoNome}
                       </span>{' '}
                       • {formatarNomeDia(modalIncluirPessoa.dia)} ({modalIncluirPessoa.horario})

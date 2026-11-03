@@ -444,7 +444,7 @@ export default function PontosManager({
                             {info.totalCapacidade > 0 && (
                               <span
                                 className={`text-xs font-medium ${
-                                  temVagas ? 'text-emerald-400' : 'text-red-400'
+                                  temVagas ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-red-600 dark:text-red-400 font-semibold'
                                 }`}
                               >
                                 •{' '}

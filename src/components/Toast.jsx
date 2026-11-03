@@ -9,10 +9,10 @@ const ICONS = {
 }
 
 const STYLES = {
-  success: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300',
-  error: 'bg-red-500/15 border-red-500/30 text-red-300',
-  warning: 'bg-amber-500/15 border-amber-500/30 text-amber-300',
-  info: 'bg-brand-500/15 border-brand-500/30 text-brand-300',
+  success: 'bg-surface-800 text-emerald-600 dark:text-emerald-300 border-emerald-500/30 shadow-lg shadow-emerald-500/10',
+  error:   'bg-surface-800 text-red-600 dark:text-red-300 border-red-500/30 shadow-lg shadow-red-500/10',
+  warning: 'bg-surface-800 text-amber-600 dark:text-amber-300 border-amber-500/30 shadow-lg shadow-amber-500/10',
+  info:    'bg-surface-800 text-brand-600 dark:text-brand-300 border-brand-500/30 shadow-lg shadow-brand-500/10',
 }
 
 export default function Toast({ message, type = 'success', onClose }) {
@@ -37,4 +37,3 @@ export default function Toast({ message, type = 'success', onClose }) {
     </div>
   )
 }
-

@@ -157,7 +157,7 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
         <div className="mb-4 p-3 rounded-xl bg-surface-700/50 border border-surface-600 text-xs text-gray-300 flex items-start gap-2.5">
           <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-medium text-amber-300">Recomendação de Segurança:</p>
+            <p className="font-semibold text-amber-700 dark:text-amber-300">Recomendação de Segurança:</p>
             <p className="text-gray-400 mt-0.5">
               Utilize uma senha com <strong className="text-gray-200">8 dígitos</strong> para proteger o painel contra tentativas de adivinhação.
             </p>

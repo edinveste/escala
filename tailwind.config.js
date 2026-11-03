@@ -21,11 +21,24 @@ export default {
           900: '#1a3a8a',
         },
         surface: {
-          900: '#0f1117',
-          800: '#171923',
-          700: '#1e2233',
-          600: '#262b3d',
-          500: '#2f3549',
+          900: 'rgb(var(--surface-900) / <alpha-value>)',
+          800: 'rgb(var(--surface-800) / <alpha-value>)',
+          700: 'rgb(var(--surface-700) / <alpha-value>)',
+          600: 'rgb(var(--surface-600) / <alpha-value>)',
+          500: 'rgb(var(--surface-500) / <alpha-value>)',
+        },
+        gray: {
+          50:  'rgb(var(--color-gray-50) / <alpha-value>)',
+          100: 'rgb(var(--color-gray-100) / <alpha-value>)',
+          200: 'rgb(var(--color-gray-200) / <alpha-value>)',
+          300: 'rgb(var(--color-gray-300) / <alpha-value>)',
+          400: 'rgb(var(--color-gray-400) / <alpha-value>)',
+          500: 'rgb(var(--color-gray-500) / <alpha-value>)',
+          600: 'rgb(var(--color-gray-600) / <alpha-value>)',
+          700: 'rgb(var(--color-gray-700) / <alpha-value>)',
+          800: 'rgb(var(--color-gray-800) / <alpha-value>)',
+          900: 'rgb(var(--color-gray-900) / <alpha-value>)',
+          950: 'rgb(var(--color-gray-950) / <alpha-value>)',
         },
         neon: {
           green:  '#22d3ee',
@@ -38,4 +51,3 @@ export default {
   },
   plugins: [],
 }
-

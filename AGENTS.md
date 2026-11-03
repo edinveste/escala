@@ -23,7 +23,7 @@ O **Escala CRM - Controle de Captação** é uma Single Page Application (SPA) m
 
 ## 2. Stack Tecnológica
 - **Frontend**: React 18 (SPA) com Vite 5
-- **Estilização**: Tailwind CSS com tema Dark Mode por padrão (paleta dark/surface, detalhes neon/brand)
+- **Estilização**: Tailwind CSS com suporte completo a Modo Escuro (padrão) e Modo Claro, alternável via CSS variables dinâmicas e tokens semânticos
 - **Ícones**: `lucide-react`
 - **Backend / BaaS**: Supabase
   - PostgreSQL 15+ com Row Level Security (RLS)
@@ -116,6 +116,7 @@ e:\Escala\
         ├── AdminView.jsx        # Painel do Administrador (gestão de senha, turnos e acordeon)
         ├── PontosManager.jsx    # Gestão de pontos (criação limpa, drag-and-drop de reordenação, duplicar e renomear)
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
+        ├── ThemeToggle.jsx      # Botão animado de alternância Modo Claro / Escuro (Sun/Moon com persistência)
         └── Toast.jsx            # Notificações visuais animadas
 ```
 
@@ -172,6 +173,25 @@ e:\Escala\
 
 ---
 
+### 5.3. Sistema de Temas (Modo Claro & Modo Escuro)
+- **Alternador Rápido no Header ([ThemeToggle.jsx](file:///e:/Escala/src/components/ThemeToggle.jsx))**:
+  - Disponível no cabeçalho tanto na visão do corretor quanto na visão do administrador.
+  - Exibe Sol ☀️ em tom âmbar no Modo Escuro (convite ao Modo Claro) e Lua 🌙 em azul no Modo Claro (convite ao Modo Escuro).
+  - Microinterações animadas ao passar o mouse ou tocar, com área de clique mínima de 44px (touch-friendly).
+  - Persistência da preferência no `localStorage` (`escala_theme`), mantendo o Modo Escuro como padrão inicial caso o usuário nunca tenha escolhido.
+- **Anti-FOUC (Prevenção de Flash)**:
+  - Script nativo no `<head>` do `index.html` que lê o `localStorage` e injeta a classe `dark` e a meta `theme-color` antes do primeiro paint, evitando qualquer piscar indesejado.
+- **Arquitetura de Tokens e CSS Variables**:
+  - Tokens dinâmicos no `tailwind.config.js` mapeados para variáveis CSS em `:root` e `.dark` no `index.css`:
+    - `surface-900` a `500`: adaptam automaticamente fundo, cards, chips e divisores.
+    - `gray-50` a `950`: textos e ícones ajustados para alto contraste imediato.
+- **Calibração de Contraste e Estados de Hover**:
+  - **Botão "Duplicar horários"**: no Modo Claro utiliza `bg-brand-50`, `text-brand-700` e `border-brand-200`, transitando no hover para `hover:bg-brand-100` e `hover:text-brand-900` (nunca desbota nem some); no Modo Escuro preserva `dark:text-brand-300` e `dark:hover:text-brand-200`.
+  - **Botão "Alterar Senha"**: no Modo Claro hover utiliza `hover:bg-amber-50`, `hover:border-amber-500/50` e `hover:text-amber-800` (evitando texto amarelo claro invisível no fundo branco); no Modo Escuro preserva `dark:hover:text-amber-300`.
+  - **Badges de Vagas e Toasts**: configurados com cores de alto contraste e legibilidade perfeita em qualquer superfície.
+
+---
+
 ## 6. Comandos e Execução
 ```bash
 # Instalação de dependências
@@ -188,7 +208,7 @@ npm run build
 
 ## 7. Diretrizes para Manutenção e Futuras Extensões
 - **Mobile First**: Sempre manter botões com área de toque mínima de `48px` (`min-h-[48px]`), fontes legíveis e espaçamentos adequados para smartphones.
-- **Dark Mode**: Manter a consistência das classes `surface-900`, `surface-800`, `surface-700`, `brand-500` e estados de hover/active.
+- **Dark Mode & Light Mode**: Manter a consistência das classes `surface-900` a `500` e `text-gray-*`. Jamais utilizar cores claras (como `text-amber-300`, `text-brand-200`, `hover:text-white`) em botões ou textos sem o prefixo `dark:`, garantindo que no Modo Claro sempre haja alto contraste e legibilidade imediata (WCAG AA).
 - **Realtime**: Qualquer alteração em `reservas`, `turnos` ou `pontos` deve ser sincronizada via Supabase Channel para evitar divergência de telas entre corretores simultâneos.
 - **Race Condition**: Toda lógica de reserva de novas vagas deve passar pela RPC `reservar_vaga` com row-level lock.
 - **Mobile Touch e Drag-and-Drop**: O arrasto com SortableJS em telas touch deve sempre usar `delay: 150`, `delayOnTouchOnly: true` e `touchStartThreshold: 5`, restringindo a classe de handle (`.drag-handle`) exclusivamente ao ícone pegador (`⠿`). Evitar `forceFallback: true`, `touch-none` em cartões inteiros e `backdrop-blur` em headers fixos/pegajosos para prevenir desync do compositor do Chrome e artefatos visuais (smear/clones).
