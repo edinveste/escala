@@ -23,6 +23,7 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
 
 ## 2. Stack Tecnológica
 - **Frontend**: React 18 (SPA) com Vite 5
+- **Hospedagem & CDN**: Cloudflare Pages (Deploy contínuo via GitHub, branch main em produção, SSL gratuito e roteamento SPA via public/_redirects)
 - **Estilização**: Tailwind CSS com suporte completo a Modo Escuro (padrão) e Modo Claro, alternável via CSS variables dinâmicas e tokens semânticos
 - **Ícones**: `lucide-react`
 - **Multi-Tenancy**: `TenantContext` com resolução por subdomínio (`imobiliaria.meusaas.com`), rota/slug (`/imobiliaria`), query param (`?empresa=imobiliaria`) e persistência segura no `localStorage`.
