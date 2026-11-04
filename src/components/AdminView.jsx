@@ -5,6 +5,7 @@ import { useConfirm } from './ConfirmModal'
 import PontosManager from './PontosManager'
 import TurnosDiaList from './TurnosDiaList'
 import AlterarSenhaModal from './AlterarSenhaModal'
+import EquipeManager from './EquipeManager'
 import {
   Plus,
   Trash2,
@@ -22,7 +23,11 @@ import {
   UserPlus,
   Key,
   Lock,
+  Crown,
+  Shield,
+  ShieldAlert,
 } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 import {
   DIAS_SEMANA,
   DIAS_UTEIS,
@@ -40,11 +45,21 @@ export default function AdminView({
   onLimparEscala,
   onDataChanged,
   showToast,
+  empresaId,
+  empresaNome,
+  empresa,
+  onEmpresaUpdated,
+  isFullAdmin: propIsFullAdmin,
+  onOpenSuperadmin,
 }) {
   const confirm = useConfirm()
+  const { user, perfil, isSuperadmin, getEmpresaRole } = useAuth()
+  const role = empresaId ? getEmpresaRole(empresaId) : null
+  const isFullAdmin = propIsFullAdmin ?? (isSuperadmin || role === 'admin' || !user)
 
-  // Estado do formulário de turno
-  const STORAGE_KEY_FORM_DIA = 'escala_admin_ultimo_dia'
+  // Chaves de localStorage isoladas por empresa
+  const STORAGE_KEY_FORM_DIA = empresaId ? `escala_admin_ultimo_dia_${empresaId}` : 'escala_admin_ultimo_dia'
+  const STORAGE_KEY_PONTOS_EXPANDIDOS = empresaId ? `escala_admin_pontos_expandidos_${empresaId}` : 'escala_admin_pontos_expandidos'
 
   const [formPontoId, setFormPontoId] = useState('')
   const [formDia, setFormDia] = useState(() => {
@@ -84,9 +99,6 @@ export default function AdminView({
   const [showModalSenha, setShowModalSenha] = useState(false)
 
   // Controle de sanfona (accordion) dos pontos na listagem de turnos
-  // Padrão: tudo recolhido na 1ª abertura, com persistência no localStorage
-  const STORAGE_KEY_PONTOS_EXPANDIDOS = 'escala_admin_pontos_expandidos'
-
   const [pontosExpandidos, setPontosExpandidos] = useState(() => {
     try {
       const salvo = localStorage.getItem(STORAGE_KEY_PONTOS_EXPANDIDOS)
@@ -96,7 +108,7 @@ export default function AdminView({
     } catch (err) {
       console.error('Erro ao ler preferência de expansão:', err)
     }
-    return {} // Padrão inicial: todas as sessões recolhidas ao abrir pela primeira vez
+    return {}
   })
 
   // Salva a preferência no localStorage sempre que o usuário alterar
@@ -106,7 +118,7 @@ export default function AdminView({
     } catch (err) {
       console.error('Erro ao salvar preferência de expansão:', err)
     }
-  }, [pontosExpandidos])
+  }, [pontosExpandidos, STORAGE_KEY_PONTOS_EXPANDIDOS])
 
   const togglePontoFechado = useCallback((pontoId) => {
     setPontosExpandidos((prev) => ({
@@ -132,7 +144,6 @@ export default function AdminView({
   const [nomeCorretorManual, setNomeCorretorManual] = useState('')
   const [salvandoPessoa, setSalvandoPessoa] = useState(false)
 
-  // Bloqueia rolagem do body quando modais de duplicação de dia ou inclusão manual estiverem abertos
   useEffect(() => {
     if (!modalDuplicar && !modalIncluirPessoa) return
     const originalOverflow = document.body.style.overflow
@@ -182,7 +193,7 @@ export default function AdminView({
     setNomeCorretorManual('')
   }, [])
 
-  const handleConfirmarIncluirPessoa = useCallback(
+  const handleConfirmIncluirPessoa = useCallback(
     async (e) => {
       if (e) e.preventDefault()
       if (!modalIncluirPessoa || !nomeCorretorManual.trim()) {
@@ -196,6 +207,7 @@ export default function AdminView({
           turno_id: modalIncluirPessoa.turnoId,
           corretor_nome: nomeCorretorManual.trim(),
           device_id: 'admin_manual_' + Date.now(),
+          ...(empresaId ? { empresa_id: empresaId } : {}),
         })
 
         if (error) throw error
@@ -211,7 +223,7 @@ export default function AdminView({
         setSalvandoPessoa(false)
       }
     },
-    [modalIncluirPessoa, nomeCorretorManual, onDataChanged, showToast]
+    [modalIncluirPessoa, nomeCorretorManual, empresaId, onDataChanged, showToast]
   )
 
   // ─── CRUD Turnos ─────────────────────────────────────────────
@@ -246,6 +258,7 @@ export default function AdminView({
           horario: formHorario.trim(),
           capacidade: Math.max(1, formCapacidade),
           ordem: proximaOrdem,
+          ...(empresaId ? { empresa_id: empresaId } : {}),
         })
 
         if (error) throw error
@@ -260,7 +273,7 @@ export default function AdminView({
         setAddingTurno(false)
       }
     },
-    [formPontoId, formDia, formHorario, formCapacidade, turnos, onDataChanged, showToast]
+    [formPontoId, formDia, formHorario, formCapacidade, turnos, empresaId, onDataChanged, showToast]
   )
 
   const handleDeleteTurno = useCallback(
@@ -344,6 +357,7 @@ export default function AdminView({
             horario: t.horario,
             capacidade: t.capacidade,
             ordem: t.ordem,
+            ...(empresaId ? { empresa_id: empresaId } : {}),
           })
         }
       }
@@ -363,7 +377,7 @@ export default function AdminView({
     } finally {
       setDuplicando(false)
     }
-  }, [modalDuplicar, diasDestino, onDataChanged, showToast])
+  }, [modalDuplicar, diasDestino, empresaId, onDataChanged, showToast])
 
   // Agrupar turnos por ponto
   const turnosPorPonto = useMemo(() => {
@@ -388,7 +402,7 @@ export default function AdminView({
     return mapa
   }, [reservas])
 
-  // Contagem de turnos e vagas livres por ponto (idêntico à visão do corretor)
+  // Contagem de turnos e vagas livres por ponto
   const vagasPorPonto = useMemo(() => {
     const mapa = {}
     for (const ponto of pontos) {
@@ -425,6 +439,79 @@ export default function AdminView({
 
   return (
     <div className="space-y-6">
+      {/* ═══ BANNER DE IDENTIDADE DO GESTOR ═══ */}
+      {user && (
+        <div className="card bg-gradient-to-r from-surface-800 to-surface-850 border-surface-700 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm flex-shrink-0">
+              {(perfil?.nome || user.email || 'G').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-bold text-gray-100 truncate">
+                  {perfil?.nome ? perfil.nome : user.email}
+                </p>
+                {isSuperadmin ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                    <Crown className="w-3 h-3 text-amber-400" />
+                    Superadmin
+                  </span>
+                ) : role === 'admin' ? (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 flex items-center gap-1">
+                    <Shield className="w-3 h-3 text-brand-400" />
+                    Admin da Imobiliária
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                    <Shield className="w-3 h-3 text-emerald-400" />
+                    Gestor de Plantão
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5 truncate">
+                {user.email}
+              </p>
+            </div>
+          </div>
+
+          {isSuperadmin && onOpenSuperadmin && (
+            <button
+              onClick={onOpenSuperadmin}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold transition-all flex-shrink-0"
+            >
+              <Crown className="w-3.5 h-3.5" />
+              <span>Painel Superadmin</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ═══ ALERTA DE AMBIENTE BLOQUEADO (INADIMPLÊNCIA / CANCELAMENTO ASAAS) ═══ */}
+      {empresa?.status === 'bloqueado' && (
+        <div className="card bg-red-500/10 border-red-500/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-red-200">
+          <div className="flex items-start gap-3 min-w-0">
+            <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="text-xs space-y-0.5">
+              <p className="font-bold text-red-300">Ambiente de Plantão Suspenso</p>
+              <p className="text-red-300/80 text-[11px] leading-relaxed">
+                A escala desta imobiliária está com pendência na assinatura do Asaas. A criação de reservas pelos corretores está bloqueada até a regularização.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const texto = encodeURIComponent(
+                `Olá! Sou gestor da imobiliária "${empresaNome || ''}" e preciso regularizar a assinatura do EscalaFácil.`
+              )
+              window.open(`https://wa.me/5511999999999?text=${texto}`, '_blank')
+            }}
+            className="btn-primary py-2 px-3 text-xs flex items-center justify-center gap-1.5 flex-shrink-0 whitespace-nowrap shadow-md shadow-brand-500/10"
+          >
+            Regularizar Assinatura
+          </button>
+        </div>
+      )}
+
       {/* Stats rápidos */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="card text-center">
@@ -441,29 +528,41 @@ export default function AdminView({
         </div>
       </div>
 
-      {/* ═══ SEGURANÇA: SENHA DO ADMIN ═══ */}
-      <div className="card flex items-center justify-between gap-3 bg-surface-800/90 border-surface-600">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex-shrink-0">
-            <Key className="w-5 h-5" />
+      {/* ═══ SEGURANÇA: SENHA DO ADMIN DA IMOBILIÁRIA (Apenas Admin / Superadmin) ═══ */}
+      {isFullAdmin && (
+        <div className="card flex items-center justify-between gap-3 bg-surface-800/90 border-surface-600">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex-shrink-0">
+              <Key className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-gray-200 truncate">
+                Senha de Administrador
+              </h3>
+              <p className="text-xs text-gray-400 truncate">
+                Altere o PIN de acesso desta imobiliária
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h3 className="text-sm font-bold text-gray-200 truncate">
-              Senha de Administrador
-            </h3>
-            <p className="text-xs text-gray-400 truncate">
-              Altere o PIN de acesso ao painel de controle
-            </p>
-          </div>
+          <button
+            onClick={() => setShowModalSenha(true)}
+            className="btn-ghost text-xs px-3.5 py-2.5 flex items-center gap-1.5 flex-shrink-0 border border-surface-600 hover:border-amber-500/50 hover:bg-amber-50 hover:text-amber-800 dark:hover:bg-amber-500/10 dark:hover:border-amber-500/40 dark:hover:text-amber-300 transition-all font-semibold"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            Alterar Senha
+          </button>
         </div>
-        <button
-          onClick={() => setShowModalSenha(true)}
-          className="btn-ghost text-xs px-3.5 py-2.5 flex items-center gap-1.5 flex-shrink-0 border border-surface-600 hover:border-amber-500/50 hover:bg-amber-50 hover:text-amber-800 dark:hover:bg-amber-500/10 dark:hover:border-amber-500/40 dark:hover:text-amber-300 transition-all font-semibold"
-        >
-          <Lock className="w-3.5 h-3.5" />
-          Alterar Senha
-        </button>
-      </div>
+      )}
+
+      {/* ═══ PROTEÇÃO CONTRA INVASORES & EQUIPE DE CORRETORES ═══ */}
+      <EquipeManager
+        empresaId={empresaId}
+        empresaNome={empresaNome}
+        exigirCadastro={empresa?.exigir_cadastro_previo || false}
+        onExigirCadastroChange={onEmpresaUpdated}
+        isFullAdmin={isFullAdmin}
+        showToast={showToast}
+      />
 
       {/* ═══ SEÇÃO: PONTOS DE CAPTAÇÃO (COMPONENTIZADO COM DRAG & DROP) ═══ */}
       <PontosManager
@@ -474,6 +573,8 @@ export default function AdminView({
         onLimparEscala={onLimparEscala}
         onDataChanged={onDataChanged}
         showToast={showToast}
+        empresaId={empresaId}
+        isFullAdmin={isFullAdmin}
       />
 
       {/* ═══ SEÇÃO: TURNOS ═══ */}
@@ -631,7 +732,6 @@ export default function AdminView({
                   key={ponto.id}
                   className="border border-surface-700/80 rounded-xl sm:rounded-2xl p-1.5 sm:p-2.5 bg-surface-900/40 transition-colors"
                 >
-                  {/* Botão Acordeão / Sanfona do Ponto - Idêntico ao card da visão do corretor */}
                   <button
                     type="button"
                     onClick={() => togglePontoFechado(ponto.id)}
@@ -661,7 +761,6 @@ export default function AdminView({
                     </div>
 
                     <div className="flex items-center gap-3 flex-shrink-0 ml-3">
-                      {/* Indicador visual idêntico à visão do corretor */}
                       <div
                         className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
                           info.totalCapacidade === 0
@@ -692,7 +791,6 @@ export default function AdminView({
                     </div>
                   </button>
 
-                  {/* Conteúdo dos Dias e Turnos (colapsável) */}
                   {!isFechado && (
                     <div className="mt-3 pt-3 border-t border-surface-700/60 space-y-3">
                       {turnosDoPonto.length === 0 ? (
@@ -737,25 +835,27 @@ export default function AdminView({
         </div>
       )}
 
-      {/* ═══ ZONA DE PERIGO ═══ */}
-      <div className="card border-red-500/20 bg-red-500/5">
-        <div className="flex items-start gap-3 mb-4">
-          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="text-sm font-bold text-red-400">Zona de Perigo</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Limpar todas as reservas de todos os pontos. Esta ação não pode ser desfeita.
-            </p>
+      {/* ═══ ZONA DE PERIGO (Apenas Administrador / Superadmin) ═══ */}
+      {isFullAdmin && (
+        <div className="card border-red-500/20 bg-red-500/5">
+          <div className="flex items-start gap-3 mb-4">
+            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-bold text-red-400">Zona de Perigo</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Limpar todas as reservas desta imobiliária. Esta ação não afeta outras empresas.
+              </p>
+            </div>
           </div>
+          <button
+            onClick={() => onLimparEscala(null)}
+            className="btn-danger w-full flex items-center justify-center gap-2"
+          >
+            <Trash2 className="w-4.5 h-4.5" />
+            Limpar Escala Desta Imobiliária
+          </button>
         </div>
-        <button
-          onClick={() => onLimparEscala(null)}
-          className="btn-danger w-full flex items-center justify-center gap-2"
-        >
-          <Trash2 className="w-4.5 h-4.5" />
-          Limpar Toda a Escala
-        </button>
-      </div>
+      )}
 
       {/* ═══ MODAL DE DUPLICAÇÃO DE DIAS ═══ */}
       {modalDuplicar &&
@@ -942,7 +1042,7 @@ export default function AdminView({
                 </button>
               </div>
 
-              <form onSubmit={handleConfirmarIncluirPessoa} className="space-y-4">
+              <form onSubmit={handleConfirmIncluirPessoa} className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
                     Nome do Corretor:
@@ -999,6 +1099,7 @@ export default function AdminView({
         isOpen={showModalSenha}
         onClose={() => setShowModalSenha(false)}
         showToast={showToast}
+        empresaId={empresaId}
       />
     </div>
   )

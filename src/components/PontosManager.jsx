@@ -26,6 +26,8 @@ export default function PontosManager({
   onLimparEscala,
   onDataChanged,
   showToast,
+  empresaId,
+  isFullAdmin = true,
 }) {
   const confirm = useConfirm()
 
@@ -191,6 +193,7 @@ export default function PontosManager({
           nome: formPontoNome.trim(),
           ordem: proximaOrdem,
           ativo: false, // Inicia oculto para corretores enquanto o gestor monta a grade!
+          ...(empresaId ? { empresa_id: empresaId } : {}),
         })
 
         if (error) throw error
@@ -205,7 +208,7 @@ export default function PontosManager({
         setAddingPonto(false)
       }
     },
-    [formPontoNome, pontos, onDataChanged, showToast]
+    [formPontoNome, pontos, empresaId, onDataChanged, showToast]
   )
 
   // ─── Renomear Ponto ─────────────────────────────────────────────
@@ -290,6 +293,7 @@ export default function PontosManager({
             nome: nomeNovoPonto.trim(),
             ordem: proximaOrdem,
             ativo: false, // Inicia oculto para corretores até o gestor revisar!
+            ...(empresaId ? { empresa_id: empresaId } : {}),
           })
           .select()
           .single()
@@ -304,6 +308,7 @@ export default function PontosManager({
             horario: t.horario,
             capacidade: t.capacidade,
             ordem: t.ordem,
+            ...(empresaId ? { empresa_id: empresaId } : {}),
           }))
           const { error: erroTurnos } = await supabase.from('turnos').insert(novosTurnos)
           if (erroTurnos) throw erroTurnos
@@ -320,7 +325,7 @@ export default function PontosManager({
         setDuplicandoPonto(false)
       }
     },
-    [modalDuplicarPonto, nomeNovoPonto, pontos, turnos, onDataChanged, showToast]
+    [modalDuplicarPonto, nomeNovoPonto, pontos, turnos, empresaId, onDataChanged, showToast]
   )
 
   return (
@@ -340,36 +345,38 @@ export default function PontosManager({
           )}
         </div>
 
-        {/* Formulário de novo ponto (Sem campo de número manual) */}
-        <form onSubmit={handleAddPonto} className="space-y-3 mb-4">
-          <div>
-            <input
-              type="text"
-              value={formPontoNome}
-              onChange={(e) => setFormPontoNome(e.target.value)}
-              placeholder="Nome do ponto (ex: Mercado Extra)"
-              className="input-field w-full text-sm"
-              maxLength={100}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={addingPonto || !formPontoNome.trim()}
-            className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5"
-          >
-            {addingPonto ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Criando ponto...
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" />
-                Criar Ponto de Captação
-              </>
-            )}
-          </button>
-        </form>
+        {/* Formulário de novo ponto (Apenas Administradores) */}
+        {isFullAdmin && (
+          <form onSubmit={handleAddPonto} className="space-y-3 mb-4">
+            <div>
+              <input
+                type="text"
+                value={formPontoNome}
+                onChange={(e) => setFormPontoNome(e.target.value)}
+                placeholder="Nome do ponto (ex: Mercado Extra)"
+                className="input-field w-full text-sm"
+                maxLength={100}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={addingPonto || !formPontoNome.trim()}
+              className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5"
+            >
+              {addingPonto ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Criando ponto...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Criar Ponto de Captação
+                </>
+              )}
+            </button>
+          </form>
+        )}
 
         {/* Lista de pontos existentes com Arrastar e Soltar fluido */}
         {listaPontos.length > 0 && (
@@ -483,91 +490,116 @@ export default function PontosManager({
                             )}
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingPontoId(ponto.id)
-                              setEditingPontoNome(ponto.nome)
-                            }}
-                            className="p-2 rounded-lg hover:bg-brand-500/10 text-gray-400 hover:text-brand-400 transition-colors"
-                            title="Renomear ponto"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Ações Destrutivas / Estruturais (Apenas Administrador / Superadmin) */}
+                          {isFullAdmin && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingPontoId(ponto.id)
+                                  setEditingPontoNome(ponto.nome)
+                                }}
+                                className="p-2 rounded-lg hover:bg-brand-500/10 text-gray-400 hover:text-brand-400 transition-colors"
+                                title="Renomear ponto"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => abrirModalDuplicarPonto(ponto, qtdTurnos)}
-                            className="p-2 rounded-lg hover:bg-emerald-500/10 text-gray-400 hover:text-emerald-400 transition-colors"
-                            title={`Duplicar ponto e seus ${qtdTurnos} turnos`}
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => abrirModalDuplicarPonto(ponto, qtdTurnos)}
+                                className="p-2 rounded-lg hover:bg-emerald-500/10 text-gray-400 hover:text-emerald-400 transition-colors"
+                                title={`Duplicar ponto e seus ${qtdTurnos} turnos`}
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => onLimparEscala(ponto.id)}
-                            className="p-2 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
-                            title="Limpar reservas deste ponto"
-                          >
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => onLimparEscala(ponto.id)}
+                                className="p-2 rounded-lg hover:bg-amber-500/10 text-gray-400 hover:text-amber-400 transition-colors"
+                                title="Limpar reservas deste ponto"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePonto(ponto.id, ponto.nome)}
-                            className="p-2 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
-                            title="Excluir ponto"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePonto(ponto.id, ponto.nome)}
+                                className="p-2 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
+                                title="Excluir ponto"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
                         </div>
 
-                        {/* Ações no Celular (Mobile): Menu de 3 Pontinhos */}
-                        <div className="sm:hidden relative flex-shrink-0">
+                        {/* Ações no Celular (Mobile): Menu ou Botão Direto */}
+                        {!isFullAdmin ? (
                           <button
                             type="button"
                             onClick={() =>
-                              setMenuAbertoId(menuAbertoId === ponto.id ? null : ponto.id)
+                              handleToggleAtivo(ponto.id, ponto.ativo !== false, ponto.nome)
                             }
-                            className="p-2 rounded-lg text-gray-400 hover:text-gray-100 hover:bg-surface-600/60 active:bg-surface-600 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
-                            title="Mais opções"
-                            aria-label="Mais opções"
+                            className="sm:hidden p-2 rounded-lg text-gray-400 hover:text-brand-400 hover:bg-surface-600/60 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+                            title={
+                              ponto.ativo !== false
+                                ? 'Ponto visível (clique para ocultar)'
+                                : 'Ponto oculto (clique para publicar)'
+                            }
                           >
-                            <MoreVertical className="w-4 h-4" />
+                            {ponto.ativo !== false ? (
+                              <Eye className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <EyeOff className="w-4 h-4 text-amber-400" />
+                            )}
                           </button>
+                        ) : (
+                          <div className="sm:hidden relative flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setMenuAbertoId(menuAbertoId === ponto.id ? null : ponto.id)
+                              }
+                              className="p-2 rounded-lg text-gray-400 hover:text-gray-100 hover:bg-surface-600/60 active:bg-surface-600 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+                              title="Mais opções"
+                              aria-label="Mais opções"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
 
-                          {/* Menu Dropdown Suspenso no Celular */}
-                          {menuAbertoId === ponto.id && (
-                            <>
-                              {/* Backdrop invisível para fechar ao tocar fora */}
-                              <div
-                                className="fixed inset-0 z-30"
-                                onClick={() => setMenuAbertoId(null)}
-                              />
+                            {/* Menu Dropdown Suspenso no Celular */}
+                            {menuAbertoId === ponto.id && (
+                              <>
+                                {/* Backdrop invisível para fechar ao tocar fora */}
+                                <div
+                                  className="fixed inset-0 z-30"
+                                  onClick={() => setMenuAbertoId(null)}
+                                />
 
-                              <div className="absolute right-0 top-10 z-40 w-48 py-1.5 bg-surface-800 border border-surface-600 rounded-xl shadow-2xl shadow-black/80 animate-scale-in">
-                                {/* Alternar visibilidade no menu */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMenuAbertoId(null)
-                                    handleToggleAtivo(ponto.id, ponto.ativo !== false, ponto.nome)
-                                  }}
-                                  className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-gray-200 hover:bg-surface-700/80 active:bg-surface-700 flex items-center gap-2.5 transition-colors"
-                                >
-                                  {ponto.ativo !== false ? (
-                                    <>
-                                      <EyeOff className="w-3.5 h-3.5 text-amber-400" />
-                                      Ocultar dos Corretores
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                                      Publicar para Corretores
-                                    </>
-                                  )}
-                                </button>
+                                <div className="absolute right-0 top-10 z-40 w-48 py-1.5 bg-surface-800 border border-surface-600 rounded-xl shadow-2xl shadow-black/80 animate-scale-in">
+                                  {/* Alternar visibilidade no menu */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuAbertoId(null)
+                                      handleToggleAtivo(ponto.id, ponto.ativo !== false, ponto.nome)
+                                    }}
+                                    className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-gray-200 hover:bg-surface-700/80 active:bg-surface-700 flex items-center gap-2.5 transition-colors"
+                                  >
+                                    {ponto.ativo !== false ? (
+                                      <>
+                                        <EyeOff className="w-3.5 h-3.5 text-amber-400" />
+                                        Ocultar dos Corretores
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                                        Publicar para Corretores
+                                      </>
+                                    )}
+                                  </button>
 
                                   <button
                                     type="button"
@@ -623,9 +655,10 @@ export default function PontosManager({
                               </>
                             )}
                           </div>
-                        </>
-                      )}
-                    </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 )
               })}
             </div>

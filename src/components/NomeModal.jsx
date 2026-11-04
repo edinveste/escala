@@ -1,16 +1,46 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { UserCircle, X } from 'lucide-react'
+import { UserCircle, X, Phone, User, ShieldCheck } from 'lucide-react'
 
-export default function NomeModal({ onConfirm, onClose }) {
-  const [nome, setNome] = useState('')
-  const inputRef = useRef(null)
+// Máscara dinâmica para telefone brasileiro
+function formatarWhatsApp(valor) {
+  const digits = valor.replace(/\D/g, '').slice(0, 11)
+  if (!digits) return ''
+  if (digits.length <= 2) return `(${digits}`
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+}
+
+export default function NomeModal({
+  onConfirm,
+  onClose,
+  initialNome = '',
+  initialWhatsapp = '',
+  exigirCadastro = false,
+}) {
+  const [nome, setNome] = useState(() => {
+    return initialNome || localStorage.getItem('escala_corretor_nome') || ''
+  })
+  const [whatsapp, setWhatsapp] = useState(() => {
+    const salvo = initialWhatsapp || localStorage.getItem('escala_corretor_whatsapp') || ''
+    return formatarWhatsApp(salvo)
+  })
+
+  const nomeInputRef = useRef(null)
+  const zapInputRef = useRef(null)
 
   useEffect(() => {
-    // Auto-focus no input
-    const timer = setTimeout(() => inputRef.current?.focus(), 100)
+    const timer = setTimeout(() => {
+      if (!nome.trim()) {
+        nomeInputRef.current?.focus()
+      } else {
+        zapInputRef.current?.focus()
+      }
+    }, 120)
 
-    // Previne rolagem do body quando modal estiver aberto
     const originalOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
@@ -26,14 +56,24 @@ export default function NomeModal({ onConfirm, onClose }) {
       document.body.style.overflow = originalOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose])
+  }, [onClose, nome])
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    const trimmed = nome.trim()
-    if (trimmed.length < 2) return
-    onConfirm(trimmed)
+    const nomeTrimmed = nome.trim()
+    const digitsZap = whatsapp.replace(/\D/g, '')
+
+    if (nomeTrimmed.length < 2) return
+    if (digitsZap.length < 10) return
+
+    onConfirm({
+      nome: nomeTrimmed,
+      whatsapp: formatarWhatsApp(whatsapp),
+    })
   }
+
+  const zapDigits = whatsapp.replace(/\D/g, '')
+  const isValid = nome.trim().length >= 2 && zapDigits.length >= 10
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -55,7 +95,7 @@ export default function NomeModal({ onConfirm, onClose }) {
         </button>
 
         {/* Ícone */}
-        <div className="flex justify-center mb-4">
+        <div className="flex justify-center mb-3">
           <div className="p-3 rounded-2xl bg-brand-500/10 border border-brand-500/20">
             <UserCircle className="w-8 h-8 text-brand-400" />
           </div>
@@ -63,31 +103,66 @@ export default function NomeModal({ onConfirm, onClose }) {
 
         {/* Título */}
         <h2 className="text-xl font-bold text-center text-gray-100 mb-1">
-          Como você se chama?
+          Identificação do Corretor
         </h2>
-        <p className="text-sm text-gray-400 text-center mb-6">
-          Seu nome ficará visível na escala para os colegas.
+        <p className="text-xs text-gray-400 text-center mb-5 max-w-xs mx-auto">
+          {exigirCadastro ? (
+            <span className="flex items-center justify-center gap-1 text-emerald-400 font-medium">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Esta imobiliária exige cadastro prévio de corretores.
+            </span>
+          ) : (
+            'Informe seus dados para garantir sua vaga na escala de captação.'
+          )}
         </p>
 
         {/* Formulário */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            ref={inputRef}
-            type="text"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            placeholder="Ex: Maria Silva"
-            className="input-field text-center text-lg"
-            maxLength={50}
-            autoComplete="name"
-          />
+          <div>
+            <label className="block text-xs font-semibold text-gray-300 mb-1.5 flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-brand-400" />
+              Nome Completo
+            </label>
+            <input
+              ref={nomeInputRef}
+              type="text"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Ex: Maria da Silva"
+              className="input-field text-sm"
+              maxLength={60}
+              autoComplete="name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-300 mb-1.5 flex items-center gap-1.5">
+              <Phone className="w-3.5 h-3.5 text-brand-400" />
+              WhatsApp (com DDD)
+            </label>
+            <input
+              ref={zapInputRef}
+              type="tel"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(formatarWhatsApp(e.target.value))}
+              placeholder="(11) 98765-4321"
+              className="input-field text-sm font-mono"
+              maxLength={15}
+              autoComplete="tel"
+            />
+            {exigirCadastro && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                ⚠️ Utilize o mesmo número de WhatsApp cadastrado na coordenação.
+              </p>
+            )}
+          </div>
 
           <button
             type="submit"
-            disabled={nome.trim().length < 2}
-            className="btn-primary w-full"
+            disabled={!isValid}
+            className="btn-primary w-full py-3 text-sm font-semibold mt-2"
           >
-            Confirmar
+            Confirmar e Garantir Vaga
           </button>
         </form>
       </div>

@@ -16,8 +16,8 @@
 ---
 
 ## 1. Visão Geral e Objetivo
-O **Escala CRM - Controle de Captação** é uma Single Page Application (SPA) mobile-first voltada para imobiliárias e corretores de imóveis.  
-**Objetivo principal**: Substituir listas informais e manuais do WhatsApp por uma plataforma web moderna, rápida e em tempo real, onde corretores garantem e cancelam vagas em pontos de captação física sem sobreposição ou conflitos (*race conditions*).
+O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant B2B voltada para imobiliárias, incorporadoras e corretores de imóveis.  
+**Objetivo principal**: Substituir listas informais e manuais do WhatsApp por uma plataforma web moderna, rápida e em tempo real, onde cada imobiliária possui seu ambiente isolado (multi-tenant) e corretores garantem e cancelam vagas em pontos de captação física sem sobreposição ou conflitos (*race conditions*).
 
 ---
 
@@ -25,60 +25,104 @@ O **Escala CRM - Controle de Captação** é uma Single Page Application (SPA) m
 - **Frontend**: React 18 (SPA) com Vite 5
 - **Estilização**: Tailwind CSS com suporte completo a Modo Escuro (padrão) e Modo Claro, alternável via CSS variables dinâmicas e tokens semânticos
 - **Ícones**: `lucide-react`
+- **Multi-Tenancy**: `TenantContext` com resolução por subdomínio (`imobiliaria.meusaas.com`), rota/slug (`/imobiliaria`), query param (`?empresa=imobiliaria`) e persistência segura no `localStorage`.
 - **Backend / BaaS**: Supabase
   - PostgreSQL 15+ com Row Level Security (RLS)
-  - Supabase Realtime via WebSockets (escutando `INSERT`, `UPDATE`, `DELETE`)
+  - Supabase Auth com persistência de sessão JWT (`AuthContext`)
+  - Supabase Realtime via WebSockets escutando com filtro estrito de `empresa_id`
   - Postgres Functions / RPCs com transações e row-level locking (`FOR UPDATE`)
-- **Autenticação de Usuários**: Sem login tradicional para corretores. Identidade mantida via `localStorage` com `device_id` (UUID) e `corretor_nome`.
-- **Acesso Gerencial**: Protegido por PIN simples na tabela `config` (padrão: `1234`).
+- **Autenticação dos Corretores (Zero-Atrito)**: Sem login tradicional (identidade via `localStorage` com `device_id` UUID e `corretor_nome`).
+- **Autenticação dos Gestores (RBAC)**: Supabase Auth (`auth.users`) + tabela `perfis` e `usuarios_empresas` com papéis ('superadmin', 'admin', 'gestor'). PIN legado preservado como fallback de contingência.
 
 ---
 
-## 3. Modelo de Dados e Banco (Supabase)
+## 3. Modelo de Dados e Banco Multi-Tenant (Supabase)
 
 ### Tabelas Principais:
-1. **`config`**:
-   - `id` (int, PK default 1)
-   - `admin_pin` (text, padrão `'1234'`)
-2. **`pontos`** (Pontos de Captação, ex: Mercado Extra, Mercado Roldão, Padaria Di Cunto):
+1. **`empresas`** (Tenants do SaaS, ex: Minha Imobiliária, Direcional, Remax Prime):
    - `id` (uuid, PK)
+   - `nome` (text, ex: 'Direcional Imóveis')
+   - `slug` (text UNIQUE, ex: 'direcional')
+   - `logo_url` (text)
+   - `cor_primaria` (text, padrão `#3b82f6`)
+   - `admin_pin` (text, padrão `'1234'`)
+   - `plano` (text: 'trial', 'pro', 'ilimitado')
+   - `status` (text: 'ativo', 'inativo', 'bloqueado')
+   - `asaas_customer_id` (text, opcional para billing Asaas)
+   - `asaas_subscription_id` (text, opcional para billing Asaas)
+   - `email_cobranca` (text, e-mail financeiro)
+   - `telefone_cobranca` (text)
+   - `created_at` (timestamptz)
+2. **`perfis`** (Perfis de Usuários Supabase Auth):
+   - `id` (uuid, PK REFERENCES `auth.users.id` ON DELETE CASCADE)
+   - `email` (text)
+   - `nome` (text)
+   - `is_superadmin` (boolean, padrão `false`)
+   - `created_at` (timestamptz)
+3. **`usuarios_empresas`** (Vínculos Multi-Tenant de Gestores e Administradores):
+   - `id` (uuid, PK)
+   - `user_id` (uuid, FK `auth.users.id` ON DELETE CASCADE)
+   - `empresa_id` (uuid, FK `empresas.id` ON DELETE CASCADE)
+   - `role` (text: 'admin', 'gestor')
+   - `ativo` (boolean, padrão `true`)
+   - `created_at` (timestamptz)
+   - `UNIQUE (user_id, empresa_id)`
+4. **`pontos`** (Pontos de Captação vinculados à empresa):
+   - `id` (uuid, PK)
+   - `empresa_id` (uuid, FK `empresas.id` ON DELETE CASCADE)
    - `nome` (text)
    - `ordem` (int)
    - `ativo` (boolean)
    - `created_at` (timestamptz)
-3. **`turnos`** (Horários vinculados a um ponto e dia):
+5. **`turnos`** (Horários vinculados a um ponto e empresa):
    - `id` (uuid, PK)
+   - `empresa_id` (uuid, FK `empresas.id` ON DELETE CASCADE)
    - `ponto_id` (uuid, FK `pontos.id` ON DELETE CASCADE)
    - `dia` (text: 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO', 'DOMINGO')
    - `horario` (text, ex: '8 as 10 hs', '11:30 às 14hrs')
    - `capacidade` (int)
    - `ordem` (int)
    - `created_at` (timestamptz)
-4. **`reservas`** (Vagas preenchidas por corretores):
+6. **`reservas`** (Vagas preenchidas por corretores vinculadas ao turno e empresa):
    - `id` (uuid, PK)
+   - `empresa_id` (uuid, FK `empresas.id` ON DELETE CASCADE)
    - `turno_id` (uuid, FK `turnos.id` ON DELETE CASCADE)
    - `corretor_nome` (text)
+   - `corretor_whatsapp` (text, opcional)
    - `device_id` (text)
+   - `created_at` (timestamptz)
+7. **`equipe_corretores`** (Lista autorizada de corretores da imobiliária para proteção contra invasores):
+   - `id` (uuid, PK)
+   - `empresa_id` (uuid, FK `empresas.id` ON DELETE CASCADE)
+   - `nome` (text)
+   - `whatsapp` (text)
+   - `ativo` (boolean, padrão `true`)
    - `created_at` (timestamptz)
 
 ### RPCs Críticas (PostgreSQL):
-- **`reservar_vaga(p_turno_id, p_corretor_nome, p_device_id)`**:
-  - Utiliza `SELECT ... FROM turnos FOR UPDATE` para travar o turno contra concorrência simultânea (*race conditions*).
-  - Impede reserva duplicada do mesmo `device_id` no mesmo turno.
-  - Verifica capacidade antes de inserir. Retorna `TRUE` se reservado, `FALSE` se lotado.
+- **`reservar_vaga(p_turno_id, p_corretor_nome, p_device_id, p_corretor_whatsapp DEFAULT NULL)`**:
+  - Trava o turno contra race conditions (`SELECT capacidade, empresa_id FROM turnos WHERE id = p_turno_id FOR UPDATE`).
+  - Se `exigir_cadastro_previo` estiver ativo na imobiliária, valida se o corretor pertence à `equipe_corretores`.
+  - Impede reserva duplicada do mesmo `device_id` no turno.
+  - Insere a reserva vinculando automaticamente o `empresa_id` e salvando o WhatsApp.
 - **`cancelar_vaga(p_reserva_id, p_device_id)`**:
   - Permite que o corretor delete apenas sua própria vaga comparando `device_id`.
-- **`limpar_escala(p_ponto_id UUID DEFAULT NULL)`**:
-  - Se `p_ponto_id` for informado, deleta apenas as reservas dos turnos daquele ponto. Se for `NULL`, limpa todas as reservas do sistema.
-- **`verificar_admin_pin(p_pin)`**:
-  - Valida o PIN informado sem expor a senha no tráfego de rede HTTP.
-- **`alterar_admin_pin(p_pin_atual, p_novo_pin)`**:
-  - Valida o PIN atual e define uma nova senha (mínimo de 4 dígitos, recomendado 8).
-
-### Políticas de RLS (Row Level Security):
-- `config`, `pontos`, `turnos`: Leitura pública (`SELECT` liberado para `anon`). Modificação permitida para MVP/Admin.
-- `reservas`: Leitura pública, `INSERT` público (via RPC ou admin manual), `DELETE` permitido para o próprio device ou operações administrativas.
-- Realtime ativado para as tabelas: `pontos`, `turnos`, `reservas`.
+- **`limpar_escala(p_empresa_id, p_ponto_id DEFAULT NULL)`**:
+  - Valida papel do gestor autenticado ou superadmin antes de deletar reservas.
+- **`get_metricas_empresas()`**:
+  - Retorna em uma única query agregada as contagens reais de pontos ativos, turnos e reservas de cada tenant para o Superadmin.
+- **`is_superadmin(p_user_id DEFAULT auth.uid())`**:
+  - Função `SECURITY DEFINER` para verificação de permissão global de Superadmin.
+- **`has_empresa_role(p_empresa_id, p_roles, p_user_id)`**:
+  - Função `SECURITY DEFINER` para validação de papel na imobiliária.
+- **`get_minhas_empresas()`**:
+  - Retorna as empresas às quais o usuário logado possui acesso de gestão.
+- **`promover_superadmin(p_email)`**:
+  - Promove usuário a Superadmin do SaaS com segurança.
+- **`vincular_usuario_empresa(p_email, p_empresa_id, p_role)`**:
+  - Vincula gestores e diretores a uma imobiliária por e-mail.
+- **`criar_nova_empresa(p_nome, p_slug, p_admin_pin DEFAULT '1234')`**:
+  - Cria um novo tenant isolado e associa o criador logado como admin.
 
 ---
 
@@ -93,29 +137,45 @@ e:\Escala\
 ├── tailwind.config.js           # Tema dark mode, cores brand e surface
 ├── postcss.config.js
 ├── index.html                   # Mobile-first viewport e meta tags PWA
-├── supabase_schema.sql          # Schema SQL completo e atualizado
-├── supabase_migration_pontos.sql# Migração para introdução de múltiplos pontos
-├── supabase_migration_pin.sql   # Migração para alteração e segurança de senha/PIN
-├── supabase_migration_dias_semana.sql # Migração para nomes completos dos dias
+├── supabase_schema.sql          # Schema SQL mestre multi-tenant completo (Fases 1 e 2)
+├── supabase_migration_multitenant.sql # Script de migração para Fase 1 Multi-Tenant
+├── supabase_migration_fase2_auth.sql  # Script de migração para Fase 2 Auth & RBAC
+├── supabase_migration_fase2_refinamentos.sql # Script de migração: Equipe, Bloqueio de Invasores e Métricas
+├── supabase_migration_fase3_asaas.sql # Script de migração Fase 3: Piloto Automático Asaas & Bloqueio
+├── supabase/
+│   └── functions/
+│       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
+│           ├── index.ts
+│           └── README.md
 ├── AGENTS.md                    # Diretrizes e memória para Agentes de IA (este arquivo)
 ├── PROJECT_MEMORY.md            # Memória técnica persistente
 └── src/
-    ├── main.jsx                 # Ponto de entrada do React
+    ├── main.jsx                 # Ponto de entrada do React com ConfirmProvider, AuthProvider e TenantProvider
     ├── index.css                # Tailwind + classes utilitárias (.card, .btn-*, scrollbar dark)
-    ├── App.jsx                  # Estado raiz, roteamento por view, canal Realtime, autenticação de PIN
+    ├── App.jsx                  # Estado raiz, roteamento por tenant/view, canal Realtime isolado
+    ├── contexts/
+    │   ├── AuthContext.jsx      # Provedor de contexto do Supabase Auth, RBAC e sessões
+    │   └── TenantContext.jsx    # Provedor de contexto do tenant ativo, detecção e troca de empresa
     ├── lib/
     │   ├── supabaseClient.js    # Instância do createClient configurada
+    │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
     │   └── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
     └── components/
-        ├── CorretorView.jsx     # Tela pública do corretor (seleção de ponto, turnos e copiar WhatsApp)
+        ├── CorretorView.jsx     # Tela pública do corretor (seleção de ponto, turnos e link WhatsApp)
         ├── TurnoCard.jsx        # Card de turno na visão do corretor (progresso, botões contextuais)
-        ├── NomeModal.jsx        # Modal bottom-sheet para solicitar nome do corretor no 1º uso
+        ├── NomeModal.jsx        # Modal para solicitar nome e WhatsApp do corretor
         ├── ConfirmModal.jsx     # Modal universal assíncrono de confirmação/exclusão (useConfirm)
-        ├── AdminLoginModal.jsx  # Modal estilizado para login do administrador com visibilidade de PIN
-        ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo próprio administrador
-        ├── AdminView.jsx        # Painel do Administrador (gestão de senha, turnos e acordeon)
-        ├── PontosManager.jsx    # Gestão de pontos (criação limpa, drag-and-drop de reordenação, duplicar e renomear)
+        ├── AdminLoginModal.jsx  # Modal estilizado para login do gestor (Email/Senha, Cadastro, Reset e PIN legado)
+        ├── SuperadminModal.jsx  # Painel do Superadmin (gestão de imobiliárias, planos, status e métricas reais de consumo)
+        ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo gestor da empresa
+        ├── AdminView.jsx        # Painel do Administrador (banner de identidade, turnos, pontos e equipe)
+        ├── PontosManager.jsx    # Gestão de pontos com RBAC granular (bloqueio de ações destrutivas para coordenadores)
+        ├── EquipeManager.jsx    # Gerenciador de equipe autorizada e chave de proteção contra invasores
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
+        ├── TenantSwitcherModal.jsx # Modal para trocar de imobiliária e copiar link direto do WhatsApp
+        ├── NovaEmpresaModal.jsx # Modal de criação rápida de novo tenant com autovinculação
+        ├── TenantNotFound.jsx   # Tela elegante de 404 quando o slug não existe com busca e demo
+        ├── TenantBlockedView.jsx# Tela de suspensão amigável para empresas inadimplentes ou bloqueadas
         ├── ThemeToggle.jsx      # Botão animado de alternância Modo Claro / Escuro (Sun/Moon com persistência)
         └── Toast.jsx            # Notificações visuais animadas
 ```
@@ -124,93 +184,27 @@ e:\Escala\
 
 ## 5. Fluxos e Funcionalidades Detalhadas
 
-### 5.1. Fluxo do Corretor (Visão Pública)
+### 5.1. Fluxo do Corretor (Visão Pública — Zero-Atrito)
 1. **Identificação transparente**: Ao carregar, o sistema obtém ou gera um `device_id` no `localStorage`.
 2. **Seleção de Ponto de Captação**:
-   - Exibe os pontos cadastrados (ex: Mercado Roldão, Mercado Extra, Padaria Di Cunto) com status de vagas disponíveis em tempo real.
+   - Exibe apenas os pontos da empresa cadastrada com status de vagas em tempo real.
 3. **Quadro de Horários e Acordeon por Dia da Semana**:
    - Agrupado pelos dias da semana na ordem cronológica natural (Segunda a Domingo).
-   - **Acordeon expansivo com memória**: Cada dia possui um cabeçalho clicável com seta animada (`ChevronDown`), indicador de total de turnos, status de vagas do dia e badge discreto de identificação caso o corretor já tenha vaga garantida no dia.
-   - **Padrão fechado e persistência**: Inicia por padrão 100% recolhido na primeira abertura e memoriza a preferência de cada dia no `localStorage` (`escala_corretor_dias_expandidos`).
-   - **Atalhos rápidos**: Botões de "Recolher todos" e "Expandir todos" no topo da listagem para navegação ágil.
-   - Agrupado pelos dias da semana na ordem cronológica natural (Segunda a Domingo).
-   - Mostra horário, contagem de vagas (ex: `1/3`), barra de progresso e nomes de quem já reservou.
-   - Se houver vaga: Botão verde **"Garantir Vaga"** (se o nome não estiver salvo, abre o modal para digitação rápida e salva no `localStorage`).
-   - Se o usuário já tiver vaga: Botão vermelho **"Cancelar Minha Vaga"**.
-   - Se lotado: Botão desabilitado **"Esgotado"**.
-4. **Copiar Escala (WhatsApp)**:
-   - Sticky footer com botão de copiar escala em texto estruturado e formatado com emojis (ótimo para colar em grupos de WhatsApp).
+   - Vagas em tempo real, "Garantir Vaga" e "Cancelar Minha Vaga".
 
-### 5.2. Fluxo do Admin (Protegido por PIN)
-1. **Acesso e Sessão**: Ícone de escudo discreto no header abrindo modal moderno de PIN com revelação de senha (`AdminLoginModal.jsx`) validado no Supabase. A seta de voltar (←) apenas alterna para a visualização pública mantendo a sessão ativa para navegação rápida. O botão explícito de **"Sair"** encerra a sessão (`isAdminAuth = false`), exigindo o PIN a cada novo acesso. No mobile, os botões/indicadores de **Admin** e **Sair** exibem apenas seus respectivos ícones (`Shield` e `LogOut`), poupando espaço horizontal no header em smartphones estreitos, mantendo os rótulos de texto completos no desktop (`sm:`).
-2. **Alteração de Senha ([AlterarSenhaModal.jsx](file:///e:/Escala/src/components/AlterarSenhaModal.jsx))**:
-   - Card dedicado no topo do Painel com botão "Alterar Senha".
-   - Permite que o comprador altere o PIN sozinho, validando a senha atual, exigindo no mínimo 4 dígitos (com recomendação de 8 dígitos) e confirmação.
-3. **Gestão de Pontos de Captação ([PontosManager.jsx](file:///e:/Escala/src/components/PontosManager.jsx))**:
-   - Criar novos pontos com ordem calculada automaticamente (iniciam como rascunho `ativo: false`, ocultos para os corretores enquanto o gestor monta a grade).
-   - **Controle de Visibilidade (Ícone de Olho 👁️ / 👁️‍🗨️)**: Permite ao gestor alternar entre Visível (`ativo: true`) e Oculto (`ativo: false`) com o ícone no mesmo padrão cinza discreto dos demais botões, sem poluição visual ou tags extras. Pontos ocultos não aparecem para corretores nem na exportação do WhatsApp.
-   - **Arrastar e Soltar (SortableJS)**: Reordenar pontos via pegador `⠿` (`GripVertical`) com animação fluida e salvamento em tempo real no Supabase.
-   - **Responsividade e Limpeza Visual**: Sem ícones desnecessários ao lado do nome; no mobile as ações ficam centralizadas exclusivamente no botão de 3 pontinhos (`⋮` `MoreVertical`) com menu dropdown (incluindo publicação/visibilidade, renomear, duplicar, limpar e excluir), e no desktop todos os botões ficam inline.
-   - Renomear inline com validação e atalhos Enter/Esc.
-   - **Duplicar Ponto Inteiro**: Clona todos os turnos de um ponto existente para o novo ponto, iniciando as reservas zeradas e status oculto para revisão prévia.
-   - Limpar reservas de um ponto específico (ícone de alerta ⚠️).
-   - Excluir ponto (com cascade nos turnos e reservas).
-4. **Criação e Gestão de Turnos ([TurnosDiaList.jsx](file:///e:/Escala/src/components/TurnosDiaList.jsx))**:
-   - Criar turnos por ponto, dia, horário e capacidade (ordem calculada automaticamente ao fim do dia). O campo Dia inicia por padrão em "SEGUNDA" na primeira utilização e memoriza a última escolha no `localStorage` (`escala_admin_ultimo_dia`).
-   - **Arrastar e Soltar nos Turnos**: Reordenar horários dentro de cada dia arrastando pelo pegador `⠿`, com animação física e persistência imediata no Supabase.
-   - **Duplicar Horários de um Dia**: Botão `Duplicar horários` ao lado de cada dia para replicar a grade (ex: Segunda) para outros dias selecionados ou atalhos ("Seg a Sex", "Fim de Semana", "Marcar Todos"), preservando a ordem personalizada.
-5. **Gestão de Pessoas por Turno (Excluir e Incluir)**:
-   - Exibe os corretores escalados diretamente com chips visuais individuais (sem rótulo redundante de "Corretores escalados" para economizar altura), ou *"Nenhum corretor escalado neste horário"* quando vazio.
-   - **Layout Vertical Otimizado**: O badge `0/2 vagas` fica no canto superior direito, com os botões de ação empilhados na vertical abaixo dele (ícone `+👤` para incluir e `🗑️` para excluir turno), liberando largura horizontal máxima para o horário não sofrer truncamento.
-   - **Excluir corretor**: Botão `✖` em cada corretor para cancelar apenas a reserva dele sem apagar o turno.
-   - **Incluir corretor manual**: Botão de ícone `+👤` para adicionar um corretor diretamente pelo Admin (via modal com validação). Atualiza silenciosamente sem resetar o scroll da página.
-   - **Excluir turno**: Botão de lixeira 🗑️ para deletar o horário por completo.
-6. **Accordion / Sanfona de Pontos**:
-   - Setinha 🔽 retrátil em cada ponto cadastrado para recolher/expandir dias e horários, permitindo navegar entre múltiplos pontos rapidamente. Inicia recolhido por padrão e salva a preferência do usuário no `localStorage` (`escala_admin_pontos_expandidos`).
-   - Atalhos de "Recolher todos" e "Expandir todos".
-7. **Zona de Perigo**:
-   - Botão para limpar a escala inteira da semana (reseta todas as reservas de todos os pontos).
+### 5.2. Fluxo do Gestor / Administrador (Supabase Auth & RBAC)
+1. **Acesso com E-mail e Senha**:
+   - Supabase Auth com validação de vínculo na empresa ativa (`canManageEmpresa`).
+   - Se pertencer a outra imobiliária, o modal apresenta atalho direto de 1 clique.
+   - Fallback para PIN legado mantido durante a transição.
+2. **Banner de Identidade no AdminView**:
+   - Exibe nome do gestor, e-mail e badge contextual (`Superadmin`, `Admin da Imobiliária` ou `Gestor de Plantão`).
+3. **Gestão de Pontos e Turnos**:
+   - Criar, ordenar, duplicar e renomear pontos e horários, sempre vinculando ao `empresa_id` e protegido por RLS.
 
----
-
-### 5.3. Sistema de Temas (Modo Claro & Modo Escuro)
-- **Alternador Rápido no Header ([ThemeToggle.jsx](file:///e:/Escala/src/components/ThemeToggle.jsx))**:
-  - Disponível no cabeçalho tanto na visão do corretor quanto na visão do administrador.
-  - Exibe Sol ☀️ em tom âmbar no Modo Escuro (convite ao Modo Claro) e Lua 🌙 em azul no Modo Claro (convite ao Modo Escuro).
-  - Microinterações animadas ao passar o mouse ou tocar, com área de clique mínima de 44px (touch-friendly).
-  - Persistência da preferência no `localStorage` (`escala_theme`), mantendo o Modo Escuro como padrão inicial caso o usuário nunca tenha escolhido.
-- **Anti-FOUC (Prevenção de Flash)**:
-  - Script nativo no `<head>` do `index.html` que lê o `localStorage` e injeta a classe `dark` e a meta `theme-color` antes do primeiro paint, evitando qualquer piscar indesejado.
-- **Arquitetura de Tokens e CSS Variables**:
-  - Tokens dinâmicos no `tailwind.config.js` mapeados para variáveis CSS em `:root` e `.dark` no `index.css`:
-    - `surface-900` a `500`: adaptam automaticamente fundo, cards, chips e divisores.
-    - `gray-50` a `950`: textos e ícones ajustados para alto contraste imediato.
-- **Calibração de Contraste e Estados de Hover**:
-  - **Botão "Duplicar horários"**: no Modo Claro utiliza `bg-brand-50`, `text-brand-700` e `border-brand-200`, transitando no hover para `hover:bg-brand-100` e `hover:text-brand-900` (nunca desbota nem some); no Modo Escuro preserva `dark:text-brand-300` e `dark:hover:text-brand-200`.
-  - **Botão "Alterar Senha"**: no Modo Claro hover utiliza `hover:bg-amber-50`, `hover:border-amber-500/50` e `hover:text-amber-800` (evitando texto amarelo claro invisível no fundo branco); no Modo Escuro preserva `dark:hover:text-amber-300`.
-  - **Badges de Vagas e Toasts**: configurados com cores de alto contraste e legibilidade perfeita em qualquer superfície.
-
----
-
-## 6. Comandos e Execução
-```bash
-# Instalação de dependências
-npm install
-
-# Execução em ambiente de desenvolvimento (porta 5173 / host exposto para mobile)
-npm run dev
-
-# Build de produção
-npm run build
-```
-
----
-
-## 7. Diretrizes para Manutenção e Futuras Extensões
-- **Mobile First**: Sempre manter botões com área de toque mínima de `48px` (`min-h-[48px]`), fontes legíveis e espaçamentos adequados para smartphones.
-- **Dark Mode & Light Mode**: Manter a consistência das classes `surface-900` a `500` e `text-gray-*`. Jamais utilizar cores claras (como `text-amber-300`, `text-brand-200`, `hover:text-white`) em botões ou textos sem o prefixo `dark:`, garantindo que no Modo Claro sempre haja alto contraste e legibilidade imediata (WCAG AA).
-- **Realtime**: Qualquer alteração em `reservas`, `turnos` ou `pontos` deve ser sincronizada via Supabase Channel para evitar divergência de telas entre corretores simultâneos.
-- **Race Condition**: Toda lógica de reserva de novas vagas deve passar pela RPC `reservar_vaga` com row-level lock.
-- **Mobile Touch e Drag-and-Drop**: O arrasto com SortableJS em telas touch deve sempre usar `delay: 150`, `delayOnTouchOnly: true` e `touchStartThreshold: 5`, restringindo a classe de handle (`.drag-handle`) exclusivamente ao ícone pegador (`⠿`). Evitar `forceFallback: true`, `touch-none` em cartões inteiros e `backdrop-blur` em headers fixos/pegajosos para prevenir desync do compositor do Chrome e artefatos visuais (smear/clones).
-- **Modais e Portals (React Portals)**: Todos os modais devem utilizar `createPortal(..., document.body)` e posicionamento centralizado com `fixed inset-0 z-50 flex items-center justify-center p-4` (com `max-h-[90vh] overflow-y-auto` e bloqueio de rolagem do body `overflow: hidden`). Jamais aplicar propriedades `transform` ou `filter` no elemento `<main>` ou containers pais, pois criam um novo *containing block* que desalinha elementos `fixed` da viewport.
-
+### 5.3. Fluxo do Superadmin (Dono do SaaS)
+1. **Controle Total Multi-Tenant**:
+   - Acesso via botão com coroa 👑 no header.
+   - Listagem com busca de todas as empresas do banco.
+   - Troca em tempo real de planos (`trial`, `pro`, `ilimitado`) e status (`ativo`, `inativo`, `bloqueado`).
+   - Adição de novos gestores e promoção de novos Superadmins por e-mail.

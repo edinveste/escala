@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabaseClient'
 import { Key, Lock, Eye, EyeOff, X, CheckCircle2, ShieldAlert } from 'lucide-react'
 
-export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
+export default function AlterarSenhaModal({ isOpen, onClose, showToast, empresaId }) {
   const [pinAtual, setPinAtual] = useState('')
   const [novoPin, setNovoPin] = useState('')
   const [confirmarPin, setConfirmarPin] = useState('')
@@ -72,14 +72,34 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
 
     setSalvando(true)
     try {
-      // 1. Tentar alterar pela RPC segura
-      const { data: sucessoRpc, error: rpcError } = await supabase.rpc('alterar_admin_pin', {
+      // 1. Tentar alterar pela RPC multi-tenant se empresaId estiver disponível
+      if (empresaId) {
+        const { data: sucessoRpc, error: rpcError } = await supabase.rpc('alterar_admin_pin', {
+          p_empresa_id: empresaId,
+          p_pin_atual: atual,
+          p_novo_pin: novo,
+        })
+
+        if (!rpcError && typeof sucessoRpc === 'boolean') {
+          if (sucessoRpc) {
+            showToast('Senha da imobiliária alterada com sucesso! Guarde a nova senha. 🔐', 'success')
+            onClose()
+            return
+          } else {
+            showToast('A senha atual está incorreta. Tente novamente.', 'error')
+            return
+          }
+        }
+      }
+
+      // 2. Tentar alterar pela RPC legada
+      const { data: sucessoLegacy, error: rpcLegacyError } = await supabase.rpc('alterar_admin_pin', {
         p_pin_atual: atual,
         p_novo_pin: novo,
       })
 
-      if (!rpcError && typeof sucessoRpc === 'boolean') {
-        if (sucessoRpc) {
+      if (!rpcLegacyError && typeof sucessoLegacy === 'boolean') {
+        if (sucessoLegacy) {
           showToast('Senha alterada com sucesso! Guarde a nova senha. 🔐', 'success')
           onClose()
           return
@@ -89,7 +109,34 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
         }
       }
 
-      // 2. Fallback caso a RPC ainda não esteja instalada no banco
+      // 3. Fallback na tabela empresas
+      if (empresaId) {
+        const { data: empresaAtual, error: errEmpSelect } = await supabase
+          .from('empresas')
+          .select('admin_pin')
+          .eq('id', empresaId)
+          .single()
+
+        if (!errEmpSelect && empresaAtual) {
+          if (empresaAtual.admin_pin !== atual) {
+            showToast('A senha atual está incorreta.', 'error')
+            return
+          }
+
+          const { error: errEmpUpdate } = await supabase
+            .from('empresas')
+            .update({ admin_pin: novo })
+            .eq('id', empresaId)
+
+          if (errEmpUpdate) throw errEmpUpdate
+
+          showToast('Senha alterada com sucesso! 🔐', 'success')
+          onClose()
+          return
+        }
+      }
+
+      // 4. Fallback caso a RPC ainda não esteja instalada no banco (tabela config legada)
       const { data: configAtual, error: errSelect } = await supabase
         .from('config')
         .select('admin_pin')
@@ -140,7 +187,7 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast }) {
                 Alterar Senha do Admin
               </h3>
               <p className="text-xs text-gray-400">
-                Defina um novo PIN de acesso ao painel
+                Defina um novo PIN de acesso para esta imobiliária
               </p>
             </div>
           </div>

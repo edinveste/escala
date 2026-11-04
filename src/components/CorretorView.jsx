@@ -3,8 +3,6 @@ import TurnoCard from './TurnoCard'
 import { formatarNomeDia, compararDias } from '../lib/diasSemana'
 import { Copy, ClipboardCheck, Calendar, MapPin, ArrowLeft, Store, ChevronDown } from 'lucide-react'
 
-const STORAGE_KEY_DIAS_EXPANDIDOS = 'escala_corretor_dias_expandidos'
-
 export default function CorretorView({
   pontos,
   turnos,
@@ -14,9 +12,16 @@ export default function CorretorView({
   onReservar,
   onCancelar,
   showToast,
+  empresa,
+  empresaShareUrl,
 }) {
   const [copied, setCopied] = useState(false)
   const [selectedPontoId, setSelectedPontoId] = useState(null)
+
+  // Chave de acordeon no localStorage isolada por empresa
+  const STORAGE_KEY_DIAS_EXPANDIDOS = empresa?.id
+    ? `escala_corretor_dias_expandidos_${empresa.id}`
+    : 'escala_corretor_dias_expandidos'
 
   // Ponto selecionado
   const selectedPonto = useMemo(
@@ -82,7 +87,6 @@ export default function CorretorView({
   const diasOrdenados = Object.keys(turnosPorDia).sort(compararDias)
 
   // ─── Controle de Acordeon dos Dias da Semana ─────────────────
-  // Padrão: todos fechados no primeiro acesso, com preferências salvas no localStorage
   const [diasExpandidos, setDiasExpandidos] = useState(() => {
     try {
       const salvo = localStorage.getItem(STORAGE_KEY_DIAS_EXPANDIDOS)
@@ -102,7 +106,7 @@ export default function CorretorView({
     } catch (err) {
       console.error('Erro ao salvar preferência de dias expandidos:', err)
     }
-  }, [diasExpandidos])
+  }, [diasExpandidos, STORAGE_KEY_DIAS_EXPANDIDOS])
 
   const isDiaAberto = useCallback(
     (dia) => {
@@ -146,14 +150,12 @@ export default function CorretorView({
     })
   }, [selectedPontoId, diasOrdenados])
 
-  // Gerar texto para copiar
+  // Gerar texto para copiar (com suporte a Multi-tenant e link WhatsApp)
   const gerarTextoEscala = () => {
-    // Se tem ponto selecionado, copia só dele; senão copia todos
     const pontosParaCopiar = selectedPontoId
       ? pontos.filter((p) => p.id === selectedPontoId)
       : pontos
 
-    // Identificar capacidade dos turnos para exibir no cabeçalho
     const turnosParaCopiar = turnos.filter((t) =>
       pontosParaCopiar.some((p) => p.id === t.ponto_id)
     )
@@ -167,7 +169,8 @@ export default function CorretorView({
       capTexto = `${Math.min(...capacidades)} a ${Math.max(...capacidades)} por horário`
     }
 
-    let texto = `📋 *ESCALA DE CAPTAÇÃO (${capTexto})*\n`
+    const nomeEmpresaUpper = empresa?.nome ? ` — ${empresa.nome.toUpperCase()}` : ''
+    let texto = `📋 *ESCALA DE CAPTAÇÃO${nomeEmpresaUpper} (${capTexto})*\n`
     texto += '━━━━━━━━━━━━━━━━━━\n\n'
 
     for (const ponto of pontosParaCopiar) {
@@ -179,7 +182,6 @@ export default function CorretorView({
 
       texto += `📍 *${ponto.nome.toUpperCase()}*\n\n`
 
-      // Agrupar por dia com formatação completa
       const porDia = {}
       for (const t of turnosDoPonto) {
         const diaFormatado = formatarNomeDia(t.dia)
@@ -206,7 +208,11 @@ export default function CorretorView({
     }
 
     texto += '━━━━━━━━━━━━━━━━━━\n'
-    texto += '🔗 Reservas em tempo real no app'
+    if (empresaShareUrl) {
+      texto += `🔗 Garanta sua vaga: ${empresaShareUrl}`
+    } else {
+      texto += '🔗 Reservas em tempo real no app'
+    }
 
     return texto
   }
@@ -244,7 +250,7 @@ export default function CorretorView({
               Nenhum ponto de captação
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              O administrador precisa criar os pontos de captação.
+              {empresa?.nome ? `Nenhum ponto ativo cadastrado para ${empresa.nome}.` : 'O administrador precisa criar os pontos de captação.'}
             </p>
           </div>
         </div>
@@ -447,7 +453,6 @@ export default function CorretorView({
 
             return (
               <section key={dia} className="transition-all">
-                {/* Botão Acordeon do Dia */}
                 <button
                   type="button"
                   onClick={() => toggleDia(dia)}
@@ -501,7 +506,6 @@ export default function CorretorView({
                   </div>
                 </button>
 
-                {/* Conteúdo dos turnos expansível */}
                 {isAberto && (
                   <div className="space-y-3 mt-3 animate-fade-in">
                     {turnosDoDia.map((turno) => (
@@ -522,7 +526,7 @@ export default function CorretorView({
         </div>
       )}
 
-      {/* Espaçador robusto para garantir que o último turno fique 100% visível acima do footer fixo */}
+      {/* Espaçador robusto para o último turno */}
       <div className="h-32 sm:h-36 w-full pointer-events-none" aria-hidden="true" />
 
       {/* Footer com copiar */}
