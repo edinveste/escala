@@ -123,6 +123,14 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
   - Vincula gestores e diretores a uma imobiliária por e-mail.
 - **`criar_nova_empresa(p_nome, p_slug, p_admin_pin DEFAULT '1234')`**:
   - Cria um novo tenant isolado e associa o criador logado como admin.
+- **`alternar_protecao_equipe(p_empresa_id, p_exigir)`**:
+  - Altera a chave exigir_cadastro_previo com suporte híbrido para Supabase Auth e PIN de contingência.
+- **`adicionar_corretor_equipe(p_empresa_id, p_nome, p_whatsapp)`**:
+  - Adiciona membro autorizado na equipe de corretores via RPC segura.
+- **`alternar_status_corretor(p_corretor_id, p_empresa_id, p_ativo)`**:
+  - Ativa ou desativa corretor da equipe autorizada.
+- **`remover_corretor_equipe(p_corretor_id, p_empresa_id)`**:
+  - Remove corretor da equipe autorizada da imobiliária.
 
 ---
 

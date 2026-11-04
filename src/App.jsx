@@ -590,41 +590,38 @@ export default function App() {
               {isSuperadmin && (
                 <button
                   onClick={() => setShowSuperadminModal(true)}
-                  className="flex items-center gap-1 p-2 sm:px-2.5 sm:py-1.5 rounded-xl text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all text-xs font-semibold"
+                  className="p-2 sm:p-2.5 rounded-xl text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center"
                   title="Abrir Painel Superadmin do SaaS"
+                  aria-label="Abrir Painel Superadmin do SaaS"
                 >
-                  <Crown className="w-4 h-4 text-amber-400" />
-                  <span className="hidden sm:inline">Superadmin</span>
+                  <Crown className="w-5 h-5 text-amber-400" />
                 </button>
               )}
 
               {/* Indicador de Usuário Conectado com Logout Rápido */}
               {user && (
                 <div
-                  className="flex items-center gap-1.5 py-1 px-2 rounded-xl bg-surface-800 border border-surface-700 text-xs shadow-sm"
-                  title={`Conectado como ${user.email}`}
+                  className="flex items-center gap-1.5 py-1 px-1.5 sm:px-2 rounded-xl bg-surface-800 border border-surface-700 min-h-[40px] shadow-sm"
+                  title={`Conectado como ${perfil?.nome || user.email}`}
                 >
-                  <div className="w-5 h-5 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-[10px] flex-shrink-0">
+                  <div className="w-6 h-6 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-[11px] flex-shrink-0 select-none">
                     {(perfil?.nome || user.email || 'U').charAt(0).toUpperCase()}
                   </div>
-                  <span className="hidden md:inline max-w-[120px] truncate text-[11px] text-gray-300 font-medium">
-                    {perfil?.nome || user.email}
-                  </span>
                   <button
                     onClick={handleAdminLogout}
-                    className="p-1 text-gray-400 hover:text-red-400 rounded-lg hover:bg-surface-700 transition-colors"
+                    className="p-1 text-gray-400 hover:text-red-400 rounded-lg hover:bg-surface-700 active:scale-95 transition-colors"
                     title={`Desconectar (${user.email})`}
                     aria-label="Sair da conta"
                   >
-                    <LogOut className="w-3.5 h-3.5" />
+                    <LogOut className="w-4 h-4" />
                   </button>
                 </div>
               )}
 
               <button
                 onClick={handleAdminAccess}
-                className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-2 rounded-xl text-gray-400 hover:text-gray-100 hover:bg-surface-700 transition-colors min-h-[40px] min-w-[40px]"
-                aria-label="Acesso admin"
+                className="p-2 sm:p-2.5 rounded-xl text-gray-400 hover:text-gray-100 hover:bg-surface-700 active:scale-95 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
+                aria-label={isAdminSession ? 'Painel de Gestor (Conectado)' : 'Acesso de Gestor'}
                 title={isAdminSession ? 'Painel de Gestor (Conectado)' : 'Acesso de Gestor'}
               >
                 <Shield
@@ -632,54 +629,48 @@ export default function App() {
                     isAdminSession ? 'text-brand-400' : 'text-gray-400 hover:text-gray-100'
                   }`}
                 />
-                <span className="hidden sm:inline text-xs font-semibold">
-                  {isAdminSession ? 'Gestor' : 'Admin'}
-                </span>
               </button>
             </div>
           )}
 
           {view === 'admin' && (
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
               <ThemeToggle />
 
               {/* Badge de Papel */}
               {isSuperadmin ? (
                 <button
                   onClick={() => setShowSuperadminModal(true)}
-                  className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 p-2 sm:px-2.5 sm:py-1 rounded-xl sm:rounded-full min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 transition-all"
-                  title="Abrir Painel Superadmin"
+                  className="p-2 sm:p-2.5 rounded-xl text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center"
+                  title="Abrir Painel Superadmin do SaaS"
+                  aria-label="Abrir Painel Superadmin do SaaS"
                 >
-                  <Crown className="w-4 h-4 text-amber-400" />
-                  <span className="hidden sm:inline">Superadmin</span>
+                  <Crown className="w-5 h-5 text-amber-400" />
                 </button>
               ) : userEmpresaRole === 'admin' ? (
                 <span
-                  className="flex items-center justify-center gap-1.5 text-xs font-semibold text-brand-400 bg-brand-500/10 border border-brand-500/20 p-2 sm:px-2.5 sm:py-1 rounded-xl sm:rounded-full min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0"
+                  className="p-2 sm:p-2.5 rounded-xl text-brand-400 bg-brand-500/10 border border-brand-500/20 min-h-[40px] min-w-[40px] flex items-center justify-center"
                   title="Administrador da Imobiliária"
                 >
-                  <Shield className="w-4 h-4 text-brand-400" />
-                  <span className="hidden sm:inline">Admin</span>
+                  <Shield className="w-5 h-5 text-brand-400" />
                 </span>
               ) : (
                 <span
-                  className="flex items-center justify-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2 sm:px-2.5 sm:py-1 rounded-xl sm:rounded-full min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0"
+                  className="p-2 sm:p-2.5 rounded-xl text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 min-h-[40px] min-w-[40px] flex items-center justify-center"
                   title="Gestor de Plantão"
                 >
-                  <Shield className="w-4 h-4 text-emerald-400" />
-                  <span className="hidden sm:inline">Gestor</span>
+                  <Shield className="w-5 h-5 text-emerald-400" />
                 </span>
               )}
 
               {/* Botão Sair */}
               <button
                 onClick={handleAdminLogout}
-                className="flex items-center justify-center gap-1.5 text-xs font-semibold text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 p-2 sm:px-3 sm:py-1.5 rounded-xl transition-all active:scale-95 min-h-[40px] min-w-[40px] sm:min-w-0"
+                className="p-2 sm:p-2.5 rounded-xl text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center"
                 title="Sair do modo administrador"
                 aria-label="Sair do modo administrador"
               >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Sair</span>
+                <LogOut className="w-5 h-5" />
               </button>
             </div>
           )}

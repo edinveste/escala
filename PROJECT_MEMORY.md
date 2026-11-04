@@ -283,3 +283,18 @@ npm run build
   - Canal direto via WhatsApp para regularização do gestor e comunicação clara para corretores.
   - Alerta integrado no topo do `AdminView.jsx`.
   - Badge e e-mail do Asaas visíveis no `SuperadminModal.jsx`.
+
+- ✅ **RPCs Seguras de Gestão de Equipe (Suporte Híbrido Auth & PIN)**:
+  - Criação das RPCs `alternar_protecao_equipe`, `adicionar_corretor_equipe`, `alternar_status_corretor` e `remover_corretor_equipe` com `SECURITY DEFINER` em `supabase_migration_fase2_refinamentos.sql` e `supabase_schema.sql`.
+  - Elimina bloqueios de RLS quando o gestor opera via PIN legado ou quando o usuário não autenticado interage com a equipe.
+- ✅ **Design System Retrátil em `EquipeManager.jsx`**:
+  - A seção de equipe permanece compacta (apenas a chave switch) por padrão, economizando espaço na tela.
+  - Quando a chave de proteção contra invasores é ativada, a seção se expande suavemente com animação (`animate-fade-in`), exibindo o formulário e a listagem.
+- ✅ **Refinamento Minimalista no Cabeçalho (`App.jsx`)**:
+  - Botões de ação do topo padronizados em formato somente ícone (Superadmin, Gestor/Admin, Sair e avatar com primeira letra + logout), mantendo consistência elegante e idêntica entre Desktop e Mobile.
+  - Tooltips contextuais (`title` e `aria-label`) preservam a acessibilidade e identificação de cada ação ao passar o mouse.
+
+### Pendências Externas / Próximos Passos (Ativação Asaas):
+1. **Deploy da Edge Function**: Executar `supabase functions deploy asaas-webhook --no-verify-jwt` após autenticar o CLI com `supabase login`.
+2. **Secrets no Supabase**: Definir `ASAAS_WEBHOOK_SECRET`, `ASAAS_API_KEY` e `ASAAS_ENV` no Supabase Dashboard.
+3. **Webhook no Asaas**: Cadastrar a URL `https://nyxrvdkpoqizjohbyzah.supabase.co/functions/v1/asaas-webhook` no Asaas.
