@@ -173,14 +173,12 @@ e:\Escala\
         ├── NomeModal.jsx        # Modal para solicitar nome e WhatsApp do corretor
         ├── ConfirmModal.jsx     # Modal universal assíncrono de confirmação/exclusão (useConfirm)
         ├── AdminLoginModal.jsx  # Modal de autenticação profissional de gestores (Email/Senha, Cadastro, Reset e PIN legado)
-        ├── SuperadminModal.jsx  # Painel do Superadmin (gestão de planos, status de empresas, promoção e métricas reais de consumo)
         ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo gestor da empresa
         ├── AdminView.jsx        # Painel do Gestor (banner de identidade, gestão de turnos, pontos e equipe)
         ├── PontosManager.jsx    # Gestão de pontos com RBAC granular (bloqueio de exclusão/renomeação para coordenadores)
         ├── EquipeManager.jsx    # Gerenciador de equipe autorizada e chave de proteção contra invasores
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
         ├── TenantSwitcherModal.jsx # Modal para trocar de imobiliária e copiar link direto do WhatsApp
-        ├── NovaEmpresaModal.jsx # Modal de criação rápida de novo tenant / imobiliária com autovinculação
         ├── TenantNotFound.jsx   # Tela elegante de 404 quando o slug não existe com busca e demo
         ├── TenantBlockedView.jsx# Tela de suspensão amigável para empresas inadimplentes ou bloqueadas
         ├── ThemeToggle.jsx      # Botão animado de alternância Modo Claro / Escuro (Sun/Moon com persistência)
@@ -258,11 +256,11 @@ npm run build
 ### Concluído na Fase 2:
 - ✅ **RBAC Granular para Coordenadores (`gestor`)**: Ações destrutivas (excluir ponto, renomear, duplicar e limpar escala) ocultadas em `PontosManager.jsx` e `AdminView.jsx`.
 - ✅ **Proteção Contra Invasores / Equipe Autorizada**: Tabela `equipe_corretores`, chave opcional `exigir_cadastro_previo` em `empresas`, validação na RPC `reservar_vaga` com WhatsApp e componente `EquipeManager.jsx`.
-- ✅ **Métricas Reais de Consumo no Superadmin**: RPC `get_metricas_empresas()` e exibição agregada no `SuperadminModal.jsx` (pontos ativos, turnos, reservas e alerta de uso intenso).
+- ✅ **Métricas Reais de Consumo**: RPC `get_metricas_empresas()` para agregação de pontos ativos, turnos e reservas de cada tenant diretamente no banco.
 - ✅ **Resolução Amigável de Sessão**: Tratamento em `AdminLoginModal.jsx` para usuários logados sem vínculo com atalho de auto-vinculação via PIN (`vincular_com_pin`) e logout direto.
 
 ### Concluído na Fase 3 (Piloto Automático de Vendas & Blindagem de UI):
-- ✅ **Blindagem de UI/UX do Corretor**: Cabeçalho na visão pública do corretor agora exibe nome/marca estática, sem dropdown, sem chevron e sem atalho para trocar de empresa. O `TenantSwitcherModal` e botão `+ Nova Imobiliária` agora são restritos a Superadmin / Visão de Gestor.
+- ✅ **Blindagem de UI/UX do Corretor**: Cabeçalho na visão pública do corretor agora exibe nome/marca estática, sem dropdown, sem chevron e sem atalho para trocar de empresa. O `TenantSwitcherModal` é restrito à visão autenticada do Gestor.
 - ✅ **Script SQL de Migração Fase 3 (`supabase_migration_fase3_asaas.sql`)**:
   - Campos de cliente e assinatura do Asaas em `empresas` (`asaas_customer_id`, `asaas_subscription_id`, `email_cobranca`, `telefone_cobranca`).
   - Tabela `asaas_webhooks_log` para auditoria e controle de idempotência.
@@ -270,15 +268,24 @@ npm run build
   - RPC `provisionar_empresa_asaas` para criação autônoma de tenant, vinculação de gestor e geração de ponto inicial com turnos.
   - RPC `atualizar_status_empresa_asaas` para suspensão e reativação automática.
 - ✅ **Supabase Edge Function (`supabase/functions/asaas-webhook/index.ts`)**:
+  - Deploy realizado com sucesso no projeto `cpystvyhkstxfvkzfvkk` via Supabase CLI (`--no-verify-jwt`).
+  - Endpoint ativo e verificado com resposta `HTTP 200 OK {"status":"online"}` em `https://cpystvyhkstxfvkzfvkk.supabase.co/functions/v1/asaas-webhook`.
   - Suporte completo aos eventos `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED`, `PAYMENT_OVERDUE`, `PAYMENT_REFUNDED`, `SUBSCRIPTION_DELETED`.
   - Provisionamento automático de novo usuário no Supabase Auth com senha provisória e link de ativação (`recovery`).
-  - Idempotência baseada em hash de evento.
+  - Idempotência baseada em hash de evento na tabela `asaas_webhooks_log`.
   - Reativação em tempo real de clientes que quitarem boletos/faturas atrasadas.
 - ✅ **Tela de Bloqueio Amigável (`TenantBlockedView.jsx`)**:
   - Exibição de tela amigável e segura quando `empresa.status === 'bloqueado'`.
-  - Canal direto via WhatsApp para regularização do gestor e comunicação clara para corretores.
-  - Alerta integrado no topo do `AdminView.jsx`.
-  - Badge e e-mail do Asaas visíveis no `SuperadminModal.jsx`.
+  - Canal direto via WhatsApp configurável via variável de ambiente `VITE_WHATSAPP_SUPORTE` para regularização rápida do gestor e comunicação clara para corretores.
+  - Alerta integrado no topo do `AdminView.jsx` com atalho de regularização.
+
+- ✅ **Remoção Completa da Área Superadmin no Frontend (Segurança Máxima 100% Supabase)**:
+  - Exclusão dos componentes `SuperadminModal.jsx` (710 linhas) e `NovaEmpresaModal.jsx` (282 linhas).
+  - Remoção de todos os botões de Coroa 👑 no cabeçalho e visões administrativa e pública.
+  - Eliminação de qualquer superfície de ataque client-side para administração global de tenants.
+  - Toda a gestão de plataformas (criação de empresas, atribuição de administradores, alteração de planos e status ativo/bloqueado) agora é realizada com total segurança diretamente no **Supabase Dashboard (Table Editor / SQL Editor)**.
+  - Limpeza dos contextos `AuthContext` e `TenantContext`, mantendo o código modular, leve e sem dead-code.
+  - Verificação de compilação com `npm run build` bem-sucedida (0 erros).
 
 - ✅ **RPCs Seguras de Gestão de Equipe (Suporte Híbrido Auth & PIN)**:
   - Criação das RPCs `alternar_protecao_equipe`, `adicionar_corretor_equipe`, `alternar_status_corretor` e `remover_corretor_equipe` com `SECURITY DEFINER` em `supabase_migration_fase2_refinamentos.sql` e `supabase_schema.sql`.
@@ -290,7 +297,25 @@ npm run build
   - Botões de ação do topo padronizados em formato somente ícone (Superadmin, Gestor/Admin, Sair e avatar com primeira letra + logout), mantendo consistência elegante e idêntica entre Desktop e Mobile.
   - Tooltips contextuais (`title` e `aria-label`) preservam a acessibilidade e identificação de cada ação ao passar o mouse.
 
-### Pendências Externas / Próximos Passos (Ativação Asaas):
-1. **Deploy da Edge Function**: Executar `supabase functions deploy asaas-webhook --no-verify-jwt` após autenticar o CLI com `supabase login`.
-2. **Secrets no Supabase**: Definir `ASAAS_WEBHOOK_SECRET`, `ASAAS_API_KEY` e `ASAAS_ENV` no Supabase Dashboard.
-3. **Webhook no Asaas**: Cadastrar a URL `https://nyxrvdkpoqizjohbyzah.supabase.co/functions/v1/asaas-webhook` no Asaas.
+### ⏳ Pendências Externas para Ativação Final do Asaas (A Fazer Depois pelo Usuário):
+1. **Configurar as Secrets (Chaves) no Supabase**:
+   - Pelo terminal:
+     ```powershell
+     supabase secrets set ASAAS_WEBHOOK_SECRET="seu_token_secreto_aqui" ASAAS_API_KEY="$aact_sua_chave_do_asaas" ASAAS_ENV="production" --project-ref cpystvyhkstxfvkzfvkk
+     ```
+   - Ou no Supabase Dashboard em **Project Settings** > **Edge Functions** > **Secrets**:
+     - `ASAAS_WEBHOOK_SECRET`: Token de autenticação escolhido para autenticar os envios do webhook.
+     - `ASAAS_API_KEY`: Chave da API do Asaas gerada em Minha Conta > Integração.
+     - `ASAAS_ENV`: `production` (ou `sandbox` para homologação).
+
+2. **Cadastrar o Webhook no Painel do Asaas**:
+   - Acessar o Asaas em **Minha Conta** > **Integração** > **Webhooks** e cadastrar:
+     - **URL do Webhook**: `https://cpystvyhkstxfvkzfvkk.supabase.co/functions/v1/asaas-webhook`
+     - **Email de Notificação**: Seu e-mail de suporte técnico
+     - **Token de Autenticação**: Informe exatamente o mesmo valor definido em `ASAAS_WEBHOOK_SECRET`
+     - **Eventos Selecionados**:
+       - `PAYMENT_CONFIRMED` *(criação do tenant, admin no Auth e turnos)*
+       - `PAYMENT_RECEIVED` *(reativação de imobiliária suspensa)*
+       - `PAYMENT_OVERDUE` *(bloqueio automático por atraso)*
+       - `PAYMENT_REFUNDED` *(bloqueio automático por estorno)*
+       - `SUBSCRIPTION_DELETED` *(bloqueio automático por cancelamento)*

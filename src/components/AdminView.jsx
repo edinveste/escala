@@ -486,7 +486,8 @@ export default function AdminView({
               const texto = encodeURIComponent(
                 `Olá! Sou gestor da imobiliária "${empresaNome || ''}" e preciso regularizar a assinatura do EscalaFácil.`
               )
-              window.open(`https://wa.me/5511999999999?text=${texto}`, '_blank')
+              const zap = import.meta.env.VITE_WHATSAPP_SUPORTE || '5511999999999'
+              window.open(`https://wa.me/${zap}?text=${texto}`, '_blank')
             }}
             className="btn-primary py-2 px-3 text-xs flex items-center justify-center gap-1.5 flex-shrink-0 whitespace-nowrap shadow-md shadow-brand-500/10"
           >

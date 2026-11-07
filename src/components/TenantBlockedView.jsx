@@ -21,7 +21,8 @@ export default function TenantBlockedView({ onOpenAdminLogin }) {
     const texto = encodeURIComponent(
       `Olá! Sou da imobiliária "${empresa?.nome || ''}" (slug: ${empresa?.slug || ''}) e gostaria de regularizar a assinatura do EscalaFácil.`
     )
-    window.open(`https://wa.me/5511999999999?text=${texto}`, '_blank')
+    const zap = import.meta.env.VITE_WHATSAPP_SUPORTE || '5511999999999'
+    window.open(`https://wa.me/${zap}?text=${texto}`, '_blank')
   }
 
   return (

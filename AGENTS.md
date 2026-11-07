@@ -213,3 +213,19 @@ e:\Escala\
 1. **Remoção Completa do Superadmin no Frontend**:
    - Toda e qualquer administração de nível de plataforma (criação de tenants, alteração de planos, bloqueio e desbloqueio de imobiliárias, concessão de perfis administrativos) é feita diretamente pelo painel do **Supabase Studio (Table Editor / SQL Editor)**.
    - Isso elimina qualquer risco de exposição no frontend, bypass de JWT ou vazamento de privilégios globais na aplicação cliente.
+
+### 5.4. Piloto Automático de Vendas & Billing Asaas (Fase 3)
+1. **Supabase Edge Function (`asaas-webhook`)**:
+   - Deployed no projeto `cpystvyhkstxfvkzfvkk` com `--no-verify-jwt`.
+   - URL: `https://cpystvyhkstxfvkzfvkk.supabase.co/functions/v1/asaas-webhook`.
+   - Processa notificações de pagamento do Asaas com idempotência em `asaas_webhooks_log`.
+2. **Provisionamento e Bloqueio**:
+   - `PAYMENT_CONFIRMED`: Cria tenant, usuário no Supabase Auth e turnos iniciais via RPC `provisionar_empresa_asaas`.
+   - `PAYMENT_OVERDUE` / `SUBSCRIPTION_DELETED`: Suspende imobiliária alterando status para `'bloqueado'` via RPC `atualizar_status_empresa_asaas`.
+   - `PAYMENT_RECEIVED`: Restaura status para `'ativo'` automaticamente quando fatura em atraso for quitada.
+3. **Frontend Suspenso (`TenantBlockedView.jsx`)**:
+   - Apresenta tela informativa amigável para corretores e botão de regularização via WhatsApp para gestores.
+   - Alerta contextual persistente no topo do `AdminView.jsx`.
+4. **Pendências Externas (Configuração Manual do Usuário)**:
+   - Configuração de secrets no Supabase (`ASAAS_WEBHOOK_SECRET`, `ASAAS_API_KEY`, `ASAAS_ENV`).
+   - Cadastro do endpoint de webhook no painel do Asaas.
