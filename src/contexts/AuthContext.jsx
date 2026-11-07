@@ -51,7 +51,6 @@ export function AuthProvider({ children }) {
             empresa_slug: m.empresas?.slug || '',
             empresa_status: m.empresas?.status || 'ativo',
             role: m.role || 'gestor',
-            is_superadmin: perfilData?.is_superadmin || false,
           }))
           setMinhasEmpresas(formatadas)
         }
@@ -145,30 +144,27 @@ export function AuthProvider({ children }) {
     return data
   }, [])
 
-  // ─── Helpers de Permissão ────────────────────────────────────
-  const isSuperadmin = useMemo(() => {
-    return perfil?.is_superadmin === true
-  }, [perfil])
+  // ─── Helpers de Permissão (Gestão de Tenants) ────────────────
+  // Superadmin desativado no frontend: gestão de plataforma 100% direta via Supabase
+  const isSuperadmin = false
 
   const canManageEmpresa = useCallback(
     (empresaId) => {
       if (!empresaId || !user) return false
-      if (isSuperadmin) return true
       return minhasEmpresas.some(
         (e) => e.empresa_id === empresaId && (e.role === 'admin' || e.role === 'gestor')
       )
     },
-    [isSuperadmin, minhasEmpresas, user]
+    [minhasEmpresas, user]
   )
 
   const getEmpresaRole = useCallback(
     (empresaId) => {
       if (!empresaId || !user) return null
-      if (isSuperadmin) return 'superadmin'
       const match = minhasEmpresas.find((e) => e.empresa_id === empresaId)
       return match ? match.role : null
     },
-    [isSuperadmin, minhasEmpresas, user]
+    [minhasEmpresas, user]
   )
 
   const refreshAuth = useCallback(async () => {

@@ -8,8 +8,6 @@ import CorretorView from './components/CorretorView'
 import AdminView from './components/AdminView'
 import NomeModal from './components/NomeModal'
 import AdminLoginModal from './components/AdminLoginModal'
-import SuperadminModal from './components/SuperadminModal'
-import NovaEmpresaModal from './components/NovaEmpresaModal'
 import TenantSwitcherModal from './components/TenantSwitcherModal'
 import TenantNotFound from './components/TenantNotFound'
 import TenantBlockedView from './components/TenantBlockedView'
@@ -25,7 +23,6 @@ import {
   ChevronDown,
   AlertCircle,
   RefreshCw,
-  Crown,
 } from 'lucide-react'
 
 // Gera um UUID v4 simples
@@ -45,14 +42,11 @@ export default function App() {
     notFound,
     error: tenantError,
     refreshEmpresa,
-    showNovaEmpresaModal,
-    setShowNovaEmpresaModal,
   } = useTenant()
 
   const {
     user,
     perfil,
-    isSuperadmin,
     canManageEmpresa,
     getEmpresaRole,
     signOut,
@@ -60,7 +54,6 @@ export default function App() {
 
   // Modal para alternar de imobiliária / compartilhar link
   const [showTenantSwitcher, setShowTenantSwitcher] = useState(false)
-  const [showSuperadminModal, setShowSuperadminModal] = useState(false)
 
   // Estado de identidade do Corretor (Zero-Atrito)
   const [deviceId, setDeviceId] = useState('')
@@ -84,9 +77,9 @@ export default function App() {
   const isAuthorizedGestor = Boolean(user && empresa?.id && canManageEmpresa(empresa.id))
   const isAdminSession = isAuthorizedGestor || isPinAuth
   const userEmpresaRole = empresa?.id ? getEmpresaRole(empresa.id) : null
-  const isFullAdmin = isSuperadmin || userEmpresaRole === 'admin' || isPinAuth
-  // Alternar imobiliárias é restrito a Superadmin ou gestor em modo administrativo
-  const canSwitchTenant = isSuperadmin || (view === 'admin' && isAdminSession)
+  const isFullAdmin = userEmpresaRole === 'admin' || isPinAuth
+  // Alternar imobiliárias é restrito a gestores em modo administrativo
+  const canSwitchTenant = view === 'admin' && isAdminSession
 
   // Toast
   const [toast, setToast] = useState(null)
@@ -98,10 +91,10 @@ export default function App() {
   // Reseta autenticação de PIN e ajusta visão ao alternar de empresa
   useEffect(() => {
     setIsPinAuth(false)
-    if (!isAuthorizedGestor && !isSuperadmin) {
+    if (!isAuthorizedGestor) {
       setView('corretor')
     }
-  }, [empresa?.id, isAuthorizedGestor, isSuperadmin])
+  }, [empresa?.id, isAuthorizedGestor])
 
   // ─── Inicialização do device_id, corretor_nome e corretor_whatsapp ──
   useEffect(() => {
@@ -477,11 +470,6 @@ export default function App() {
     return (
       <>
         <TenantNotFound />
-        <NovaEmpresaModal
-          isOpen={showNovaEmpresaModal}
-          onClose={() => setShowNovaEmpresaModal(false)}
-          showToast={showToast}
-        />
         {toast && (
           <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
         )}
@@ -509,12 +497,11 @@ export default function App() {
   }
 
   // ─── Tela de Empresa Bloqueada (Suspensão Asaas / Inadimplência) ─
-  if (empresa?.status === 'bloqueado' && !isSuperadmin && view !== 'admin') {
+  if (empresa?.status === 'bloqueado' && view !== 'admin') {
     return (
       <>
         <TenantBlockedView
           onOpenAdminLogin={() => setShowAdminLoginModal(true)}
-          onOpenSuperadmin={() => setShowSuperadminModal(true)}
         />
         <AdminLoginModal
           isOpen={showAdminLoginModal}
@@ -556,7 +543,7 @@ export default function App() {
               <h1 className="text-lg font-bold text-gray-100 leading-tight">
                 Escala<span className="text-brand-400">Fácil</span>
               </h1>
-              {/* Seletor de tenant interativo (apenas Superadmin ou Visão Admin) vs. Nome Fixo Informativo (Corretor) */}
+              {/* Seletor de tenant interativo (apenas Visão Admin) vs. Nome Fixo Informativo (Corretor) */}
               {canSwitchTenant ? (
                 <button
                   type="button"
@@ -585,18 +572,6 @@ export default function App() {
           {view === 'corretor' && (
             <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
               <ThemeToggle />
-
-              {/* Botão Atalho Superadmin (se usuário for superadmin) */}
-              {isSuperadmin && (
-                <button
-                  onClick={() => setShowSuperadminModal(true)}
-                  className="p-2 sm:p-2.5 rounded-xl text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center"
-                  title="Abrir Painel Superadmin do SaaS"
-                  aria-label="Abrir Painel Superadmin do SaaS"
-                >
-                  <Crown className="w-5 h-5 text-amber-400" />
-                </button>
-              )}
 
               {/* Indicador de Usuário Conectado com Logout Rápido */}
               {user && (
@@ -638,16 +613,7 @@ export default function App() {
               <ThemeToggle />
 
               {/* Badge de Papel */}
-              {isSuperadmin ? (
-                <button
-                  onClick={() => setShowSuperadminModal(true)}
-                  className="p-2 sm:p-2.5 rounded-xl text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center"
-                  title="Abrir Painel Superadmin do SaaS"
-                  aria-label="Abrir Painel Superadmin do SaaS"
-                >
-                  <Crown className="w-5 h-5 text-amber-400" />
-                </button>
-              ) : userEmpresaRole === 'admin' ? (
+              {userEmpresaRole === 'admin' ? (
                 <span
                   className="p-2 sm:p-2.5 rounded-xl text-brand-400 bg-brand-500/10 border border-brand-500/20 min-h-[40px] min-w-[40px] flex items-center justify-center"
                   title="Administrador da Imobiliária"
@@ -710,7 +676,6 @@ export default function App() {
             empresa={empresa}
             onEmpresaUpdated={refreshEmpresa}
             isFullAdmin={isFullAdmin}
-            onOpenSuperadmin={() => setShowSuperadminModal(true)}
           />
         ) : null}
       </main>
@@ -742,29 +707,11 @@ export default function App() {
         empresaNome={empresa?.nome}
       />
 
-      {/* Modal Superadmin (Dono do SaaS) */}
-      {isSuperadmin && (
-        <SuperadminModal
-          isOpen={showSuperadminModal}
-          onClose={() => setShowSuperadminModal(false)}
-          showToast={showToast}
-        />
-      )}
-
-      {/* Modal para alternar de imobiliária / link do WhatsApp (apenas Superadmin ou Visão Admin) */}
+      {/* Modal para alternar de imobiliária / link do WhatsApp (apenas na visão admin) */}
       {canSwitchTenant && (
         <TenantSwitcherModal
           isOpen={showTenantSwitcher}
           onClose={() => setShowTenantSwitcher(false)}
-          showToast={showToast}
-        />
-      )}
-
-      {/* Modal para criar nova imobiliária (exclusivo Superadmin) */}
-      {isSuperadmin && (
-        <NovaEmpresaModal
-          isOpen={showNovaEmpresaModal}
-          onClose={() => setShowNovaEmpresaModal(false)}
           showToast={showToast}
         />
       )}

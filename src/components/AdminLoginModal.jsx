@@ -33,7 +33,6 @@ export default function AdminLoginModal({
   const {
     user,
     perfil,
-    isSuperadmin,
     minhasEmpresas,
     signIn,
     signUp,

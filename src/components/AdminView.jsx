@@ -23,7 +23,6 @@ import {
   UserPlus,
   Key,
   Lock,
-  Crown,
   Shield,
   ShieldAlert,
 } from 'lucide-react'
@@ -50,12 +49,11 @@ export default function AdminView({
   empresa,
   onEmpresaUpdated,
   isFullAdmin: propIsFullAdmin,
-  onOpenSuperadmin,
 }) {
   const confirm = useConfirm()
-  const { user, perfil, isSuperadmin, getEmpresaRole } = useAuth()
+  const { user, perfil, getEmpresaRole } = useAuth()
   const role = empresaId ? getEmpresaRole(empresaId) : null
-  const isFullAdmin = propIsFullAdmin ?? (isSuperadmin || role === 'admin' || !user)
+  const isFullAdmin = propIsFullAdmin ?? (role === 'admin' || !user)
 
   // Chaves de localStorage isoladas por empresa
   const STORAGE_KEY_FORM_DIA = empresaId ? `escala_admin_ultimo_dia_${empresaId}` : 'escala_admin_ultimo_dia'
@@ -451,12 +449,7 @@ export default function AdminView({
                 <p className="text-sm font-bold text-gray-100 truncate">
                   {perfil?.nome ? perfil.nome : user.email}
                 </p>
-                {isSuperadmin ? (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                    <Crown className="w-3 h-3 text-amber-400" />
-                    Superadmin
-                  </span>
-                ) : role === 'admin' ? (
+                {role === 'admin' ? (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 flex items-center gap-1">
                     <Shield className="w-3 h-3 text-brand-400" />
                     Admin da Imobiliária
@@ -473,16 +466,6 @@ export default function AdminView({
               </p>
             </div>
           </div>
-
-          {isSuperadmin && onOpenSuperadmin && (
-            <button
-              onClick={onOpenSuperadmin}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold transition-all flex-shrink-0"
-            >
-              <Crown className="w-3.5 h-3.5" />
-              <span>Painel Superadmin</span>
-            </button>
-          )}
         </div>
       )}
 
@@ -528,7 +511,7 @@ export default function AdminView({
         </div>
       </div>
 
-      {/* ═══ SEGURANÇA: SENHA DO ADMIN DA IMOBILIÁRIA (Apenas Admin / Superadmin) ═══ */}
+      {/* ═══ SEGURANÇA: SENHA DO ADMIN DA IMOBILIÁRIA (Apenas Administrador) ═══ */}
       {isFullAdmin && (
         <div className="card flex items-center justify-between gap-3 bg-surface-800/90 border-surface-600">
           <div className="flex items-center gap-3 min-w-0">
@@ -835,7 +818,7 @@ export default function AdminView({
         </div>
       )}
 
-      {/* ═══ ZONA DE PERIGO (Apenas Administrador / Superadmin) ═══ */}
+      {/* ═══ ZONA DE PERIGO (Apenas Administrador da Imobiliária) ═══ */}
       {isFullAdmin && (
         <div className="card border-red-500/20 bg-red-500/5">
           <div className="flex items-start gap-3 mb-4">

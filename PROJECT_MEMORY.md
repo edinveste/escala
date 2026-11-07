@@ -217,21 +217,16 @@ e:\Escala\
    - `canManageEmpresa(empresa.id)` valida se o usuário possui acesso ativo como `'admin'` ou `'gestor'`.
    - Caso tente acessar imobiliária não autorizada, o modal lista suas imobiliárias com navegação em 1 clique.
 3. **Banner de Identidade e Badges**:
-   - No topo do `AdminView`, exibe nome, e-mail e badge contextual (`Superadmin`, `Admin da Imobiliária` ou `Gestor de Plantão`).
+   - No topo do `AdminView`, exibe nome, e-mail e badge contextual (`Admin da Imobiliária` ou `Gestor de Plantão`).
 4. **Operações Protegidas**:
    - Criar, editar, reordenar e duplicar pontos e horários.
    - Alocar ou remover corretores manualmente de turnos.
    - Limpar escala da imobiliária com verificação de autorização no banco.
 
-### 5.4. Fluxo do Superadmin (Dono do SaaS)
-1. **Acesso Global**:
-   - O primeiro usuário cadastrado é promovido automaticamente a Superadmin.
-   - Pode promover outros administradores por e-mail via `promover_superadmin`.
-2. **Painel Superadmin (`SuperadminModal`)**:
-   - Visualização de todas as imobiliárias cadastradas no SaaS com busca e filtros.
-   - Alteração imediata de planos (`trial`, `pro`, `ilimitado`) e status (`ativo`, `inativo`, `bloqueado`).
-   - Adição de novos gestores a qualquer empresa diretamente por e-mail.
-   - Acesso em 1 clique a qualquer escala de imobiliária.
+### 5.4. Gestão Centralizada da Plataforma (100% Supabase / Zero Frontend Attack Surface)
+1. **Remoção Completa do Superadmin no Frontend**:
+   - Toda gestão global (criação de novas imobiliárias, troca de planos, bloqueio/desbloqueio e associação de gestores) é realizada diretamente no painel do **Supabase Studio (Table Editor / SQL Editor)**.
+   - Sem área de Superadmin no frontend, o sistema possui **zero superfície de ataque cliente-servidor** para funções de administração da plataforma, garantindo segurança máxima com 2FA nativo do Supabase.
 
 ---
 

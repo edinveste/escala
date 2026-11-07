@@ -5,15 +5,14 @@ import {
   ExternalLink,
   MessageCircle,
   KeyRound,
-  Crown,
   Sparkles,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTenant } from '../contexts/TenantContext'
 
-export default function TenantBlockedView({ onOpenAdminLogin, onOpenSuperadmin }) {
+export default function TenantBlockedView({ onOpenAdminLogin }) {
   const { empresa, switchTenant } = useTenant()
-  const { user, isSuperadmin, canManageEmpresa } = useAuth()
+  const { user, canManageEmpresa } = useAuth()
 
   const isGestorDestaEmpresa = Boolean(user && empresa?.id && canManageEmpresa(empresa.id))
 
@@ -56,19 +55,8 @@ export default function TenantBlockedView({ onOpenAdminLogin, onOpenSuperadmin }
           </p>
         </div>
 
-        {/* Ações para Gestores ou Superadmin */}
+        {/* Ações para Gestores */}
         <div className="space-y-2.5 pt-1">
-          {/* Se for Superadmin */}
-          {isSuperadmin && (
-            <button
-              onClick={onOpenSuperadmin}
-              className="w-full py-3 px-4 rounded-xl text-xs font-semibold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all flex items-center justify-center gap-2"
-            >
-              <Crown className="w-4 h-4 text-amber-400" />
-              Painel Superadmin (Reativar Imobiliária)
-            </button>
-          )}
-
           {/* Botão de regularização para Gestor conectado */}
           {isGestorDestaEmpresa ? (
             <button

@@ -10,7 +10,6 @@ export function TenantProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState(null)
-  const [showNovaEmpresaModal, setShowNovaEmpresaModal] = useState(false)
 
   // ─── Carrega os dados da empresa pelo slug ─────────────────────
   const carregarEmpresa = useCallback(async (slugAlvo) => {
@@ -137,8 +136,6 @@ export function TenantProvider({ children }) {
         error,
         switchTenant,
         refreshEmpresa,
-        showNovaEmpresaModal,
-        setShowNovaEmpresaModal,
       }}
     >
       {children}

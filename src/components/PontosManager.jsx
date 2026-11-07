@@ -490,7 +490,7 @@ export default function PontosManager({
                             )}
                           </button>
 
-                          {/* Ações Destrutivas / Estruturais (Apenas Administrador / Superadmin) */}
+                          {/* Ações Destrutivas / Estruturais (Apenas Administrador) */}
                           {isFullAdmin && (
                             <>
                               <button

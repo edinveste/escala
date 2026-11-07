@@ -2,14 +2,12 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useTenant } from '../contexts/TenantContext'
-import { useAuth } from '../contexts/AuthContext'
 import { getTenantShareUrl } from '../lib/tenantHelper'
 import {
   Building2,
   X,
   Copy,
   Check,
-  Plus,
   Share2,
   ExternalLink,
   Shield,
@@ -17,8 +15,7 @@ import {
 } from 'lucide-react'
 
 export default function TenantSwitcherModal({ isOpen, onClose, showToast }) {
-  const { empresa, switchTenant, setShowNovaEmpresaModal } = useTenant()
-  const { isSuperadmin } = useAuth()
+  const { empresa, switchTenant } = useTenant()
   const [empresas, setEmpresas] = useState([])
   const [loading, setLoading] = useState(false)
   const [copiado, setCopiado] = useState(false)
@@ -167,19 +164,6 @@ export default function TenantSwitcherModal({ isOpen, onClose, showToast }) {
             <label className="text-xs font-semibold text-gray-300">
               Todas as Imobiliárias ({empresas.length}):
             </label>
-            {isSuperadmin && (
-              <button
-                onClick={() => {
-                  onClose()
-                  setShowNovaEmpresaModal(true)
-                }}
-                className="text-xs font-semibold text-brand-400 hover:text-brand-300 flex items-center gap-1"
-                title="Cadastrar nova imobiliária manualmente (Superadmin)"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Nova Imobiliária
-              </button>
-            )}
           </div>
 
           {loading ? (

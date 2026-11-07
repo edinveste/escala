@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { Building2, Plus, ArrowRight, Search, Sparkles } from 'lucide-react'
+import { Building2, ArrowRight, Search, Sparkles } from 'lucide-react'
 import { useTenant } from '../contexts/TenantContext'
-import { useAuth } from '../contexts/AuthContext'
 
 export default function TenantNotFound() {
-  const { slug, switchTenant, setShowNovaEmpresaModal } = useTenant()
-  const { isSuperadmin } = useAuth()
+  const { slug, switchTenant } = useTenant()
   const [buscaSlug, setBuscaSlug] = useState('')
 
   const handleBuscar = (e) => {
@@ -65,16 +63,6 @@ export default function TenantNotFound() {
             Acessar Imobiliária Padrão (Demo)
             <ArrowRight className="w-4 h-4" />
           </button>
-
-          {isSuperadmin && (
-            <button
-              onClick={() => setShowNovaEmpresaModal(true)}
-              className="w-full btn-primary py-3 text-sm flex items-center justify-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Cadastrar Nova Imobiliária (Superadmin)
-            </button>
-          )}
         </div>
 
         <div className="pt-4 border-t border-surface-700/60 text-xs text-gray-500 flex items-center justify-center gap-1.5">

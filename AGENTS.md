@@ -175,14 +175,12 @@ e:\Escala\
         ├── NomeModal.jsx        # Modal para solicitar nome e WhatsApp do corretor
         ├── ConfirmModal.jsx     # Modal universal assíncrono de confirmação/exclusão (useConfirm)
         ├── AdminLoginModal.jsx  # Modal estilizado para login do gestor (Email/Senha, Cadastro, Reset e PIN legado)
-        ├── SuperadminModal.jsx  # Painel do Superadmin (gestão de imobiliárias, planos, status e métricas reais de consumo)
         ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo gestor da empresa
         ├── AdminView.jsx        # Painel do Administrador (banner de identidade, turnos, pontos e equipe)
         ├── PontosManager.jsx    # Gestão de pontos com RBAC granular (bloqueio de ações destrutivas para coordenadores)
         ├── EquipeManager.jsx    # Gerenciador de equipe autorizada e chave de proteção contra invasores
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
         ├── TenantSwitcherModal.jsx # Modal para trocar de imobiliária e copiar link direto do WhatsApp
-        ├── NovaEmpresaModal.jsx # Modal de criação rápida de novo tenant com autovinculação
         ├── TenantNotFound.jsx   # Tela elegante de 404 quando o slug não existe com busca e demo
         ├── TenantBlockedView.jsx# Tela de suspensão amigável para empresas inadimplentes ou bloqueadas
         ├── ThemeToggle.jsx      # Botão animado de alternância Modo Claro / Escuro (Sun/Moon com persistência)
@@ -207,13 +205,11 @@ e:\Escala\
    - Se pertencer a outra imobiliária, o modal apresenta atalho direto de 1 clique.
    - Fallback para PIN legado mantido durante a transição.
 2. **Banner de Identidade no AdminView**:
-   - Exibe nome do gestor, e-mail e badge contextual (`Superadmin`, `Admin da Imobiliária` ou `Gestor de Plantão`).
+   - Exibe nome do gestor, e-mail e badge contextual (`Admin da Imobiliária` ou `Gestor de Plantão`).
 3. **Gestão de Pontos e Turnos**:
    - Criar, ordenar, duplicar e renomear pontos e horários, sempre vinculando ao `empresa_id` e protegido por RLS.
 
-### 5.3. Fluxo do Superadmin (Dono do SaaS)
-1. **Controle Total Multi-Tenant**:
-   - Acesso via botão com coroa 👑 no header.
-   - Listagem com busca de todas as empresas do banco.
-   - Troca em tempo real de planos (`trial`, `pro`, `ilimitado`) e status (`ativo`, `inativo`, `bloqueado`).
-   - Adição de novos gestores e promoção de novos Superadmins por e-mail.
+### 5.3. Gestão Centralizada da Plataforma (100% Supabase / Zero Frontend Attack Surface)
+1. **Remoção Completa do Superadmin no Frontend**:
+   - Toda e qualquer administração de nível de plataforma (criação de tenants, alteração de planos, bloqueio e desbloqueio de imobiliárias, concessão de perfis administrativos) é feita diretamente pelo painel do **Supabase Studio (Table Editor / SQL Editor)**.
+   - Isso elimina qualquer risco de exposição no frontend, bypass de JWT ou vazamento de privilégios globais na aplicação cliente.
