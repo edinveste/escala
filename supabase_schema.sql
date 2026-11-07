@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS public.equipe_corretores (
 CREATE INDEX IF NOT EXISTS idx_equipe_corretores_empresa ON public.equipe_corretores(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_equipe_corretores_whatsapp ON public.equipe_corretores(whatsapp);
 CREATE INDEX IF NOT EXISTS idx_equipe_corretores_ativo ON public.equipe_corretores(empresa_id, ativo);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_equipe_corretores_empresa_zap_clean ON public.equipe_corretores (empresa_id, (regexp_replace(whatsapp, '[^0-9]', '', 'g')));
 
 -- 1.8 Tabela de logs de webhooks Asaas (Auditoria e Idempotência)
 CREATE TABLE IF NOT EXISTS public.asaas_webhooks_log (
@@ -292,6 +293,17 @@ BEGIN
   ON CONFLICT (id) DO UPDATE
   SET email = EXCLUDED.email,
       nome = COALESCE(public.perfis.nome, EXCLUDED.nome);
+
+  -- Converte convites pendentes deste e-mail em vínculos reais de gestor
+  INSERT INTO public.usuarios_empresas (user_id, empresa_id, role, ativo)
+  SELECT NEW.id, cg.empresa_id, cg.role, true
+  FROM public.convites_gestores cg
+  WHERE lower(cg.email) = lower(trim(NEW.email))
+  ON CONFLICT (user_id, empresa_id) DO UPDATE
+  SET role = EXCLUDED.role, ativo = true;
+
+  DELETE FROM public.convites_gestores
+  WHERE lower(email) = lower(trim(NEW.email));
 
   RETURN NEW;
 END;
@@ -789,7 +801,7 @@ BEGIN
 END;
 $$;
 
--- 5.2 Vincular usuário a uma empresa por e-mail
+-- 5.2 Vincular usuário a uma empresa por e-mail (com suporte a pré-convite)
 CREATE OR REPLACE FUNCTION public.vincular_usuario_empresa(
   p_email TEXT,
   p_empresa_id UUID,
@@ -802,6 +814,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_user_id UUID;
+  v_email_limpo TEXT := lower(trim(p_email));
   v_resultado JSONB;
 BEGIN
   IF NOT (public.is_superadmin() OR public.has_empresa_role(p_empresa_id, ARRAY['admin'])) THEN
@@ -814,24 +827,37 @@ BEGIN
 
   SELECT id INTO v_user_id
   FROM public.perfis
-  WHERE lower(email) = lower(trim(p_email));
+  WHERE lower(email) = v_email_limpo;
 
-  IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'Usuário com e-mail % ainda não se cadastrou na plataforma.', p_email;
+  IF v_user_id IS NOT NULL THEN
+    INSERT INTO public.usuarios_empresas (user_id, empresa_id, role, ativo)
+    VALUES (v_user_id, p_empresa_id, p_role, true)
+    ON CONFLICT (user_id, empresa_id) DO UPDATE
+    SET role = EXCLUDED.role, ativo = true;
+
+    DELETE FROM public.convites_gestores 
+    WHERE empresa_id = p_empresa_id AND lower(email) = v_email_limpo;
+
+    RETURN json_build_object(
+      'status', 'vinculado',
+      'user_id', v_user_id,
+      'empresa_id', p_empresa_id,
+      'role', p_role,
+      'ativo', true
+    )::jsonb;
+  ELSE
+    INSERT INTO public.convites_gestores (empresa_id, email, role)
+    VALUES (p_empresa_id, v_email_limpo, p_role)
+    ON CONFLICT (empresa_id, email) DO UPDATE
+    SET role = EXCLUDED.role;
+
+    RETURN json_build_object(
+      'status', 'convidado',
+      'email', v_email_limpo,
+      'empresa_id', p_empresa_id,
+      'role', p_role
+    )::jsonb;
   END IF;
-
-  INSERT INTO public.usuarios_empresas (user_id, empresa_id, role, ativo)
-  VALUES (v_user_id, p_empresa_id, p_role, true)
-  ON CONFLICT (user_id, empresa_id) DO UPDATE
-  SET role = EXCLUDED.role, ativo = true
-  RETURNING json_build_object(
-    'user_id', user_id,
-    'empresa_id', empresa_id,
-    'role', role,
-    'ativo', ativo
-  )::jsonb INTO v_resultado;
-
-  RETURN v_resultado;
 END;
 $$;
 
@@ -857,7 +883,85 @@ BEGIN
 END;
 $$;
 
--- 5.4 Métricas agregadas de consumo das empresas (Painel Superadmin)
+-- 5.4 Listar Gestores, Coordenadores e Convites Pendentes de uma Empresa
+DROP FUNCTION IF EXISTS public.get_gestores_empresa(UUID);
+
+CREATE OR REPLACE FUNCTION public.get_gestores_empresa(p_empresa_id UUID)
+RETURNS TABLE (
+  id UUID,
+  user_id UUID,
+  email TEXT,
+  nome TEXT,
+  role TEXT,
+  ativo BOOLEAN,
+  pendente BOOLEAN,
+  created_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin']) OR public.is_superadmin()) THEN
+    RAISE EXCEPTION 'Acesso negado: apenas administradores podem visualizar a lista de gestores.';
+  END IF;
+
+  RETURN QUERY
+  SELECT 
+    ue.id,
+    ue.user_id,
+    p.email,
+    COALESCE(p.nome, split_part(p.email, '@', 1)) AS nome,
+    ue.role,
+    ue.ativo,
+    false AS pendente,
+    ue.created_at
+  FROM public.usuarios_empresas ue
+  JOIN public.perfis p ON p.id = ue.user_id
+  WHERE ue.empresa_id = p_empresa_id
+
+  UNION ALL
+
+  SELECT
+    cg.id,
+    NULL::UUID AS user_id,
+    cg.email,
+    split_part(cg.email, '@', 1) AS nome,
+    cg.role,
+    true AS ativo,
+    true AS pendente,
+    cg.created_at
+  FROM public.convites_gestores cg
+  WHERE cg.empresa_id = p_empresa_id
+
+  ORDER BY created_at ASC;
+END;
+$$;
+
+-- 5.5 Cancelar convite pendente
+CREATE OR REPLACE FUNCTION public.cancelar_convite_gestor(
+  p_convite_id UUID,
+  p_empresa_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT (public.is_superadmin() OR public.has_empresa_role(p_empresa_id, ARRAY['admin'])) THEN
+    RAISE EXCEPTION 'Você não tem permissão para remover convites desta empresa.';
+  END IF;
+
+  DELETE FROM public.convites_gestores
+  WHERE id = p_convite_id AND empresa_id = p_empresa_id;
+
+  RETURN FOUND;
+END;
+$$;
+
+-- 5.5 Métricas agregadas de consumo das empresas (Painel Superadmin)
 CREATE OR REPLACE FUNCTION public.get_metricas_empresas()
 RETURNS TABLE (
   empresa_id UUID,
@@ -931,11 +1035,27 @@ SET search_path = public
 AS $$
 DECLARE
   v_novo RECORD;
+  v_zap_limpo TEXT := regexp_replace(COALESCE(p_whatsapp, ''), '[^0-9]', '', 'g');
+  v_nome_existente TEXT;
 BEGIN
   IF auth.uid() IS NOT NULL THEN
     IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
       RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
     END IF;
+  END IF;
+
+  IF length(v_zap_limpo) < 10 THEN
+    RAISE EXCEPTION 'WhatsApp inválido. Informe o número com DDD.';
+  END IF;
+
+  SELECT nome INTO v_nome_existente
+  FROM public.equipe_corretores
+  WHERE empresa_id = p_empresa_id
+    AND regexp_replace(whatsapp, '[^0-9]', '', 'g') = v_zap_limpo
+  LIMIT 1;
+
+  IF v_nome_existente IS NOT NULL THEN
+    RAISE EXCEPTION 'Este WhatsApp já está cadastrado para o corretor "%".', v_nome_existente;
   END IF;
 
   INSERT INTO public.equipe_corretores (empresa_id, nome, whatsapp, ativo)

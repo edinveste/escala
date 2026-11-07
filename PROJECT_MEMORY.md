@@ -176,6 +176,7 @@ e:\Escala\
         ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo gestor da empresa
         ├── AdminView.jsx        # Painel do Gestor (banner de identidade, gestão de turnos, pontos e equipe)
         ├── PontosManager.jsx    # Gestão de pontos com RBAC granular (bloqueio de exclusão/renomeação para coordenadores)
+        ├── GestoresManager.jsx  # Gestão de coordenadores e gestores da imobiliária (convite por e-mail e papéis)
         ├── EquipeManager.jsx    # Gerenciador de equipe autorizada e chave de proteção contra invasores
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
         ├── TenantSwitcherModal.jsx # Modal para trocar de imobiliária e copiar link direto do WhatsApp
@@ -255,7 +256,9 @@ npm run build
 
 ### Concluído na Fase 2:
 - ✅ **RBAC Granular para Coordenadores (`gestor`)**: Ações destrutivas (excluir ponto, renomear, duplicar e limpar escala) ocultadas em `PontosManager.jsx` e `AdminView.jsx`.
+- ✅ **Componente GestoresManager.jsx**: Gestão de equipe de coordenação diretamente no painel do Admin, com vinculação por e-mail (`vincular_usuario_empresa`), seleção de papel ('admin' ou 'gestor'), listagem em tempo real e desvinculação.
 - ✅ **Proteção Contra Invasores / Equipe Autorizada**: Tabela `equipe_corretores`, chave opcional `exigir_cadastro_previo` em `empresas`, validação na RPC `reservar_vaga` com WhatsApp e componente `EquipeManager.jsx`.
+- ✅ **Prevenção de WhatsApp Duplicado na Equipe**: Índice único funcional `idx_equipe_corretores_empresa_zap_clean` no Postgres, validação dupla na RPC `adicionar_corretor_equipe` e checagem instantânea no front-end em `EquipeManager.jsx`.
 - ✅ **Métricas Reais de Consumo**: RPC `get_metricas_empresas()` para agregação de pontos ativos, turnos e reservas de cada tenant diretamente no banco.
 - ✅ **Resolução Amigável de Sessão**: Tratamento em `AdminLoginModal.jsx` para usuários logados sem vínculo com atalho de auto-vinculação via PIN (`vincular_com_pin`) e logout direto.
 

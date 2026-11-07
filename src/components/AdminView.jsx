@@ -6,6 +6,7 @@ import PontosManager from './PontosManager'
 import TurnosDiaList from './TurnosDiaList'
 import AlterarSenhaModal from './AlterarSenhaModal'
 import EquipeManager from './EquipeManager'
+import GestoresManager from './GestoresManager'
 import {
   Plus,
   Trash2,
@@ -536,6 +537,17 @@ export default function AdminView({
             Alterar Senha
           </button>
         </div>
+      )}
+
+      {/* ═══ COORDENADORES E GESTORES DA IMOBILIÁRIA (Apenas Administrador) ═══ */}
+      {isFullAdmin && (
+        <GestoresManager
+          empresaId={empresaId}
+          empresaNome={empresaNome}
+          isFullAdmin={isFullAdmin}
+          currentUserId={user?.id}
+          showToast={showToast}
+        />
       )}
 
       {/* ═══ PROTEÇÃO CONTRA INVASORES & EQUIPE DE CORRETORES ═══ */}

@@ -179,6 +179,18 @@ export default function EquipeManager({
       return
     }
 
+    // Prevenção de duplicidade por número de WhatsApp na mesma imobiliária
+    const zapExistente = equipe.find(
+      (c) => c.whatsapp && c.whatsapp.replace(/\D/g, '') === zapDigits
+    )
+    if (zapExistente) {
+      showToast(
+        `Este WhatsApp já está cadastrado para o corretor "${zapExistente.nome}".`,
+        'warning'
+      )
+      return
+    }
+
     setAdicionando(true)
     try {
       let novoCorretor = null
@@ -220,7 +232,9 @@ export default function EquipeManager({
       showToast(`Corretor "${nomeLimpo}" cadastrado na equipe! ✅`, 'success')
     } catch (err) {
       console.error('Erro ao cadastrar corretor:', err)
-      if (err.message?.includes('does not exist') || err.code === '42P01') {
+      if (err.message?.includes('já está cadastrado') || err.message?.includes('idx_equipe_corretores') || err.code === '23505') {
+        showToast(err.message || 'Este número de WhatsApp já está cadastrado nesta imobiliária.', 'warning')
+      } else if (err.message?.includes('does not exist') || err.code === '42P01') {
         showToast('Tabela "equipe_corretores" ausente no banco. Execute a migração SQL no Supabase.', 'error')
       } else {
         showToast('Erro ao cadastrar corretor na equipe.', 'error')

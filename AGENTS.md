@@ -178,6 +178,7 @@ e:\Escala\
         ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo gestor da empresa
         ├── AdminView.jsx        # Painel do Administrador (banner de identidade, turnos, pontos e equipe)
         ├── PontosManager.jsx    # Gestão de pontos com RBAC granular (bloqueio de ações destrutivas para coordenadores)
+        ├── GestoresManager.jsx  # Gestão de coordenadores e gestores da imobiliária (convite por e-mail e papéis)
         ├── EquipeManager.jsx    # Gerenciador de equipe autorizada e chave de proteção contra invasores
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
         ├── TenantSwitcherModal.jsx # Modal para trocar de imobiliária e copiar link direto do WhatsApp
