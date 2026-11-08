@@ -14,6 +14,8 @@ import {
   UserCheck,
   UserX,
   MessageCircle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 
 // Máscara dinâmica para telefone brasileiro: (99) 99999-9999 ou (99) 9999-9999
@@ -41,6 +43,7 @@ export default function EquipeManager({
   const [equipe, setEquipe] = useState([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
+  const [isExpanded, setIsExpanded] = useState(false)
 
   // Formulário de adição
   const [nome, setNome] = useState('')
@@ -336,34 +339,15 @@ export default function EquipeManager({
 
   return (
     <div className="card space-y-4">
-      {/* Cabeçalho */}
+      {/* ═══ CABEÇALHO UNIFICADO EM LINHA ÚNICA: PROTEÇÃO CONTRA INVASORES ═══ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-gray-100">Equipe de Corretores</h2>
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">
-                {totalAtivos} {totalAtivos === 1 ? 'autorizado' : 'autorizados'}
-              </span>
-            </div>
-            <p className="text-xs text-gray-400">
-              Controle quem tem permissão para garantir vagas nos plantões.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ═══ INTERRUPTOR MASTER: EXIGIR CADASTRO PRÉVIO ═══ */}
-      <div className="p-3.5 sm:p-4 rounded-2xl bg-surface-900/60 border border-surface-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors">
-        <div className="flex items-start gap-3 min-w-0">
+        {/* Identidade: Título, badges e descrição */}
+        <div className="flex items-center gap-2.5 min-w-0">
           <div
-            className={`p-2 rounded-xl flex-shrink-0 mt-0.5 ${
+            className={`p-2.5 rounded-xl border flex-shrink-0 transition-colors ${
               exigirCadastro
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : 'bg-surface-700 text-gray-400 border border-surface-600'
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                : 'bg-surface-700/80 border-surface-600 text-gray-400'
             }`}
           >
             {exigirCadastro ? (
@@ -374,57 +358,109 @@ export default function EquipeManager({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-bold text-gray-100">
+              <h2 className="text-base font-bold text-gray-100">
                 Proteção Contra Invasores
-              </p>
+              </h2>
               <span
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
                   exigirCadastro
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    : 'bg-surface-700 text-gray-400 border-surface-600'
                 }`}
               >
                 {exigirCadastro ? 'Ativada (Restrito)' : 'Desativada (Aberto)'}
               </span>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">
+                {totalAtivos} {totalAtivos === 1 ? 'autorizado' : 'autorizados'}
+              </span>
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {exigirCadastro
-                ? 'Apenas corretores cadastrados na lista abaixo conseguem reservar plantões.'
-                : 'Qualquer corretor com o link público pode reservar vagas normalmente.'}
-            </p>
           </div>
         </div>
 
-        {/* Botão Switch */}
-        <button
-          type="button"
-          disabled={alterandoExigir || !isFullAdmin}
-          onClick={handleToggleExigir}
-          className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none self-end sm:self-center ${
-            exigirCadastro ? 'bg-emerald-500' : 'bg-surface-600'
-          } ${!isFullAdmin ? 'opacity-60 cursor-not-allowed' : ''}`}
-          title={
-            !isFullAdmin
-              ? 'Apenas administradores podem alternar esta chave'
-              : exigirCadastro
-              ? 'Clique para desativar proteção'
-              : 'Clique para ativar proteção'
-          }
-          role="switch"
-          aria-checked={exigirCadastro}
-        >
-          <span
-            aria-hidden="true"
-            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-              exigirCadastro ? 'translate-x-5' : 'translate-x-0'
-            }`}
-          />
-        </button>
+        {/* Controles: Switch de Ativação + Seta Sanfona */}
+        <div className="flex items-center gap-2.5 self-end sm:self-center flex-shrink-0">
+          {/* Switch Toggle */}
+          <button
+            type="button"
+            disabled={alterandoExigir || !isFullAdmin}
+            onClick={handleToggleExigir}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              exigirCadastro ? 'bg-emerald-500' : 'bg-surface-600'
+            } ${!isFullAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+            title={
+              !isFullAdmin
+                ? 'Apenas administradores podem alternar esta chave'
+                : exigirCadastro
+                ? 'Clique para desativar proteção (abrir reservas a todos)'
+                : 'Clique para ativar proteção (restringir à equipe cadastrada)'
+            }
+            role="switch"
+            aria-checked={exigirCadastro}
+          >
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                exigirCadastro ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+
+          {/* Seta de Efeito Sanfona (em 2 linhas, idêntico ao Coordenadores & Gestores) */}
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1.5 self-end sm:self-center bg-surface-700/60 hover:bg-surface-700 px-2.5 py-1.5 rounded-lg border border-surface-600/50 transition-colors text-left"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="flex flex-col leading-tight">
+                  <span>Recolher</span>
+                  <span>Equipe</span>
+                </span>
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="flex flex-col leading-tight">
+                  <span>Gerenciar</span>
+                  <span>Equipe</span>
+                </span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* ═══ CONTEÚDO EXPANSÍVEL (EXIBIDO SOMENTE COM A PROTEÇÃO ATIVA) ═══ */}
-      {exigirCadastro && (
+      {/* ═══ CONTEÚDO EXPANSÍVEL (SANFONA) ═══ */}
+      {isExpanded && (
         <div className="space-y-4 pt-2 border-t border-surface-700/60 animate-fade-in">
+          {/* Card Contextual de Status da Proteção */}
+          <div
+            className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs transition-colors ${
+              exigirCadastro
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                : 'bg-surface-800/80 border-surface-700/70 text-gray-300'
+            }`}
+          >
+            {exigirCadastro ? (
+              <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+            ) : (
+              <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="space-y-0.5 leading-relaxed">
+              <p>
+                <strong className={exigirCadastro ? 'text-emerald-200' : 'text-gray-100'}>
+                  {exigirCadastro
+                    ? 'Proteção Ativada (Acesso Restrito):'
+                    : 'Proteção Desativada (Acesso Livre):'}
+                </strong>{' '}
+                {exigirCadastro
+                  ? 'Apenas corretores cadastrados e com status ativo nesta lista conseguem reservar vagas nos plantões.'
+                  : 'Qualquer corretor com o link público pode reservar vagas normalmente. Cadastre a equipe abaixo e ative a chave no topo quando desejar bloquear invasores.'}
+              </p>
+            </div>
+          </div>
           {/* ═══ FORMULÁRIO DE ADIÇÃO RÁPIDA DE CORRETOR ═══ */}
           <form
             onSubmit={handleAddCorretor}

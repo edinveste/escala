@@ -293,9 +293,13 @@ npm run build
 - ✅ **RPCs Seguras de Gestão de Equipe (Suporte Híbrido Auth & PIN)**:
   - Criação das RPCs `alternar_protecao_equipe`, `adicionar_corretor_equipe`, `alternar_status_corretor` e `remover_corretor_equipe` com `SECURITY DEFINER` em `supabase_migration_fase2_refinamentos.sql` e `supabase_schema.sql`.
   - Elimina bloqueios de RLS quando o gestor opera via PIN legado ou quando o usuário não autenticado interage com a equipe.
-- ✅ **Design System Retrátil em `EquipeManager.jsx`**:
-  - A seção de equipe permanece compacta (apenas a chave switch) por padrão, economizando espaço na tela.
-  - Quando a chave de proteção contra invasores é ativada, a seção se expande suavemente com animação (`animate-fade-in`), exibindo o formulário e a listagem.
+- ✅ **Botão Unificado de Expansão/Recolhimento em `AdminView.jsx`**:
+  - Os botões duplicados "Recolher todos" e "Expandir todos" na seção **Turnos Cadastrados** foram unidos em um **único botão inteligente com alternância dinâmica**.
+  - O botão detecta automaticamente se há algum ponto expandido para exibir **"Recolher todos"** (com `ChevronUp`) ou, caso estejam todos fechados, exibir **"Expandir todos"** (com `ChevronDown`).
+- ✅ **Design System Retrátil e Cabeçalho Unificado em `EquipeManager.jsx`**:
+  - O card agora se chama diretamente **"Proteção Contra Invasores"** com status (`Ativada (Restrito)` / `Desativada (Aberto)`), contagem de autorizados e o switch toggle liga/desliga integrado na mesma linha do cabeçalho.
+  - Implementado o botão com a **seta de efeito sanfona em 2 linhas** (ícone `ChevronDown` / `ChevronUp` ao lado de `Gerenciar` / `Equipe`), mantendo exata paridade e alinhamento visual com o card de cima "Coordenadores & Gestores".
+  - O painel expansível inclui card informativo contextual (explicando se o acesso está restrito à lista ou aberto a qualquer corretor com o link público), formulário de autorização rápida com máscara de WhatsApp e listagem com busca e ações contextuais.
 - ✅ **Refinamento Minimalista no Cabeçalho (`App.jsx`)**:
   - Botões de ação do topo padronizados em formato somente ícone (Superadmin, Gestor/Admin, Sair e avatar com primeira letra + logout), mantendo consistência elegante e idêntica entre Desktop e Mobile.
   - Tooltips contextuais (`title` e `aria-label`) preservam a acessibilidade e identificação de cada ação ao passar o mouse.
@@ -322,3 +326,23 @@ npm run build
        - `PAYMENT_OVERDUE` *(bloqueio automático por atraso)*
        - `PAYMENT_REFUNDED` *(bloqueio automático por estorno)*
        - `SUBSCRIPTION_DELETED` *(bloqueio automático por cancelamento)*
+
+---
+
+## 8. Arquitetura de URLs, Portal do Gestor e Links Seguros Anti-Espionagem (Fase 4)
+
+### 8.1. Separação de Ambientes e Portal Exclusivo do Gestor (`app.escalafacil.online`)
+- **Subdomínio Dedicado**: O acesso administrativo fica isolado em `app.escalafacil.online` (detectado por `isAppPortal()`).
+- **Comportamento quando desconectado**: Apresenta a tela dedicada de login e cadastro (`PortalGestorLogin.jsx`) com Supabase Auth (e-mail e senha) e suporte a PIN legado. O corretor nunca vê essa tela em seu link público.
+- **Comportamento quando conectado**: Detecta automaticamente a imobiliária pertencente ao gestor logado e abre diretamente o `AdminView`, sem exibir opções de escala de corretor. O cabeçalho inclui botão de 1 clique "Escala Pública ↗" que abre o link dos corretores em nova aba.
+
+### 8.2. Links Seguros dos Corretores (`escalafacil.online/[codigo12]`)
+- **Token Aleatório de 12 Caracteres**: Gerado via função PostgreSQL `public.gerar_codigo_escala()` utilizando o alfabeto alfanumérico `[a-zA-Z0-9]` ($62^{12} \approx 3,22 \times 10^{21}$ combinações), ex: `https://escalafacil.online/A7bjs92Rlzm6`.
+- **Anti-Espionagem Eficaz**: Concorrentes não conseguem adivinhar links ou espionar postos de captação de outras empresas trocando o slug na URL.
+- **Blindagem no Frontend**: Na visualização pública do corretor, o botão de escudo/login administrativo é completamente omitido do cabeçalho, deixando a interface 100% voltada às reservas e sem portas de entrada visíveis para invasores.
+- **Retrocompatibilidade**: Mantém compatibilidade com slugs existentes caso o código de 12 caracteres não seja encontrado.
+
+### 8.3. Gerenciador de Links no Painel do Gestor (`LinkSeguroManager.jsx`)
+- Integrado ao topo do `AdminView`, apresenta a URL oficial de compartilhamento com botões de 1 clique para "Copiar Link" e "Compartilhar Convite no WhatsApp".
+- **Botão "Redefinir Link Seguro"**: Permite revogar o link anterior imediatamente e gerar um novo código de 12 caracteres caso o link tenha vazado ou corretores tenham sido desligados da imobiliária. Ação protegida por modal assíncrono `useConfirm` e RPC `redefinir_codigo_escala`.
+

@@ -1,5 +1,5 @@
 // ============================================================
-// Utilitários de Resolução e Roteamento de Tenant (Multi-Tenant)
+// Utilitários de Resolução e Roteamento de Tenant & Links Seguros
 // ============================================================
 
 /**
@@ -20,20 +20,85 @@ export function slugify(text) {
 }
 
 /**
- * Detecta o slug da empresa atual a partir de:
- * 1. Query parameter: ?empresa=alphaville ou ?tenant=alphaville
- * 2. Subdomínio: alphaville.meusaas.com (exceto localhost, app, www)
- * 3. Pathname: /alphaville
+ * Verifica se um identificador possui exatamente o formato de token seguro (12 chars alfanuméricos)
+ * Ex: "A7bjs92Rlzm6" -> true
+ */
+export function isToken12Chars(str) {
+  if (!str || typeof str !== 'string') return false
+  return /^[a-zA-Z0-9]{12}$/.test(str.trim())
+}
+
+/**
+ * Verifica se a sessão atual está no Portal Exclusivo do Gestor / Administrador
+ * 1. Subdomínio app.escalafacil.online
+ * 2. Subdomínio app.* (ex: app.localhost)
+ * 3. Query param de simulação/desenvolvimento: ?portal=app ou ?mode=admin
+ */
+export function isAppPortal() {
+  if (typeof window === 'undefined') return false
+
+  const hostname = window.location.hostname.toLowerCase()
+  if (hostname === 'app.escalafacil.online') return true
+  if (hostname.startsWith('app.')) return true
+
+  const searchParams = new URLSearchParams(window.location.search)
+  if (searchParams.get('portal') === 'app' || searchParams.get('mode') === 'admin') {
+    return true
+  }
+
+  return false
+}
+
+/**
+ * Detecta o identificador da escala (código aleatório de 12 chars ou slug legado) a partir de:
+ * 1. Query param: ?codigo=..., ?token=..., ?empresa=..., ?tenant=...
+ * 2. Pathname: /A7bjs92Rlzm6 ou /direcional
+ * 3. Subdomínio (exceto localhost, app, www, preview)
  * 4. LocalStorage memorizado
  * 5. Fallback padrão: 'demo'
+ * 
+ * IMPORTANTE: Tokens de 12 caracteres preservam estritamente o case-sensitive (maiúsculas e minúsculas).
  */
-export function extractTenantSlug() {
+export function extractTenantIdentifier() {
   if (typeof window === 'undefined') return 'demo'
 
   const searchParams = new URLSearchParams(window.location.search)
-  const querySlug = searchParams.get('empresa') || searchParams.get('tenant')
-  if (querySlug && querySlug.trim()) {
-    return slugify(querySlug)
+  const queryToken =
+    searchParams.get('codigo') ||
+    searchParams.get('token') ||
+    searchParams.get('empresa') ||
+    searchParams.get('tenant')
+
+  if (queryToken && queryToken.trim()) {
+    const raw = queryToken.trim()
+    return isToken12Chars(raw) ? raw : slugify(raw)
+  }
+
+  // Se estiver no portal do gestor e sem parâmetros de rota, não força um tenant de corretor
+  if (isAppPortal()) {
+    try {
+      const saved = localStorage.getItem('escala_tenant_identifier') || localStorage.getItem('escala_tenant_slug')
+      if (saved && saved.trim()) {
+        const rawSaved = saved.trim()
+        return isToken12Chars(rawSaved) ? rawSaved : slugify(rawSaved)
+      }
+    } catch {}
+    return ''
+  }
+
+  // Detecção por pathname: /A7bjs92Rlzm6 ou /alphaville
+  const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '')
+  if (pathname) {
+    const firstSegment = pathname.split('/')[0]?.trim()
+    const rotasReservadas = ['index.html', 'assets', 'api', 'admin', 'favicon.ico', 'robots.txt']
+
+    if (firstSegment && !rotasReservadas.includes(firstSegment.toLowerCase())) {
+      // Se tiver formato de token seguro de 12 caracteres, preserva exato
+      if (isToken12Chars(firstSegment)) {
+        return firstSegment
+      }
+      return slugify(firstSegment)
+    }
   }
 
   // Detecção por subdomínio
@@ -50,21 +115,12 @@ export function extractTenantSlug() {
     return slugify(hostParts[0])
   }
 
-  // Detecção por pathname: /alphaville
-  const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '')
-  if (pathname) {
-    const firstSegment = pathname.split('/')[0]
-    // Ignora rotas de sistema conhecidas se houver
-    if (firstSegment && !['index.html', 'assets', 'api', 'admin'].includes(firstSegment)) {
-      return slugify(firstSegment)
-    }
-  }
-
   // Fallback por memória do navegador
   try {
-    const saved = localStorage.getItem('escala_tenant_slug')
+    const saved = localStorage.getItem('escala_tenant_identifier') || localStorage.getItem('escala_tenant_slug')
     if (saved && saved.trim()) {
-      return slugify(saved)
+      const rawSaved = saved.trim()
+      return isToken12Chars(rawSaved) ? rawSaved : slugify(rawSaved)
     }
   } catch (e) {
     console.error('Erro ao ler tenant do localStorage:', e)
@@ -74,29 +130,86 @@ export function extractTenantSlug() {
 }
 
 /**
- * Gera URL compartilhável completa para uma empresa
- * Ex: https://meusaas.com/direcional
+ * Mantém retrocompatibilidade com a assinatura antiga extractTenantSlug
  */
-export function getTenantShareUrl(slug) {
+export function extractTenantSlug() {
+  return extractTenantIdentifier()
+}
+
+/**
+ * Gera a URL segura oficial dos Corretores (Anti-Espionagem)
+ * Formato padrão: https://escalafacil.online/[codigo12] (ou slug de fallback)
+ * 
+ * @param {Object|string} empresaOuToken Objeto da empresa ou token/slug
+ */
+export function getPublicShareUrl(empresaOuToken) {
   if (typeof window === 'undefined') return ''
-  const origin = window.location.origin
-  const s = slugify(slug || 'demo')
-  return `${origin}/${s}`
+
+  let token = 'demo'
+  if (typeof empresaOuToken === 'string') {
+    token = empresaOuToken.trim()
+  } else if (empresaOuToken && typeof empresaOuToken === 'object') {
+    token = empresaOuToken.codigo_escala || empresaOuToken.slug || 'demo'
+  }
+
+  const hostname = window.location.hostname.toLowerCase()
+
+  // Em produção no domínio oficial escalafacil.online (ou app.escalafacil.online)
+  if (hostname.includes('escalafacil.online')) {
+    return `https://escalafacil.online/${token}`
+  }
+
+  // Em ambiente local ou outros hosts de teste
+  const protocol = window.location.protocol
+  const hostSemApp = window.location.host.replace(/^app\./i, '')
+  return `${protocol}//${hostSemApp}/${token}`
+}
+
+/**
+ * Mantém retrocompatibilidade com getTenantShareUrl(slug)
+ */
+export function getTenantShareUrl(slugOuEmpresa) {
+  return getPublicShareUrl(slugOuEmpresa)
+}
+
+/**
+ * Gera a URL do Portal do Gestor (app.escalafacil.online)
+ */
+export function getAppPortalUrl() {
+  if (typeof window === 'undefined') return ''
+
+  const hostname = window.location.hostname.toLowerCase()
+  if (hostname.includes('escalafacil.online')) {
+    return 'https://app.escalafacil.online'
+  }
+
+  // Em ambiente de desenvolvimento
+  const protocol = window.location.protocol
+  const host = window.location.host
+  if (!host.startsWith('app.')) {
+    return `${protocol}//app.${host}`
+  }
+  return `${protocol}//${host}`
 }
 
 /**
  * Troca de tenant sem recarregar a página (SPA Navigation)
  */
-export function setTenantUrl(slug) {
+export function setTenantUrl(tokenOrSlug) {
   if (typeof window === 'undefined') return
-  const clean = slugify(slug)
+  const raw = (tokenOrSlug || '').trim()
+  const clean = isToken12Chars(raw) ? raw : slugify(raw)
+
   try {
+    localStorage.setItem('escala_tenant_identifier', clean)
     localStorage.setItem('escala_tenant_slug', clean)
   } catch (e) {}
 
-  const newPath = `/${clean}`
-  if (window.location.pathname !== newPath) {
-    window.history.pushState({ tenant: clean }, '', newPath)
+  // Apenas altera pathname se NÃO estiver no portal do gestor
+  if (!isAppPortal()) {
+    const newPath = `/${clean}`
+    if (window.location.pathname !== newPath) {
+      window.history.pushState({ tenant: clean }, '', newPath)
+    }
   }
 }
-

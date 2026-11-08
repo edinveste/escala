@@ -44,6 +44,7 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
    - `id` (uuid, PK)
    - `nome` (text, ex: 'Direcional Imóveis')
    - `slug` (text UNIQUE, ex: 'direcional')
+   - `codigo_escala` (text UNIQUE, código aleatório de 12 caracteres alfanuméricos anti-espionagem)
    - `logo_url` (text)
    - `cor_primaria` (text, padrão `#3b82f6`)
    - `admin_pin` (text, padrão `'1234'`)
@@ -132,6 +133,8 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
   - Ativa ou desativa corretor da equipe autorizada.
 - **`remover_corretor_equipe(p_corretor_id, p_empresa_id)`**:
   - Remove corretor da equipe autorizada da imobiliária.
+- **`redefinir_codigo_escala(p_empresa_id)`**:
+  - Gera um novo código aleatório seguro de 12 caracteres para a empresa, invalidando o anterior imediatamente contra vazamentos e espionagem de concorrentes. Exclusivo para administradores.
 
 ---
 
@@ -151,6 +154,7 @@ e:\Escala\
 ├── supabase_migration_fase2_auth.sql  # Script de migração para Fase 2 Auth & RBAC
 ├── supabase_migration_fase2_refinamentos.sql # Script de migração: Equipe, Bloqueio de Invasores e Métricas
 ├── supabase_migration_fase3_asaas.sql # Script de migração Fase 3: Piloto Automático Asaas & Bloqueio
+├── supabase_migration_fase4_links_seguros.sql # Script de migração Fase 4: Links Seguros Anti-Espionagem (12 chars)
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -175,6 +179,8 @@ e:\Escala\
         ├── NomeModal.jsx        # Modal para solicitar nome e WhatsApp do corretor
         ├── ConfirmModal.jsx     # Modal universal assíncrono de confirmação/exclusão (useConfirm)
         ├── AdminLoginModal.jsx  # Modal estilizado para login do gestor (Email/Senha, Cadastro, Reset e PIN legado)
+        ├── PortalGestorLogin.jsx# Tela full-page de login exclusivo dos gestores (app.escalafacil.online)
+        ├── LinkSeguroManager.jsx# Gerenciador de link seguro anti-espionagem (12 chars) com redefinição no AdminView
         ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo gestor da empresa
         ├── AdminView.jsx        # Painel do Administrador (banner de identidade, turnos, pontos e equipe)
         ├── PontosManager.jsx    # Gestão de pontos com RBAC granular (bloqueio de ações destrutivas para coordenadores)
@@ -230,3 +236,18 @@ e:\Escala\
 4. **Pendências Externas (Configuração Manual do Usuário)**:
    - Configuração de secrets no Supabase (`ASAAS_WEBHOOK_SECRET`, `ASAAS_API_KEY`, `ASAAS_ENV`).
    - Cadastro do endpoint de webhook no painel do Asaas.
+
+### 5.5. Arquitetura de URLs, Portal do Gestor e Links Seguros Anti-Espionagem (Fase 4)
+1. **Portal Exclusivo do Gestor (`app.escalafacil.online`)**:
+   - Subdomínio dedicado apenas à área autenticada dos gestores.
+   - Se desconectado: renderiza a tela dedicada de login/cadastro (`PortalGestorLogin.jsx`).
+   - Se conectado: detecta a imobiliária vinculada e abre direto o `AdminView` (sem tela de corretor ou botão voltar).
+   - Inclui atalho de 1 clique no header para "Escala Pública ↗" em nova aba.
+2. **Link Seguro dos Corretores (`escalafacil.online/[codigo12]`)**:
+   - Token aleatório de 12 caracteres alfanuméricos (`codigo_escala`), ex: `https://escalafacil.online/A7bjs92Rlzm6`.
+   - Impossível de adivinhar por concorrentes trocando o nome da empresa na URL.
+   - Oculta o botão de escudo/admin do header, garantindo layout 100% voltado para corretores com zero superfície de ataque.
+3. **Gerenciador de Link no `AdminView` (`LinkSeguroManager.jsx`)**:
+   - Exibe a URL oficial segura com botões de 1 clique para "Copiar Link" e "Compartilhar no WhatsApp".
+   - Botão "Redefinir Link Seguro" com modal assíncrono `useConfirm`, acionando a RPC `redefinir_codigo_escala` que revoga o link anterior imediatamente.
+

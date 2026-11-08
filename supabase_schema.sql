@@ -14,11 +14,29 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- 1. TABELAS PRINCIPAIS
 -- ============================================================
 
+-- 1.0 Função para gerar código aleatório seguro de 12 caracteres (Anti-Espionagem)
+CREATE OR REPLACE FUNCTION public.gerar_codigo_escala()
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  chars TEXT := 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  result TEXT := '';
+  i INT;
+BEGIN
+  FOR i IN 1..12 LOOP
+    result := result || substr(chars, floor(random() * length(chars) + 1)::int, 1);
+  END LOOP;
+  RETURN result;
+END;
+$$;
+
 -- 1.1 Tabela de empresas (Tenants)
 CREATE TABLE IF NOT EXISTS public.empresas (
   id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   nome                   TEXT NOT NULL,
   slug                   TEXT NOT NULL UNIQUE,
+  codigo_escala          TEXT NOT NULL UNIQUE DEFAULT public.gerar_codigo_escala(),
   logo_url               TEXT,
   cor_primaria           TEXT NOT NULL DEFAULT '#3b82f6',
   admin_pin              TEXT NOT NULL DEFAULT '1234',
@@ -34,6 +52,7 @@ CREATE TABLE IF NOT EXISTS public.empresas (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_empresas_slug ON public.empresas(lower(slug));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_empresas_codigo_escala ON public.empresas(codigo_escala);
 CREATE INDEX IF NOT EXISTS idx_empresas_asaas_customer ON public.empresas(asaas_customer_id);
 CREATE INDEX IF NOT EXISTS idx_empresas_asaas_subscription ON public.empresas(asaas_subscription_id);
 CREATE INDEX IF NOT EXISTS idx_empresas_status ON public.empresas(status);
@@ -1023,6 +1042,48 @@ BEGIN
 END;
 $$;
 
+-- 5.6 Redefinição de Link Seguro da Escala (Anti-Espionagem)
+CREATE OR REPLACE FUNCTION public.redefinir_codigo_escala(
+  p_empresa_id UUID
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_novo_codigo TEXT;
+  v_tentativas INT := 0;
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin']) OR public.is_superadmin()) THEN
+      RAISE EXCEPTION 'Apenas administradores podem redefinir o link seguro da escala.';
+    END IF;
+  END IF;
+
+  LOOP
+    v_novo_codigo := public.gerar_codigo_escala();
+    v_tentativas := v_tentativas + 1;
+    IF NOT EXISTS (SELECT 1 FROM public.empresas WHERE codigo_escala = v_novo_codigo) THEN
+      EXIT;
+    END IF;
+    IF v_tentativas > 100 THEN
+      RAISE EXCEPTION 'Não foi possível gerar um código único após múltiplas tentativas.';
+    END IF;
+  END LOOP;
+
+  UPDATE public.empresas
+  SET codigo_escala = v_novo_codigo
+  WHERE id = p_empresa_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Empresa não encontrada.';
+  END IF;
+
+  RETURN v_novo_codigo;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.adicionar_corretor_equipe(
   p_empresa_id UUID,
   p_nome       TEXT,
@@ -1158,6 +1219,7 @@ BEGIN
   INSERT INTO public.empresas (
     nome,
     slug,
+    codigo_escala,
     admin_pin,
     plano,
     status,
@@ -1169,6 +1231,7 @@ BEGIN
   VALUES (
     trim(p_nome),
     v_slug_final,
+    public.gerar_codigo_escala(),
     v_pin_aleatorio,
     COALESCE(p_plano, 'pro'),
     'ativo',

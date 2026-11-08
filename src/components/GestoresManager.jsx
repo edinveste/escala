@@ -251,17 +251,23 @@ export default function GestoresManager({
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1 self-end sm:self-center bg-surface-700/60 hover:bg-surface-700 px-2.5 py-1.5 rounded-lg border border-surface-600/50 transition-colors"
+          className="text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1.5 self-end sm:self-center bg-surface-700/60 hover:bg-surface-700 px-2.5 py-1.5 rounded-lg border border-surface-600/50 transition-colors text-left"
         >
           {isExpanded ? (
             <>
-              <ChevronUp className="w-3.5 h-3.5" />
-              Recolher
+              <ChevronUp className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="flex flex-col leading-tight">
+                <span>Recolher</span>
+                <span>Equipe</span>
+              </span>
             </>
           ) : (
             <>
-              <ChevronDown className="w-3.5 h-3.5" />
-              Gerenciar Equipe
+              <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="flex flex-col leading-tight">
+                <span>Gerenciar</span>
+                <span>Equipe</span>
+              </span>
             </>
           )}
         </button>

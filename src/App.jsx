@@ -3,11 +3,12 @@ import { supabase } from './lib/supabaseClient'
 import { formatarNomeDia, migrarDiasLegados } from './lib/diasSemana'
 import { useTenant } from './contexts/TenantContext'
 import { useAuth } from './contexts/AuthContext'
-import { getTenantShareUrl } from './lib/tenantHelper'
+import { getPublicShareUrl, isAppPortal } from './lib/tenantHelper'
 import CorretorView from './components/CorretorView'
 import AdminView from './components/AdminView'
 import NomeModal from './components/NomeModal'
 import AdminLoginModal from './components/AdminLoginModal'
+import PortalGestorLogin from './components/PortalGestorLogin'
 import TenantSwitcherModal from './components/TenantSwitcherModal'
 import TenantNotFound from './components/TenantNotFound'
 import TenantBlockedView from './components/TenantBlockedView'
@@ -23,6 +24,7 @@ import {
   ChevronDown,
   AlertCircle,
   RefreshCw,
+  ExternalLink,
 } from 'lucide-react'
 
 // Gera um UUID v4 simples
@@ -42,11 +44,14 @@ export default function App() {
     notFound,
     error: tenantError,
     refreshEmpresa,
+    isAppPortal: isPortalDomain,
+    switchTenant,
   } = useTenant()
 
   const {
     user,
     perfil,
+    minhasEmpresas,
     canManageEmpresa,
     getEmpresaRole,
     signOut,
@@ -69,7 +74,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   // Navegação e Acesso de Gestor
-  const [view, setView] = useState('corretor') // 'corretor' | 'admin'
+  const [view, setView] = useState(() => (isPortalDomain ? 'admin' : 'corretor')) // 'corretor' | 'admin'
   const [isPinAuth, setIsPinAuth] = useState(false) // Fallback de contingência para PIN
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false)
 
@@ -79,7 +84,7 @@ export default function App() {
   const userEmpresaRole = empresa?.id ? getEmpresaRole(empresa.id) : null
   const isFullAdmin = userEmpresaRole === 'admin' || isPinAuth
   // Alternar imobiliárias é restrito a gestores em modo administrativo
-  const canSwitchTenant = view === 'admin' && isAdminSession
+  const canSwitchTenant = (view === 'admin' && isAdminSession) || (isPortalDomain && (user || isPinAuth))
 
   // Toast
   const [toast, setToast] = useState(null)
@@ -91,10 +96,12 @@ export default function App() {
   // Reseta autenticação de PIN e ajusta visão ao alternar de empresa
   useEffect(() => {
     setIsPinAuth(false)
-    if (!isAuthorizedGestor) {
+    if (isPortalDomain) {
+      setView('admin')
+    } else if (!isAuthorizedGestor) {
       setView('corretor')
     }
-  }, [empresa?.id, isAuthorizedGestor])
+  }, [empresa?.id, isAuthorizedGestor, isPortalDomain])
 
   // ─── Inicialização do device_id, corretor_nome e corretor_whatsapp ──
   useEffect(() => {
@@ -409,9 +416,11 @@ export default function App() {
     if (user) {
       await signOut()
     }
-    setView('corretor')
+    if (!isPortalDomain) {
+      setView('corretor')
+    }
     showToast('Você saiu do modo administrador.', 'info')
-  }, [signOut, showToast, user])
+  }, [signOut, showToast, user, isPortalDomain])
 
   const handleLimparEscala = useCallback(
     async (pontoId = null) => {
@@ -455,6 +464,57 @@ export default function App() {
     },
     [confirm, empresa, pontos, showToast, turnos]
   )
+
+  // ─── Portal do Gestor (app.escalafacil.online) Desconectado ──
+  if (isPortalDomain && !user && !isPinAuth) {
+    return (
+      <>
+        <PortalGestorLogin
+          onSuccess={(tipo, emp) => {
+            if (tipo === 'pin') setIsPinAuth(true)
+            setView('admin')
+            if (emp) switchTenant(emp.id)
+            refreshEmpresa()
+          }}
+          showToast={showToast}
+          empresaId={empresa?.id}
+          empresaNome={empresa?.nome}
+        />
+        {toast && (
+          <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+        )}
+      </>
+    )
+  }
+
+  // ─── Portal do Gestor Conectado mas sem Empresa Vinculada ────
+  if (isPortalDomain && user && !empresa && minhasEmpresas.length === 0 && !tenantLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-surface-900 text-gray-100">
+        <div className="w-full max-w-md bg-surface-800 border border-surface-700 rounded-3xl p-6 sm:p-8 text-center space-y-5 animate-scale-in">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+            <Building2 className="w-7 h-7" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-100">Nenhuma Imobiliária Vinculada</h2>
+            <p className="text-xs sm:text-sm text-gray-400 mt-2">
+              Sua conta ({user.email}) ainda não possui vínculo de gestão com nenhuma imobiliária cadastrada.
+            </p>
+          </div>
+          <p className="text-xs text-gray-500">
+            Solicite ao diretor da sua imobiliária para adicionar seu e-mail como gestor no painel de administração.
+          </p>
+          <button
+            onClick={() => signOut()}
+            className="w-full btn-secondary py-2.5 text-xs flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            Desconectar da Conta
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // ─── Telas de Estado de Tenant (Carregando / Não Encontrado / Erro) ─
   if (tenantLoading) {
@@ -528,7 +588,7 @@ export default function App() {
       <header className="sticky top-0 z-40 bg-surface-900 border-b border-surface-700">
         <div className="max-w-xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
-            {view === 'admin' && (
+            {view === 'admin' && !isPortalDomain && (
               <button
                 onClick={() => setView('corretor')}
                 className="p-2 -ml-2 rounded-xl hover:bg-surface-700 transition-colors flex-shrink-0"
@@ -540,8 +600,15 @@ export default function App() {
             )}
             <CalendarCheck className="w-6 h-6 text-brand-400 flex-shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-gray-100 leading-tight">
-                Escala<span className="text-brand-400">Fácil</span>
+              <h1 className="text-lg font-bold text-gray-100 leading-tight flex items-center gap-1.5">
+                <span>
+                  Escala<span className="text-brand-400">Fácil</span>
+                </span>
+                {isPortalDomain && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-brand-500/10 text-brand-400 border border-brand-500/20 select-none">
+                    Gestão
+                  </span>
+                )}
               </h1>
               {/* Seletor de tenant interativo (apenas Visão Admin) vs. Nome Fixo Informativo (Corretor) */}
               {canSwitchTenant ? (
@@ -572,44 +639,25 @@ export default function App() {
           {view === 'corretor' && (
             <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
               <ThemeToggle />
-
-              {/* Indicador de Usuário Conectado com Logout Rápido */}
-              {user && (
-                <div
-                  className="flex items-center gap-1.5 py-1 px-1.5 sm:px-2 rounded-xl bg-surface-800 border border-surface-700 min-h-[40px] shadow-sm"
-                  title={`Conectado como ${perfil?.nome || user.email}`}
-                >
-                  <div className="w-6 h-6 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-[11px] flex-shrink-0 select-none">
-                    {(perfil?.nome || user.email || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <button
-                    onClick={handleAdminLogout}
-                    className="p-1 text-gray-400 hover:text-red-400 rounded-lg hover:bg-surface-700 active:scale-95 transition-colors"
-                    title={`Desconectar (${user.email})`}
-                    aria-label="Sair da conta"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-
-              <button
-                onClick={handleAdminAccess}
-                className="p-2 sm:p-2.5 rounded-xl text-gray-400 hover:text-gray-100 hover:bg-surface-700 active:scale-95 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center"
-                aria-label={isAdminSession ? 'Painel de Gestor (Conectado)' : 'Acesso de Gestor'}
-                title={isAdminSession ? 'Painel de Gestor (Conectado)' : 'Acesso de Gestor'}
-              >
-                <Shield
-                  className={`w-5 h-5 transition-colors ${
-                    isAdminSession ? 'text-brand-400' : 'text-gray-400 hover:text-gray-100'
-                  }`}
-                />
-              </button>
             </div>
           )}
 
           {view === 'admin' && (
             <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+              {/* Botão de Ver Escala Pública dos Corretores em nova aba */}
+              {empresa && (
+                <a
+                  href={getPublicShareUrl(empresa)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white bg-surface-800 hover:bg-surface-700 border border-surface-600 px-3 py-2 rounded-xl transition-all shadow-sm"
+                  title="Abrir a escala pública exatamente como os corretores a veem"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-brand-400" />
+                  <span>Escala Pública</span>
+                </a>
+              )}
+
               <ThemeToggle />
 
               {/* Badge de Papel */}
@@ -661,7 +709,7 @@ export default function App() {
             onCancelar={handleCancelar}
             showToast={showToast}
             empresa={empresa}
-            empresaShareUrl={getTenantShareUrl(empresa?.slug)}
+            empresaShareUrl={getPublicShareUrl(empresa)}
           />
         ) : view === 'admin' && isAdminSession ? (
           <AdminView

@@ -7,6 +7,7 @@ import TurnosDiaList from './TurnosDiaList'
 import AlterarSenhaModal from './AlterarSenhaModal'
 import EquipeManager from './EquipeManager'
 import GestoresManager from './GestoresManager'
+import LinkSeguroManager from './LinkSeguroManager'
 import {
   Plus,
   Trash2,
@@ -15,6 +16,7 @@ import {
   Clock,
   Users,
   ChevronDown,
+  ChevronUp,
   MapPin,
   Check,
   X,
@@ -137,6 +139,18 @@ export default function AdminView({
     }
     setPontosExpandidos(todos)
   }, [pontos])
+
+  const algumPontoExpandido = useMemo(() => {
+    return pontos.some((p) => Boolean(pontosExpandidos[p.id]))
+  }, [pontos, pontosExpandidos])
+
+  const toggleTodosPontos = useCallback(() => {
+    if (algumPontoExpandido) {
+      recolherTodosPontos()
+    } else {
+      expandirTodosPontos()
+    }
+  }, [algumPontoExpandido, recolherTodosPontos, expandirTodosPontos])
 
   // ─── Gestão de Pessoas nas Reservas (Admin) ───────────────────
   const [modalIncluirPessoa, setModalIncluirPessoa] = useState(null)
@@ -470,6 +484,14 @@ export default function AdminView({
         </div>
       )}
 
+      {/* ═══ LINK SEGURO DOS CORRETORES (ANTI-ESPIONAGEM) ═══ */}
+      <LinkSeguroManager
+        empresa={empresa}
+        onEmpresaUpdated={onEmpresaUpdated}
+        showToast={showToast}
+        isFullAdmin={isFullAdmin}
+      />
+
       {/* ═══ ALERTA DE AMBIENTE BLOQUEADO (INADIMPLÊNCIA / CANCELAMENTO ASAAS) ═══ */}
       {empresa?.status === 'bloqueado' && (
         <div className="card bg-red-500/10 border-red-500/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-red-200">
@@ -694,24 +716,24 @@ export default function AdminView({
               <Calendar className="w-5 h-5 text-brand-400" />
               Turnos Cadastrados
             </h2>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={recolherTodosPontos}
-                className="text-[11px] font-medium text-gray-400 hover:text-gray-200 bg-surface-700/60 hover:bg-surface-700 px-2 py-1 rounded-lg transition-colors border border-surface-600/50"
-                title="Recolher todos os pontos"
-              >
-                Recolher todos
-              </button>
-              <button
-                type="button"
-                onClick={expandirTodosPontos}
-                className="text-[11px] font-medium text-gray-400 hover:text-gray-200 bg-surface-700/60 hover:bg-surface-700 px-2 py-1 rounded-lg transition-colors border border-surface-600/50"
-                title="Expandir todos os pontos"
-              >
-                Expandir todos
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={toggleTodosPontos}
+              className="text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1.5 bg-surface-700/60 hover:bg-surface-700 px-2.5 py-1.5 rounded-lg border border-surface-600/50 transition-colors font-medium"
+              title={algumPontoExpandido ? 'Recolher todos os pontos' : 'Expandir todos os pontos'}
+            >
+              {algumPontoExpandido ? (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                  <span>Recolher todos</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                  <span>Expandir todos</span>
+                </>
+              )}
+            </button>
           </div>
 
           <div className="space-y-3">

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useTenant } from '../contexts/TenantContext'
-import { getTenantShareUrl } from '../lib/tenantHelper'
+import { getPublicShareUrl } from '../lib/tenantHelper'
 import {
   Building2,
   X,
@@ -26,7 +26,7 @@ export default function TenantSwitcherModal({ isOpen, onClose, showToast }) {
     setLoading(true)
     supabase
       .from('empresas')
-      .select('id, nome, slug, status, plano, created_at')
+      .select('id, nome, slug, codigo_escala, status, plano, created_at')
       .order('nome', { ascending: true })
       .then(({ data, error }) => {
         if (!error && data) {
@@ -51,7 +51,7 @@ export default function TenantSwitcherModal({ isOpen, onClose, showToast }) {
 
   if (!isOpen) return null
 
-  const shareUrl = getTenantShareUrl(empresa?.slug)
+  const shareUrl = getPublicShareUrl(empresa)
 
   const handleCopiarLink = async () => {
     try {
@@ -125,7 +125,7 @@ export default function TenantSwitcherModal({ isOpen, onClose, showToast }) {
             {/* Link direto para corretores */}
             <div className="space-y-1.5 pt-1 border-t border-surface-700/60">
               <label className="text-[11px] font-medium text-gray-400 flex items-center justify-between">
-                <span>Link para os corretores (WhatsApp):</span>
+                <span>Link Seguro dos Corretores (WhatsApp):</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
