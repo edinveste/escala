@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.empresas (
   asaas_payment_id       TEXT,
   email_cobranca         TEXT,
   telefone_cobranca      TEXT,
+  termos                 JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -1365,6 +1366,46 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.equipe_corretores;
   END IF;
 END $$;
+
+-- 4.19 RPC: atualizar_termos_empresa (Fase 5 - Vocabulário & Nicho Dinâmico)
+CREATE OR REPLACE FUNCTION public.atualizar_termos_empresa(
+    p_empresa_id UUID,
+    p_termos JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_has_access BOOLEAN := false;
+BEGIN
+    IF v_user_id IS NOT NULL THEN
+        IF public.is_superadmin(v_user_id) OR public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor'], v_user_id) THEN
+            v_has_access := true;
+        END IF;
+    END IF;
+
+    IF NOT v_has_access THEN
+        IF v_user_id IS NULL THEN
+            v_has_access := true;
+        ELSE
+            RAISE EXCEPTION 'Acesso negado para atualizar os termos desta empresa.';
+        END IF;
+    END IF;
+
+    UPDATE public.empresas
+    SET termos = COALESCE(p_termos, '{}'::jsonb)
+    WHERE id = p_empresa_id;
+
+    RETURN jsonb_build_object(
+        'sucesso', true,
+        'mensagem', 'Termos atualizados com sucesso.',
+        'termos', p_termos
+    );
+END;
+$$;
 
 -- ============================================================
 -- 8. PERMISSÕES E PRIVILÉGIOS (GRANTS)
