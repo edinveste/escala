@@ -37,6 +37,7 @@ export default function EquipeManager({
   onExigirCadastroChange,
   isFullAdmin = true,
   showToast,
+  termos = {},
 }) {
   const confirm = useConfirm()
 
@@ -468,13 +469,13 @@ export default function EquipeManager({
           >
             <p className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
               <UserPlus className="w-3.5 h-3.5 text-brand-400" />
-              Cadastrar Novo Corretor na Imobiliária
+              Cadastrar Nov{termos.artigoPessoa || 'o'} {termos.pessoa || 'Membro'} na Equipe
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label className="block text-[11px] font-medium text-gray-400 mb-1">
-                  Nome Completo do Corretor
+                  Nome Completo d{termos.artigoPessoa || 'o'} {termos.pessoa || 'Membro'}
                 </label>
                 <input
                   type="text"
@@ -514,7 +515,7 @@ export default function EquipeManager({
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  <span>Autorizar Corretor na Imobiliária</span>
+                  <span>Autorizar {termos.pessoa || 'Membro'} na Equipe</span>
                 </>
               )}
             </button>

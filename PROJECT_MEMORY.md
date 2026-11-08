@@ -346,3 +346,37 @@ npm run build
 - Integrado ao topo do `AdminView`, apresenta a URL oficial de compartilhamento com botões de 1 clique para "Copiar Link" e "Compartilhar Convite no WhatsApp".
 - **Botão "Redefinir Link Seguro"**: Permite revogar o link anterior imediatamente e gerar um novo código de 12 caracteres caso o link tenha vazado ou corretores tenham sido desligados da imobiliária. Ação protegida por modal assíncrono `useConfirm` e RPC `redefinir_codigo_escala`.
 
+---
+
+## 9. Vocabulário & Nicho Dinâmico (White-Label) e Página de Vendas (Fase 5)
+
+### 9.1. Vocabulário & Nichos Dinâmicos (`VocabularioModal.jsx` e `vocabularioHelper.js`)
+- **Adaptação Camaleônica Multi-Nicho**: O SaaS não fica restrito a imobiliárias e construtoras. Cada empresa pode selecionar seu segmento ou customizar livremente suas palavras-chave.
+- **Coluna `termos` (JSONB) em `empresas`**: Guarda os rótulos de interface de cada tenant (`ponto`, `pontos`, `pessoa`, `pessoas`, `tituloEscala`, `acaoVaga`, `acaoCancelar`, `textoWhatsapp`, `equipeAutorizada`).
+- **Presets Nativos Disponíveis no Painel**:
+  1. 🏢 **Imobiliárias & Construtoras**: Stands de vendas, pontos de captação e corretores.
+  2. 🩺 **Saúde, Clínicas & Home Care**: Alas/postos, plantonistas, médicos e enfermeiros.
+  3. 🍸 **Eventos, Bares & Buffets**: Setores do evento, freelas, garçons e bartenders.
+  4. 🛒 **Trade Marketing & Varejo**: Lojas de varejo, supermercados e promotores de degustação.
+  5. ⛪ **Igrejas & Voluntariado**: Ministérios, cultos, eventos sociais e voluntários.
+  6. 🎾 **Arenas, Crossfit & Estúdios**: Quadras, boxes de treino e alunos/atletas.
+  7. ⚖️ **Geral / Universal (Padrão)**: Pontos de escala, colaboradores e gestão de horários.
+  8. ✏️ **Personalizado**: Permite ao gestor digitar qualquer nome que preferir.
+- **Componentes Dinâmicos**: `CorretorView`, `TurnoCard`, `NomeModal`, `AdminView`, `PontosManager`, `EquipeManager` e texto copiado para o WhatsApp refletem instantaneamente a linguagem do nicho selecionado.
+
+### 9.2. Página de Vendas Oficial (`LandingPage.jsx` em `https://escalafacil.online`)
+- **Roteamento Inteligente (`isLandingPage()`)**:
+  - `https://escalafacil.online/` $\rightarrow$ Renderiza a **Landing Page de Vendas**.
+  - `https://escalafacil.online/demo` $\rightarrow$ Abre a escala demonstrativa ao vivo.
+  - `https://escalafacil.online/[codigo12]` $\rightarrow$ Abre diretamente a escala da empresa do cliente.
+  - `https://app.escalafacil.online` $\rightarrow$ Abre o **Portal do Gestor** para autenticação e administração.
+- **Arquitetura de Alta Conversão (CRO)**:
+  - **Hero Section**: Headline focada na dor universal (*"O fim das listas confusas no WhatsApp"*), badge de tempo real, CTAs de alta conversão e microprovas de valor.
+  - **Simulador Interativo ao Vivo**: Permite ao visitante clicar em um card simulado na própria hero e testar a reserva de vaga em tempo real.
+  - **Showcase Interativo de Nichos**: 6 abas dinâmicas mostrando a dor real vs. solução do EscalaFácil com vocabulário adaptado.
+  - **Os 3 Passos Simples**: Cadastre horários $\rightarrow$ Envie no WhatsApp $\rightarrow$ Vagas preenchidas no piloto automático.
+  - **Grid de Benefícios**: Zero atrito (sem app), tempo real WebSockets, proteção anti-invasores, link anti-espionagem, anti-colisão transacional e cópia para o WhatsApp.
+  - **Plano Profissional**: Preço claro (R$ 67/mês), sem fidelidade, 7 dias de garantia incondicional e suporte WhatsApp.
+  - **FAQ Acordeon**: Respostas completas sanando todas as principais objeções de compra.
+
+

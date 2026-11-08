@@ -28,6 +28,7 @@ export default function PontosManager({
   showToast,
   empresaId,
   isFullAdmin = true,
+  termos = {},
 }) {
   const confirm = useConfirm()
 
@@ -330,12 +331,12 @@ export default function PontosManager({
 
   return (
     <>
-      {/* ═══ SEÇÃO: PONTOS DE CAPTAÇÃO ═══ */}
+      {/* ═══ SEÇÃO: PONTOS DE ESCALA ═══ */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-gray-200 flex items-center gap-2">
             <MapPin className="w-5 h-5 text-brand-400" />
-            Pontos de Captação
+            {termos.pontos || 'Pontos de Captação'}
           </h2>
           {isSavingOrder && (
             <span className="text-[11px] font-medium text-brand-400 animate-pulse flex items-center gap-1">
@@ -353,7 +354,7 @@ export default function PontosManager({
                 type="text"
                 value={formPontoNome}
                 onChange={(e) => setFormPontoNome(e.target.value)}
-                placeholder="Nome do ponto (ex: Mercado Extra)"
+                placeholder={`Nome d${termos.artigoPonto || 'o'} ${termos.ponto?.toLowerCase() || 'ponto'} (ex: Loja Centro, Ala A, Stand Sul)`}
                 className="input-field w-full text-sm"
                 maxLength={100}
               />
@@ -366,12 +367,12 @@ export default function PontosManager({
               {addingPonto ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Criando ponto...
+                  Salvando...
                 </>
               ) : (
                 <>
                   <Plus className="w-4 h-4" />
-                  Criar Ponto de Captação
+                  Criar {termos.ponto || 'Ponto de Captação'}
                 </>
               )}
             </button>

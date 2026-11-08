@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useCallback } from 'react'
 import TurnoCard from './TurnoCard'
 import { formatarNomeDia, compararDias } from '../lib/diasSemana'
+import { obterTermos } from '../lib/vocabularioHelper'
 import { Copy, ClipboardCheck, Calendar, MapPin, ArrowLeft, Store, ChevronDown } from 'lucide-react'
 
 export default function CorretorView({
@@ -17,6 +18,7 @@ export default function CorretorView({
 }) {
   const [copied, setCopied] = useState(false)
   const [selectedPontoId, setSelectedPontoId] = useState(null)
+  const termos = useMemo(() => obterTermos(empresa), [empresa])
 
   // Chave de acordeon no localStorage isolada por empresa
   const STORAGE_KEY_DIAS_EXPANDIDOS = empresa?.id
@@ -170,7 +172,8 @@ export default function CorretorView({
     }
 
     const nomeEmpresaUpper = empresa?.nome ? ` — ${empresa.nome.toUpperCase()}` : ''
-    let texto = `📋 *ESCALA DE CAPTAÇÃO${nomeEmpresaUpper} (${capTexto})*\n`
+    const tituloZap = (termos.textoWhatsapp || 'ESCALA SEMANAL').replace('📋', '').trim()
+    let texto = `📋 *${tituloZap}${nomeEmpresaUpper} (${capTexto})*\n`
     texto += '━━━━━━━━━━━━━━━━━━\n\n'
 
     for (const ponto of pontosParaCopiar) {
@@ -209,7 +212,7 @@ export default function CorretorView({
 
     texto += '━━━━━━━━━━━━━━━━━━\n'
     if (empresaShareUrl) {
-      texto += `🔗 Garanta sua vaga: ${empresaShareUrl}`
+      texto += `🔗 ${termos.acaoVaga || 'Garanta sua vaga'}: ${empresaShareUrl}`
     } else {
       texto += '🔗 Reservas em tempo real no app'
     }
@@ -247,10 +250,10 @@ export default function CorretorView({
           <Store className="w-16 h-16 text-gray-700" />
           <div>
             <h2 className="text-lg font-semibold text-gray-400">
-              Nenhum ponto de captação
+              Nenhum {termos.ponto?.toLowerCase() || 'local'} cadastrado
             </h2>
             <p className="text-sm text-gray-600 mt-1">
-              {empresa?.nome ? `Nenhum ponto ativo cadastrado para ${empresa.nome}.` : 'O administrador precisa criar os pontos de captação.'}
+              {empresa?.nome ? `Nenhum ${termos.ponto?.toLowerCase() || 'local'} ativo cadastrado para ${empresa.nome}.` : `O administrador precisa cadastrar os ${termos.pontos?.toLowerCase() || 'locais'}.`}
             </p>
           </div>
         </div>
@@ -271,10 +274,10 @@ export default function CorretorView({
         <div className="mb-4 px-1">
           <h2 className="text-base font-bold text-gray-200 flex items-center gap-2">
             <MapPin className="w-5 h-5 text-brand-400" />
-            Escolha o Ponto de Captação
+            Escolha o {termos.ponto || 'Ponto de Escala'}
           </h2>
           <p className="text-xs text-gray-500 mt-1">
-            Selecione o local para ver horários e reservar vagas.
+            Selecione {termos.artigoPonto || 'o'} {termos.ponto?.toLowerCase() || 'local'} para ver horários e {termos.acaoVaga?.toLowerCase() || 'garantir vagas'}.
           </p>
         </div>
 
@@ -516,6 +519,8 @@ export default function CorretorView({
                         deviceId={deviceId}
                         onReservar={onReservar}
                         onCancelar={onCancelar}
+                        acaoVaga={termos.acaoVaga}
+                        acaoCancelar={termos.acaoCancelar}
                       />
                     ))}
                   </div>

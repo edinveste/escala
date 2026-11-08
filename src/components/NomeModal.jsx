@@ -20,6 +20,7 @@ export default function NomeModal({
   initialNome = '',
   initialWhatsapp = '',
   exigirCadastro = false,
+  termos = {},
 }) {
   const [nome, setNome] = useState(() => {
     return initialNome || localStorage.getItem('escala_corretor_nome') || ''
@@ -103,16 +104,16 @@ export default function NomeModal({
 
         {/* Título */}
         <h2 className="text-xl font-bold text-center text-gray-100 mb-1">
-          Identificação do Corretor
+          Identificação d{termos.artigoPessoa || 'o'} {termos.pessoa || 'Participante'}
         </h2>
         <p className="text-xs text-gray-400 text-center mb-5 max-w-xs mx-auto">
           {exigirCadastro ? (
             <span className="flex items-center justify-center gap-1 text-emerald-400 font-medium">
               <ShieldCheck className="w-3.5 h-3.5" />
-              Esta imobiliária exige cadastro prévio de corretores.
+              Esta empresa exige cadastro prévio de {termos.pessoas?.toLowerCase() || 'membros'}.
             </span>
           ) : (
-            'Informe seus dados para garantir sua vaga na escala de captação.'
+            `Informe seus dados para ${termos.acaoVaga?.toLowerCase() || 'garantir sua vaga na escala'}.`
           )}
         </p>
 

@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { formatarNomeDia, migrarDiasLegados } from './lib/diasSemana'
 import { useTenant } from './contexts/TenantContext'
 import { useAuth } from './contexts/AuthContext'
 import { getPublicShareUrl, isAppPortal } from './lib/tenantHelper'
+import { obterTermos } from './lib/vocabularioHelper'
 import CorretorView from './components/CorretorView'
 import AdminView from './components/AdminView'
 import NomeModal from './components/NomeModal'
@@ -12,6 +13,7 @@ import PortalGestorLogin from './components/PortalGestorLogin'
 import TenantSwitcherModal from './components/TenantSwitcherModal'
 import TenantNotFound from './components/TenantNotFound'
 import TenantBlockedView from './components/TenantBlockedView'
+import LandingPage from './components/LandingPage'
 import Toast from './components/Toast'
 import ThemeToggle from './components/ThemeToggle'
 import { useConfirm } from './components/ConfirmModal'
@@ -45,8 +47,11 @@ export default function App() {
     error: tenantError,
     refreshEmpresa,
     isAppPortal: isPortalDomain,
+    isLandingPage: isLanding,
     switchTenant,
   } = useTenant()
+
+  const termos = useMemo(() => obterTermos(empresa), [empresa])
 
   const {
     user,
@@ -521,8 +526,29 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-surface-900 text-gray-100">
         <div className="w-9 h-9 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />
-        <p className="text-sm text-gray-400">Carregando imobiliária...</p>
+        <p className="text-sm text-gray-400">Carregando...</p>
       </div>
+    )
+  }
+
+  // ─── Página Inicial / Landing Page de Vendas (escalafacil.online/) ─
+  if (isLanding) {
+    return (
+      <LandingPage
+        onOpenDemo={() => {
+          window.history.pushState({}, '', '/demo')
+          switchTenant('demo')
+        }}
+        onOpenLogin={() => {
+          if (isPortalDomain) {
+            setShowAdminLoginModal(true)
+          } else {
+            window.location.href = window.location.hostname.includes('localhost')
+              ? '/?portal=app'
+              : 'https://app.escalafacil.online'
+          }
+        }}
+      />
     )
   }
 
@@ -734,6 +760,7 @@ export default function App() {
           initialNome={corretorNome}
           initialWhatsapp={corretorWhatsapp}
           exigirCadastro={empresa?.exigir_cadastro_previo || false}
+          termos={termos}
           onConfirm={handleNomeConfirm}
           onClose={() => {
             setShowNomeModal(false)

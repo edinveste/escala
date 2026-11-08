@@ -29,6 +29,54 @@ export function isToken12Chars(str) {
 }
 
 /**
+ * Verifica se a sessão atual deve exibir a Landing Page (Página de Vendas):
+ * 1. Não está no portal do gestor (app.*)
+ * 2. Não possui query params de tenant (?codigo=, ?empresa=, etc.)
+ * 3. Não possui segmento de tenant no pathname (ex: /A7bjs92Rlzm6 ou /demo)
+ * 4. Não possui subdomínio de tenant personalizado (ex: imobiliaria.escalafacil.online)
+ * 5. Ou possui rota explícita /landing ou /inicio
+ */
+export function isLandingPage() {
+  if (typeof window === 'undefined') return false
+
+  // Se estiver no portal do gestor, nunca é landing page
+  if (isAppPortal()) return false
+
+  const searchParams = new URLSearchParams(window.location.search)
+  const hasTokenQuery =
+    searchParams.get('codigo') ||
+    searchParams.get('token') ||
+    searchParams.get('empresa') ||
+    searchParams.get('tenant')
+
+  if (hasTokenQuery) return false
+
+  const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '')
+  if (pathname === 'landing' || pathname === 'inicio') return true
+  if (pathname) {
+    // Se o usuário digitou /demo, /A7bjs92Rlzm6 ou qualquer rota, NÃO é landing page
+    return false
+  }
+
+  // Verifica subdomínio customizado (ex: cliente.escalafacil.online)
+  const hostname = window.location.hostname
+  const hostParts = hostname.split('.')
+  if (
+    hostParts.length > 2 &&
+    !hostname.includes('localhost') &&
+    !hostname.includes('127.0.0.1') &&
+    hostParts[0] !== 'www' &&
+    hostParts[0] !== 'app' &&
+    hostParts[0] !== 'preview'
+  ) {
+    return false
+  }
+
+  // Se chegou aqui com rota raiz vazia '/', é a Landing Page!
+  return true
+}
+
+/**
  * Verifica se a sessão atual está no Portal Exclusivo do Gestor / Administrador
  * 1. Subdomínio app.escalafacil.online
  * 2. Subdomínio app.* (ex: app.localhost)
@@ -61,6 +109,11 @@ export function isAppPortal() {
  */
 export function extractTenantIdentifier() {
   if (typeof window === 'undefined') return 'demo'
+
+  // Se for a página inicial / landing page, não força carregamento de tenant
+  if (isLandingPage()) {
+    return ''
+  }
 
   const searchParams = new URLSearchParams(window.location.search)
   const queryToken =

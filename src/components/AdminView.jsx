@@ -8,6 +8,8 @@ import AlterarSenhaModal from './AlterarSenhaModal'
 import EquipeManager from './EquipeManager'
 import GestoresManager from './GestoresManager'
 import LinkSeguroManager from './LinkSeguroManager'
+import VocabularioModal from './VocabularioModal'
+import { obterTermos } from '../lib/vocabularioHelper'
 import {
   Plus,
   Trash2,
@@ -28,6 +30,8 @@ import {
   Lock,
   Shield,
   ShieldAlert,
+  Sparkles,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -57,6 +61,7 @@ export default function AdminView({
   const { user, perfil, getEmpresaRole } = useAuth()
   const role = empresaId ? getEmpresaRole(empresaId) : null
   const isFullAdmin = propIsFullAdmin ?? (role === 'admin' || !user)
+  const termos = useMemo(() => obterTermos(empresa), [empresa])
 
   // Chaves de localStorage isoladas por empresa
   const STORAGE_KEY_FORM_DIA = empresaId ? `escala_admin_ultimo_dia_${empresaId}` : 'escala_admin_ultimo_dia'
@@ -98,6 +103,9 @@ export default function AdminView({
 
   // Estado para modal de alteração de senha
   const [showModalSenha, setShowModalSenha] = useState(false)
+
+  // Estado para modal de vocabulário e nicho dinâmico
+  const [showModalVocabulario, setShowModalVocabulario] = useState(false)
 
   // Controle de sanfona (accordion) dos pontos na listagem de turnos
   const [pontosExpandidos, setPontosExpandidos] = useState(() => {
@@ -523,7 +531,7 @@ export default function AdminView({
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <div className="card text-center">
           <p className="text-2xl font-bold text-brand-400">{pontos.length}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Pontos</p>
+          <p className="text-xs text-gray-500 mt-0.5 truncate">{termos.pontos || 'Pontos'}</p>
         </div>
         <div className="card text-center">
           <p className="text-2xl font-bold text-neon-green">{turnosValidos.length}</p>
@@ -534,6 +542,35 @@ export default function AdminView({
           <p className="text-xs text-gray-500 mt-0.5">Reservas</p>
         </div>
       </div>
+
+      {/* ═══ VOCABULÁRIO & NICHO DA EMPRESA (Apenas Administrador) ═══ */}
+      {isFullAdmin && (
+        <div className="card flex items-center justify-between gap-3 bg-surface-800/90 border-surface-600">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 flex-shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-gray-200 truncate flex items-center gap-2">
+                Nicho & Vocabulário
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-300 border border-brand-500/20 capitalize">
+                  {termos.preset || 'Personalizado'}
+                </span>
+              </h3>
+              <p className="text-xs text-gray-400 truncate">
+                {termos.ponto} • {termos.pessoa} • {termos.tituloEscala}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowModalVocabulario(true)}
+            className="btn-ghost text-xs px-3.5 py-2.5 flex items-center gap-1.5 flex-shrink-0 border border-surface-600 hover:border-brand-500/50 hover:bg-brand-50 hover:text-brand-800 dark:hover:bg-brand-500/10 dark:hover:border-brand-500/40 dark:hover:text-brand-300 transition-all font-semibold"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            Personalizar
+          </button>
+        </div>
+      )}
 
       {/* ═══ SEGURANÇA: SENHA DO ADMIN DA IMOBILIÁRIA (Apenas Administrador) ═══ */}
       {isFullAdmin && (
@@ -572,7 +609,7 @@ export default function AdminView({
         />
       )}
 
-      {/* ═══ PROTEÇÃO CONTRA INVASORES & EQUIPE DE CORRETORES ═══ */}
+      {/* ═══ PROTEÇÃO CONTRA INVASORES & EQUIPE AUTORIZADA ═══ */}
       <EquipeManager
         empresaId={empresaId}
         empresaNome={empresaNome}
@@ -580,6 +617,7 @@ export default function AdminView({
         onExigirCadastroChange={onEmpresaUpdated}
         isFullAdmin={isFullAdmin}
         showToast={showToast}
+        termos={termos}
       />
 
       {/* ═══ SEÇÃO: PONTOS DE CAPTAÇÃO (COMPONENTIZADO COM DRAG & DROP) ═══ */}
@@ -593,6 +631,7 @@ export default function AdminView({
         showToast={showToast}
         empresaId={empresaId}
         isFullAdmin={isFullAdmin}
+        termos={termos}
       />
 
       {/* ═══ SEÇÃO: TURNOS ═══ */}
@@ -1118,6 +1157,15 @@ export default function AdminView({
         onClose={() => setShowModalSenha(false)}
         showToast={showToast}
         empresaId={empresaId}
+      />
+
+      {/* ═══ MODAL DE VOCABULÁRIO & NICHO DINÂMICO ═══ */}
+      <VocabularioModal
+        isOpen={showModalVocabulario}
+        onClose={() => setShowModalVocabulario(false)}
+        empresa={empresa}
+        onUpdateEmpresa={onEmpresaUpdated}
+        showToast={showToast}
       />
     </div>
   )

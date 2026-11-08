@@ -155,6 +155,7 @@ e:\Escala\
 ├── supabase_migration_fase2_refinamentos.sql # Script de migração: Equipe, Bloqueio de Invasores e Métricas
 ├── supabase_migration_fase3_asaas.sql # Script de migração Fase 3: Piloto Automático Asaas & Bloqueio
 ├── supabase_migration_fase4_links_seguros.sql # Script de migração Fase 4: Links Seguros Anti-Espionagem (12 chars)
+├── supabase_migration_fase5_vocabulario.sql # Script de migração Fase 5: Vocabulário & Nicho Dinâmico (termos JSONB)
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -172,8 +173,11 @@ e:\Escala\
     ├── lib/
     │   ├── supabaseClient.js    # Instância do createClient configurada
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
-    │   └── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
+    │   ├── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
+    │   └── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
     └── components/
+        ├── LandingPage.jsx      # Página de vendas oficial de alta conversão (escalafacil.online/)
+        ├── VocabularioModal.jsx # Modal para personalizar vocabulário e nicho da empresa (presets e manual)
         ├── CorretorView.jsx     # Tela pública do corretor (seleção de ponto, turnos e link WhatsApp)
         ├── TurnoCard.jsx        # Card de turno na visão do corretor (progresso, botões contextuais)
         ├── NomeModal.jsx        # Modal para solicitar nome e WhatsApp do corretor
@@ -250,4 +254,16 @@ e:\Escala\
 3. **Gerenciador de Link no `AdminView` (`LinkSeguroManager.jsx`)**:
    - Exibe a URL oficial segura com botões de 1 clique para "Copiar Link" e "Compartilhar no WhatsApp".
    - Botão "Redefinir Link Seguro" com modal assíncrono `useConfirm`, acionando a RPC `redefinir_codigo_escala` que revoga o link anterior imediatamente.
+
+### 5.6. Vocabulário & Nicho Dinâmico (White-Label) e Página de Vendas (Fase 5)
+1. **White-Label de Vocabulário (`VocabularioModal.jsx` e `vocabularioHelper.js`)**:
+   - Transforma o SaaS em uma solução multi-setorial (Imobiliárias, Saúde, Eventos/Buffets, Varejo/Trade Marketing, Igrejas/Voluntariado, Arenas/Crossfit, Genérico ou Personalizado).
+   - Coluna `termos` JSONB na tabela `empresas`.
+   - Adapta dinamicamente títulos, labels, modais, botões de ação e textos gerados para o WhatsApp.
+2. **Página de Vendas Oficial (`LandingPage.jsx` em `https://escalafacil.online`)**:
+   - Rota raiz `/` exibe a Landing Page de alta conversão.
+   - Simulador interativo em tempo real direto na hero section.
+   - Abas comparativas de dor vs. solução por nicho.
+   - Links transparentes para demonstração ao vivo (`/demo`) e Portal do Gestor (`app.escalafacil.online`).
+
 

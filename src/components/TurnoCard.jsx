@@ -1,7 +1,15 @@
 import { useMemo } from 'react'
 import { Clock, Users, CheckCircle2, XCircle, User } from 'lucide-react'
 
-export default function TurnoCard({ turno, reservas, deviceId, onReservar, onCancelar }) {
+export default function TurnoCard({
+  turno,
+  reservas,
+  deviceId,
+  onReservar,
+  onCancelar,
+  acaoVaga,
+  acaoCancelar,
+}) {
   const vagasOcupadas = reservas.length
   const vagasTotal = turno.capacidade
   const vagasRestantes = vagasTotal - vagasOcupadas
@@ -88,7 +96,7 @@ export default function TurnoCard({ turno, reservas, deviceId, onReservar, onCan
           className="btn-danger w-full flex items-center justify-center gap-2 text-sm"
         >
           <XCircle className="w-4.5 h-4.5" />
-          Cancelar Minha Vaga
+          {acaoCancelar || 'Cancelar Minha Vaga'}
         </button>
       ) : esgotado ? (
         <button
@@ -104,7 +112,7 @@ export default function TurnoCard({ turno, reservas, deviceId, onReservar, onCan
           className="btn-success w-full flex items-center justify-center gap-2 text-sm"
         >
           <CheckCircle2 className="w-4.5 h-4.5" />
-          Garantir Vaga
+          {acaoVaga || 'Garantir Vaga'}
         </button>
       )}
     </div>

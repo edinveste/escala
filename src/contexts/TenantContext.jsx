@@ -7,6 +7,7 @@ import {
   slugify,
   isToken12Chars,
   isAppPortal,
+  isLandingPage,
 } from '../lib/tenantHelper'
 
 const TenantContext = createContext(null)
@@ -95,7 +96,16 @@ export function TenantProvider({ children }) {
           return
         }
 
-        // Cenário B: Área Pública do Corretor (escalafacil.online/[codigo12] ou [slug])
+        // Cenário B: Página Inicial / Landing Page de Vendas (escalafacil.online/)
+        if (isLandingPage()) {
+          setEmpresa(null)
+          setLoading(false)
+          setNotFound(false)
+          document.title = 'EscalaFácil — Gestão de Escalas e Plantões em Tempo Real'
+          return
+        }
+
+        // Cenário C: Área Pública da Escala (escalafacil.online/[codigo12] ou [slug] ou /demo)
         const target = rawTarget || 'demo'
 
         // 1. Tenta buscar primeiro pelo Código Seguro de 12 caracteres (exato / case-sensitive)
@@ -237,6 +247,7 @@ export function TenantProvider({ children }) {
         switchTenant,
         refreshEmpresa,
         isAppPortal: isApp,
+        isLandingPage: isLandingPage(),
       }}
     >
       {children}
