@@ -164,6 +164,7 @@ const FAQ_ITEMS = [
 export default function LandingPage({ onOpenDemo, onOpenLogin }) {
   const [nichoAtivo, setNichoAtivo] = useState('imobiliaria')
   const [faqAberto, setFaqAberto] = useState(null)
+  const [faturamentoAnual, setFaturamentoAnual] = useState(true)
 
   // Demonstração interativa na hero
   const [demoOcupada, setDemoOcupada] = useState(false)
@@ -647,78 +648,349 @@ export default function LandingPage({ onOpenDemo, onOpenLogin }) {
 
       {/* ═══ TABELA DE PREÇOS / PLANOS ═══ */}
       <section id="precos" className="py-16 sm:py-24 bg-surface-elevated/40 border-t border-border/60">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
-          <div className="max-w-2xl mx-auto mb-12">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center">
+          <div className="max-w-2xl mx-auto mb-8 sm:mb-10">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold mb-3">
               <Award className="w-3.5 h-3.5" />
               <span>Sem Fidelidade • Cancele Quando Quiser</span>
             </div>
             <h2 className="text-2xl sm:text-4xl font-extrabold text-text mb-3">
-              Investimento simples que se paga no 1º dia
+              Planos sob medida para qualquer tamanho de equipe
             </h2>
             <p className="text-xs sm:text-sm text-text-muted">
               Quanto custa a hora do seu gestor perdida toda semana organizando listas no WhatsApp?
             </p>
           </div>
 
-          {/* Card do Plano */}
-          <div className="max-w-md mx-auto card p-7 sm:p-9 border-2 border-brand-500 shadow-2xl relative bg-surface-elevated">
-            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-brand-500 text-white font-bold text-xs uppercase tracking-wider shadow-md">
-              Acesso Completo
-            </div>
+          {/* ═══ CHAVINHA DE ALTERNÂNCIA (ANUAL / MENSAL) ═══ */}
+          <div className="inline-flex items-center justify-center gap-3 sm:gap-4 p-1.5 rounded-2xl bg-surface border border-border/80 shadow-md mb-10 sm:mb-12">
+            <button
+              type="button"
+              onClick={() => setFaturamentoAnual(false)}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                !faturamentoAnual
+                  ? 'bg-surface-elevated text-text shadow-sm border border-border font-bold'
+                  : 'text-text-muted hover:text-text'
+              }`}
+            >
+              Mensal
+            </button>
 
-            <h3 className="text-xl font-bold text-text mb-1">Plano Profissional</h3>
-            <p className="text-xs text-text-muted mb-6">
-              Para empresas, equipes e gestores de qualquer segmento
-            </p>
-
-            <div className="flex items-baseline justify-center gap-1.5 mb-6">
-              <span className="text-xs text-text-muted font-medium">R$</span>
-              <span className="text-5xl font-black text-text">67</span>
-              <span className="text-xs text-text-muted">/mês</span>
-            </div>
-
-            <ul className="space-y-3 text-left text-xs sm:text-sm text-text-muted mb-8">
-              <li className="flex items-center gap-2.5 text-text">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Locais, pontos e unidades ilimitadas</span>
-              </li>
-              <li className="flex items-center gap-2.5 text-text">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Turnos e horários ilimitados</span>
-              </li>
-              <li className="flex items-center gap-2.5 text-text">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Colaboradores e reservas ilimitadas</span>
-              </li>
-              <li className="flex items-center gap-2.5 text-text">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Atualização instantânea em tempo real (WebSockets)</span>
-              </li>
-              <li className="flex items-center gap-2.5 text-text">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Proteção anti-invasores e links anti-espionagem</span>
-              </li>
-              <li className="flex items-center gap-2.5 text-text">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Personalização completa de vocabulário para seu nicho</span>
-              </li>
-              <li className="flex items-center gap-2.5 text-text">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Suporte prioritário via WhatsApp</span>
-              </li>
-            </ul>
+            {/* Switch interativo */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={faturamentoAnual}
+              aria-label="Alternar entre plano anual e mensal"
+              onClick={() => setFaturamentoAnual(!faturamentoAnual)}
+              className={`relative inline-flex h-7 w-14 sm:h-8 sm:w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                faturamentoAnual ? 'bg-brand-500' : 'bg-surface-elevated border border-border'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-6 w-6 sm:h-7 sm:w-7 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                  faturamentoAnual ? 'translate-x-7 sm:translate-x-8' : 'translate-x-0'
+                }`}
+              />
+            </button>
 
             <button
-              onClick={handleCadastrarEmpresa}
-              className="w-full py-3.5 px-6 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-sm sm:text-base shadow-xl shadow-brand-500/25 transition-all active:scale-95 flex items-center justify-center gap-2"
+              type="button"
+              onClick={() => setFaturamentoAnual(true)}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer inline-flex items-center gap-2 ${
+                faturamentoAnual
+                  ? 'bg-brand-500/10 text-brand-400 border border-brand-500/30 font-bold shadow-sm'
+                  : 'text-text-muted hover:text-text'
+              }`}
             >
-              <span>Começar Teste de 7 Dias Grátis</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>Anual</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <Sparkles className="w-3 h-3" />
+                <span>Economize até 42%</span>
+              </span>
             </button>
-            <p className="text-[11px] text-text-muted mt-2.5">
-              Sem burocracia. Se não gostar, cancele com 1 clique.
-            </p>
+          </div>
+
+          {/* ═══ GRID DOS 3 PLANOS (START / PRO / ELITE) ═══ */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-6 items-stretch max-w-6xl mx-auto text-left">
+            {/* CARD 1: PLANO START */}
+            <div className="card p-6 sm:p-7 border border-border/80 hover:border-brand-500/40 shadow-xl relative bg-surface-elevated/70 flex flex-col justify-between transition-all">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-text-muted px-2.5 py-1 rounded-md bg-surface border border-border">
+                    Plano Start
+                  </span>
+                  {faturamentoAnual && (
+                    <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      Economize 42%
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xl sm:text-2xl font-bold text-text mb-1">Start</h3>
+                <p className="text-xs text-text-muted mb-5 leading-relaxed">
+                  Para autônomos, pequenos negócios e operações com poucas vagas
+                </p>
+
+                <div className="flex items-baseline gap-1.5 mb-1">
+                  <span className="text-xs text-text-muted font-medium">R$</span>
+                  <span className="text-4xl sm:text-5xl font-black text-text tracking-tight transition-all">
+                    {faturamentoAnual ? '27' : '47'}
+                  </span>
+                  <span className="text-xs text-text-muted">/mês</span>
+                </div>
+                <p className="text-[11px] text-text-muted mb-5">
+                  {faturamentoAnual
+                    ? 'Faturado anualmente (R$ 324/ano)'
+                    : 'Faturamento mensal sem fidelidade'}
+                </p>
+
+                <div className="w-full h-px bg-border/60 mb-5" />
+
+                <ul className="space-y-2.5 text-xs text-text-muted mb-6">
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-text font-semibold">Até 3 locais</strong> ou pontos de captação
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-text font-semibold">Até 15 colaboradores</strong> na equipe
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Turnos e horários flexíveis</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Atualização em tempo real (WebSockets)</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Link seguro anti-espionagem (12 dígitos)</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Zero atrito: equipe acessa pelo navegador</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Cópia de resumo para WhatsApp</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Suporte padrão via WhatsApp</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={handleCadastrarEmpresa}
+                  className="w-full py-3 px-4 rounded-xl bg-surface-elevated hover:bg-surface-elevated/80 border border-border hover:border-brand-500/50 text-text font-bold text-xs sm:text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <span>Começar 7 Dias Grátis</span>
+                  <ArrowRight className="w-4 h-4 text-brand-400" />
+                </button>
+                <p className="text-[11px] text-center text-text-muted mt-2">
+                  Cancele quando quiser.
+                </p>
+              </div>
+            </div>
+
+            {/* CARD 2: PLANO PRO (O MAIS ESCOLHIDO / DESTAQUE CENTRAL) */}
+            <div className="card p-6 sm:p-7 border-2 border-brand-500 shadow-2xl shadow-brand-500/15 relative bg-surface-elevated flex flex-col justify-between md:-translate-y-1">
+              {/* Badge Topo */}
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-brand-500 text-white font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-1.5 whitespace-nowrap">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Mais Escolhido</span>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3 mt-1 sm:mt-0">
+                  <span className="text-xs font-bold uppercase tracking-wider text-brand-400 px-2.5 py-1 rounded-md bg-brand-500/10 border border-brand-500/20">
+                    Plano Pro
+                  </span>
+                  {faturamentoAnual && (
+                    <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      Economize 30%
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xl sm:text-2xl font-bold text-text mb-1">Pro</h3>
+                <p className="text-xs text-text-muted mb-5 leading-relaxed">
+                  Para imobiliárias e empresas que buscam alta produtividade
+                </p>
+
+                <div className="flex items-baseline gap-1.5 mb-1">
+                  <span className="text-xs text-text-muted font-medium">R$</span>
+                  <span className="text-4xl sm:text-5xl font-black text-text tracking-tight transition-all">
+                    {faturamentoAnual ? '47' : '67'}
+                  </span>
+                  <span className="text-xs text-text-muted">/mês</span>
+                </div>
+                <p className="text-[11px] text-text-muted mb-5">
+                  {faturamentoAnual
+                    ? 'Faturado anualmente (R$ 564/ano)'
+                    : 'Faturamento mensal sem fidelidade'}
+                </p>
+
+                <div className="w-full h-px bg-border/60 mb-5" />
+
+                <ul className="space-y-2.5 text-xs text-text-muted mb-6">
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-brand-400 font-bold">Até 10 locais</strong> ou pontos de captação
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-brand-400 font-bold">Até 50 colaboradores</strong> na equipe
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Turnos e horários ilimitados</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Atualização em tempo real (WebSockets)</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Link seguro anti-espionagem (12 dígitos)</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Zero atrito: equipe acessa pelo navegador</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Cópia de resumo para WhatsApp</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Suporte padrão via WhatsApp</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={handleCadastrarEmpresa}
+                  className="w-full py-3.5 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs sm:text-sm shadow-xl shadow-brand-500/25 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <span>Começar 7 Dias Grátis</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <p className="text-[11px] text-center text-text-muted mt-2">
+                  Cancele com 1 clique.
+                </p>
+              </div>
+            </div>
+
+            {/* CARD 3: PLANO ELITE (CORPORATIVO / SEM LIMITES) */}
+            <div className="card p-6 sm:p-7 border border-border/80 hover:border-purple-500/50 shadow-xl relative bg-surface-elevated/70 flex flex-col justify-between transition-all">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-purple-400 px-2.5 py-1 rounded-md bg-purple-500/10 border border-purple-500/20">
+                    Plano Elite
+                  </span>
+                  {faturamentoAnual && (
+                    <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      Economize R$ 240/ano
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-xl sm:text-2xl font-bold text-text mb-1">Elite</h3>
+                <p className="text-xs text-text-muted mb-5 leading-relaxed">
+                  Para redes, franquias, clínicas e operações sem limites
+                </p>
+
+                <div className="flex items-baseline gap-1.5 mb-1">
+                  <span className="text-xs text-text-muted font-medium">R$</span>
+                  <span className="text-4xl sm:text-5xl font-black text-text tracking-tight transition-all">
+                    {faturamentoAnual ? '77' : '97'}
+                  </span>
+                  <span className="text-xs text-text-muted">/mês</span>
+                </div>
+                <p className="text-[11px] text-text-muted mb-5">
+                  {faturamentoAnual
+                    ? 'Faturado anualmente (R$ 924/ano)'
+                    : 'Faturamento mensal sem fidelidade'}
+                </p>
+
+                <div className="w-full h-px bg-border/60 mb-5" />
+
+                <ul className="space-y-2.5 text-xs text-text-muted mb-6">
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-emerald-400 font-bold">Locais e pontos ILIMITADOS</strong>
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-emerald-400 font-bold">Colaboradores ILIMITADOS</strong>
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Turnos e horários ilimitados</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Atualização em tempo real (WebSockets)</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-text font-semibold">Proteção anti-invasores</strong> (equipe autorizada)
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-text font-semibold">White-label de vocabulário</strong> (adaptação ao nicho)
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>Links anti-espionagem com redefinição</span>
+                  </li>
+                  <li className="flex items-start gap-2 text-text">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-emerald-400 font-semibold">Suporte prioritário VIP</strong> via WhatsApp
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={handleCadastrarEmpresa}
+                  className="w-full py-3 px-4 rounded-xl bg-surface-elevated hover:bg-surface-elevated/80 border border-border hover:border-purple-500/50 text-text font-bold text-xs sm:text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <span>Começar 7 Dias Grátis</span>
+                  <ArrowRight className="w-4 h-4 text-purple-400" />
+                </button>
+                <p className="text-[11px] text-center text-text-muted mt-2">
+                  Cancele quando quiser.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

@@ -376,7 +376,11 @@ npm run build
   - **Showcase Interativo de Nichos**: 6 abas dinâmicas mostrando a dor real vs. solução do EscalaFácil com vocabulário adaptado.
   - **Os 3 Passos Simples**: Cadastre horários $\rightarrow$ Envie no WhatsApp $\rightarrow$ Vagas preenchidas no piloto automático.
   - **Grid de Benefícios**: Zero atrito (sem app), tempo real WebSockets, proteção anti-invasores, link anti-espionagem, anti-colisão transacional e cópia para o WhatsApp.
-  - **Plano Profissional**: Preço claro (R$ 67/mês), sem fidelidade, 7 dias de garantia incondicional e suporte WhatsApp.
+  - **Plano Start**: R$ 27/mês no anual (R$ 324/ano) ou R$ 47/mês no mensal. Limite de até 3 locais/pontos e até 15 colaboradores.
+  - **Plano Pro**: R$ 47/mês no anual (R$ 564/ano) ou R$ 67/mês no mensal. Limite de até 10 locais/pontos e até 50 colaboradores. Destaque principal "Mais Escolhido".
+  - **Plano Elite**: R$ 77/mês no anual (R$ 924/ano) ou R$ 97/mês no mensal. Locais e colaboradores ilimitados, proteção anti-invasores, white-label de vocabulário e suporte VIP.
+  - Alternador Anual / Mensal com economia destacada (abre por padrão no plano anual).
+  - 7 dias de garantia incondicional e suporte WhatsApp.
   - **FAQ Acordeon**: Respostas completas sanando todas as principais objeções de compra.
 
 
