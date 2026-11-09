@@ -5,6 +5,7 @@ import { formatarNomeDia } from '../lib/diasSemana'
 import {
   Clock,
   Copy,
+  Pencil,
   Trash2,
   UserPlus,
   User,
@@ -18,6 +19,7 @@ export default function TurnosDiaList({
   ponto,
   reservas,
   onAbrirIncluirPessoa,
+  onEditarTurno,
   onDeleteTurno,
   onRemoverReserva,
   onAbrirDuplicar,
@@ -191,11 +193,11 @@ export default function TurnosDiaList({
                 </div>
               </div>
 
-              {/* Lado Direito Vertical: Vagas no topo, Incluir no meio, Lixeira embaixo */}
-              <div className="flex flex-col items-end justify-between flex-shrink-0 pl-2.5 border-l border-surface-600/30">
-                {/* 0/2 vagas no canto superior direito */}
+              {/* Lado Direito: Vagas à esquerda e 3 Ações Verticais (Lápis no topo, Incluir no meio, Lixeira embaixo) */}
+              <div className="flex items-start gap-2 flex-shrink-0 pl-2.5 border-l border-surface-600/30">
+                {/* 2/2 vagas à esquerda do botão de lápis */}
                 <span
-                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap select-none ${
+                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap select-none mt-0.5 ${
                     lotado
                       ? 'bg-red-500/10 dark:bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20'
                       : reservasTurno.length > 0
@@ -206,8 +208,27 @@ export default function TurnosDiaList({
                   {reservasTurno.length}/{turno.capacidade} vagas
                 </span>
 
-                {/* Ações verticais: Incluir (ícone) e Lixeira (ícone) */}
-                <div className="flex flex-col items-center gap-1.5 mt-2">
+                {/* 3 Botões de ação alinhados na vertical: Lápis (topo), Incluir (meio), Lixeira (baixo) */}
+                <div className="flex flex-col items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onEditarTurno?.({
+                        turnoId: turno.id,
+                        horario: turno.horario,
+                        capacidade: turno.capacidade,
+                        dia,
+                        pontoNome: ponto.nome,
+                        reservasCount: reservasTurno.length,
+                      })
+                    }
+                    className="p-1.5 rounded-lg hover:bg-brand-500/15 text-gray-500 hover:text-brand-400 transition-colors"
+                    title="Editar horário e vagas deste turno"
+                    aria-label="Editar turno"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+
                   <button
                     type="button"
                     onClick={() =>

@@ -89,7 +89,7 @@ export default function TipoValidacaoSelector({
             Identificação da Equipe
           </label>
           <p className="text-[11px] text-gray-400 mt-0.5">
-            Escolha como seus colaboradores devem se identificar ao garantir vagas.
+            Escolha os dados exigidos para identificar o colaborador quando a proteção contra invasores estiver ativada.
           </p>
         </div>
         {salvando && (

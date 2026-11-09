@@ -29,11 +29,13 @@ export function useVerificacaoIdentidade({
   const [nomeExistenteReservas, setNomeExistenteReservas] = useState(null)
 
   useEffect(() => {
-    if (!empresaId) {
+    // Quando a proteção contra invasores estiver desativada, não exige checagem de equipe
+    if (!empresaId || !exigirCadastro) {
       setMembroAutorizado(null)
       setNaoEncontrado(false)
       setMensagemErro(null)
       setNomeExistenteReservas(null)
+      setVerificando(false)
       return
     }
 

@@ -13,6 +13,7 @@ import { obterTermos } from '../lib/vocabularioHelper'
 import { getPublicShareUrl } from '../lib/tenantHelper'
 import {
   Plus,
+  Pencil,
   Trash2,
   AlertTriangle,
   Calendar,
@@ -254,8 +255,51 @@ export default function AdminView({
   const [nomeCorretorManual, setNomeCorretorManual] = useState('')
   const [salvandoPessoa, setSalvandoPessoa] = useState(false)
 
+  // ─── Modal de Edição de Turno (Horário e Vagas) ────────────────
+  const [modalEditarTurno, setModalEditarTurno] = useState(null)
+  const [editHorario, setEditHorario] = useState('')
+  const [editCapacidade, setEditCapacidade] = useState(2)
+  const [salvandoTurno, setSalvandoTurno] = useState(false)
+
+  const handleAbrirEditarTurno = useCallback((dados) => {
+    setModalEditarTurno(dados)
+    setEditHorario(dados.horario || '')
+    setEditCapacidade(dados.capacidade || 2)
+  }, [])
+
+  const handleConfirmEditarTurno = useCallback(
+    async (e) => {
+      e.preventDefault()
+      if (!modalEditarTurno || !editHorario.trim()) return
+
+      const novaCap = Math.max(1, parseInt(editCapacidade) || 1)
+      setSalvandoTurno(true)
+      try {
+        const { error } = await supabase
+          .from('turnos')
+          .update({
+            horario: editHorario.trim(),
+            capacidade: novaCap,
+          })
+          .eq('id', modalEditarTurno.turnoId)
+
+        if (error) throw error
+
+        showToast('Horário atualizado com sucesso! ✅', 'success')
+        setModalEditarTurno(null)
+        onDataChanged()
+      } catch (err) {
+        console.error('Erro ao editar turno:', err)
+        showToast('Erro ao atualizar horário.', 'error')
+      } finally {
+        setSalvandoTurno(false)
+      }
+    },
+    [modalEditarTurno, editHorario, editCapacidade, onDataChanged, showToast]
+  )
+
   useEffect(() => {
-    if (!modalDuplicar && !modalIncluirPessoa) return
+    if (!modalDuplicar && !modalIncluirPessoa && !modalEditarTurno) return
     const originalOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
@@ -263,6 +307,7 @@ export default function AdminView({
       if (e.key === 'Escape') {
         if (modalDuplicar && !duplicando) setModalDuplicar(null)
         if (modalIncluirPessoa && !salvandoPessoa) setModalIncluirPessoa(null)
+        if (modalEditarTurno && !salvandoTurno) setModalEditarTurno(null)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -271,7 +316,7 @@ export default function AdminView({
       document.body.style.overflow = originalOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [modalDuplicar, modalIncluirPessoa, duplicando, salvandoPessoa])
+  }, [modalDuplicar, modalIncluirPessoa, modalEditarTurno, duplicando, salvandoPessoa, salvandoTurno])
 
   const handleRemoverReserva = useCallback(
     async (reservaId, corretorNome, turnoDesc) => {
@@ -609,11 +654,10 @@ export default function AdminView({
           <button
             type="button"
             onClick={handleCopiarLinkRapido}
-            className={`p-2.5 rounded-xl border active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0 shadow-sm ${
-              copiadoRapido
+            className={`p-2.5 rounded-xl border active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0 shadow-sm ${copiadoRapido
                 ? 'bg-emerald-600 text-white border-emerald-500'
                 : 'bg-surface-700/60 hover:bg-surface-700 text-gray-200 border-surface-600 hover:border-brand-500/50 hover:text-brand-300'
-            }`}
+              }`}
             title={copiadoRapido ? 'Link copiado!' : 'Copiar link da escala'}
             aria-label={copiadoRapido ? 'Link copiado!' : 'Copiar link da escala'}
           >
@@ -748,11 +792,10 @@ export default function AdminView({
         <button
           type="button"
           onClick={() => handleTrocarLayout('abas')}
-          className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1.5 ${
-            layoutMode === 'abas'
+          className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1.5 ${layoutMode === 'abas'
               ? 'bg-brand-500/15 border-brand-500 text-brand-300 font-bold shadow-sm'
               : 'bg-surface-700/40 border-surface-600 text-gray-400 hover:bg-surface-700/70 hover:text-gray-200'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold flex items-center gap-1.5">
@@ -769,11 +812,10 @@ export default function AdminView({
         <button
           type="button"
           onClick={() => handleTrocarLayout('continuo')}
-          className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1.5 ${
-            layoutMode === 'continuo'
+          className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1.5 ${layoutMode === 'continuo'
               ? 'bg-brand-500/15 border-brand-500 text-brand-300 font-bold shadow-sm'
               : 'bg-surface-700/40 border-surface-600 text-gray-400 hover:bg-surface-700/70 hover:text-gray-200'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold flex items-center gap-1.5">
@@ -975,16 +1017,14 @@ export default function AdminView({
                         </span>
                         {info.totalCapacidade > 0 && (
                           <span
-                            className={`text-xs font-medium ${
-                              temVagas
+                            className={`text-xs font-medium ${temVagas
                                 ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
                                 : 'text-red-600 dark:text-red-400 font-semibold'
-                            }`}
+                              }`}
                           >
                             {temVagas
-                              ? `${info.vagasLivres} vaga${info.vagasLivres !== 1 ? 's' : ''} livre${
-                                  info.vagasLivres !== 1 ? 's' : ''
-                                }`
+                              ? `${info.vagasLivres} vaga${info.vagasLivres !== 1 ? 's' : ''} livre${info.vagasLivres !== 1 ? 's' : ''
+                              }`
                               : 'Lotado'}
                           </span>
                         )}
@@ -994,19 +1034,18 @@ export default function AdminView({
 
                   <div className="flex items-center gap-3 flex-shrink-0 ml-3">
                     <div
-                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                        info.totalCapacidade === 0
+                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${info.totalCapacidade === 0
                           ? 'bg-gray-600'
                           : temVagas
-                          ? 'bg-emerald-400 animate-pulse-soft'
-                          : 'bg-red-500'
-                      }`}
+                            ? 'bg-emerald-400 animate-pulse-soft'
+                            : 'bg-red-500'
+                        }`}
                       title={
                         info.totalCapacidade === 0
                           ? 'Sem turnos/capacidade'
                           : temVagas
-                          ? `${info.vagasLivres} vagas livres`
-                          : 'Lotado'
+                            ? `${info.vagasLivres} vagas livres`
+                            : 'Lotado'
                       }
                     />
 
@@ -1014,9 +1053,8 @@ export default function AdminView({
                       {isFechado ? 'Expandir' : 'Recolher'}
                     </span>
                     <div
-                      className={`p-1.5 rounded-lg bg-surface-700/80 text-gray-300 transition-transform duration-200 ${
-                        isFechado ? '' : 'rotate-180'
-                      }`}
+                      className={`p-1.5 rounded-lg bg-surface-700/80 text-gray-300 transition-transform duration-200 ${isFechado ? '' : 'rotate-180'
+                        }`}
                     >
                       <ChevronDown className="w-4 h-4" />
                     </div>
@@ -1048,6 +1086,7 @@ export default function AdminView({
                             ponto={ponto}
                             reservas={reservas}
                             onAbrirIncluirPessoa={handleAbrirIncluirPessoa}
+                            onEditarTurno={handleAbrirEditarTurno}
                             onDeleteTurno={handleDeleteTurno}
                             onRemoverReserva={handleRemoverReserva}
                             onAbrirDuplicar={() =>
@@ -1155,8 +1194,7 @@ export default function AdminView({
           <button
             onClick={() => {
               const texto = encodeURIComponent(
-                `Olá! Sou gestor da imobiliária "${
-                  empresaNome || ''
+                `Olá! Sou gestor da imobiliária "${empresaNome || ''
                 }" e preciso regularizar a assinatura do EscalaFácil.`
               )
               const zap = import.meta.env.VITE_WHATSAPP_SUPORTE || '5511999999999'
@@ -1182,16 +1220,14 @@ export default function AdminView({
                 onClick={() => handleMudarAba(tab.id)}
                 title={tab.tooltip}
                 aria-label={tab.label}
-                className={`flex items-center justify-center p-2.5 rounded-xl transition-all min-h-[44px] select-none ${
-                  isActive
+                className={`flex items-center justify-center p-2.5 rounded-xl transition-all min-h-[44px] select-none ${isActive
                     ? 'bg-brand-500 text-white shadow-md shadow-brand-500/25 font-bold'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700/60'
-                }`}
+                  }`}
               >
                 <TabIcon
-                  className={`w-5 h-5 flex-shrink-0 transition-transform ${
-                    isActive ? 'text-white scale-110' : 'text-gray-400'
-                  }`}
+                  className={`w-5 h-5 flex-shrink-0 transition-transform ${isActive ? 'text-white scale-110' : 'text-gray-400'
+                    }`}
                 />
               </button>
             )
@@ -1440,18 +1476,16 @@ export default function AdminView({
                       key={dia}
                       type="button"
                       onClick={() => toggleDiaDestino(dia)}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium transition-all text-left ${
-                        isSelected
+                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm font-medium transition-all text-left ${isSelected
                           ? 'bg-brand-500/15 border-brand-500/50 text-brand-700 dark:text-brand-200 font-semibold'
                           : 'bg-surface-700/50 border-surface-600 text-gray-400 hover:bg-surface-700'
-                      }`}
+                        }`}
                     >
                       <div
-                        className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
-                          isSelected
+                        className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${isSelected
                             ? 'bg-brand-500 border-brand-500 text-white'
                             : 'border-surface-500 bg-surface-800'
-                        }`}
+                          }`}
                       >
                         {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                       </div>
@@ -1575,6 +1609,128 @@ export default function AdminView({
                       <>
                         <UserPlus className="w-4 h-4" />
                         Confirmar Inclusão
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* ═══ MODAL DE EDIÇÃO DE TURNO (HORÁRIO E VAGAS) ═══ */}
+      {modalEditarTurno &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="fixed inset-0 bg-black/75 backdrop-blur-sm animate-fade-in"
+              onClick={() => !salvandoTurno && setModalEditarTurno(null)}
+            />
+
+            <div className="relative w-full max-w-md bg-surface-800 border border-surface-600 rounded-2xl sm:rounded-3xl p-6 shadow-2xl animate-scale-in z-10 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400">
+                    <Pencil className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-100">
+                      Editar Horário do Turno
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      <span className="text-brand-600 dark:text-brand-300 font-semibold">
+                        {modalEditarTurno.pontoNome}
+                      </span>{' '}
+                      • {formatarNomeDia(modalEditarTurno.dia)}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => !salvandoTurno && setModalEditarTurno(null)}
+                  className="p-1.5 rounded-lg hover:bg-surface-700 text-gray-400 hover:text-gray-200 transition-colors"
+                  disabled={salvandoTurno}
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmEditarTurno} className="space-y-4">
+                {/* Horário */}
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
+                    Horário do Turno:
+                  </label>
+                  <input
+                    type="text"
+                    value={editHorario}
+                    onChange={(e) => setEditHorario(e.target.value)}
+                    placeholder="Ex: 08:00 às 12:00"
+                    className="input-field text-base font-medium"
+                    autoFocus
+                    required
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Ex: "08:00 às 12:00", "13h às 17h", "Plantão Manhã"
+                  </p>
+                </div>
+
+                {/* Capacidade */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-gray-300">
+                      Capacidade de Vagas neste Horário:
+                    </label>
+                    {modalEditarTurno.reservasCount > 0 && (
+                      <span className="text-[11px] text-amber-400 font-medium">
+                        {modalEditarTurno.reservasCount} vaga{modalEditarTurno.reservasCount !== 1 ? 's' : ''} ocupada{modalEditarTurno.reservasCount !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={editCapacidade}
+                    onChange={(e) => setEditCapacidade(parseInt(e.target.value) || 1)}
+                    className="input-field text-base font-medium"
+                    required
+                  />
+                  {modalEditarTurno.reservasCount > editCapacidade && (
+                    <p className="text-[11px] text-amber-400 mt-1 flex items-center gap-1 font-medium animate-fade-in">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      Aviso: A capacidade informada ({editCapacidade}) é menor que o número atual de reservas ({modalEditarTurno.reservasCount}).
+                    </p>
+                  )}
+                </div>
+
+                {/* Botões */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalEditarTurno(null)}
+                    disabled={salvandoTurno}
+                    className="btn-ghost flex-1 py-3 text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={salvandoTurno || !editHorario.trim()}
+                    className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2"
+                  >
+                    {salvandoTurno ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Salvar Alterações
                       </>
                     )}
                   </button>

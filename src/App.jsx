@@ -105,6 +105,14 @@ export default function App() {
     }
   }, [empresa?.id, isAuthorizedGestor, isPortalDomain])
 
+  // Se a proteção contra invasores for desativada, limpa imediatamente status de não autorizado
+  useEffect(() => {
+    if (!empresa?.exigir_cadastro_previo) {
+      setCadastroNaoAutorizado(false)
+      setNomeModalError('')
+    }
+  }, [empresa?.exigir_cadastro_previo])
+
   // ─── Inicialização do device_id, corretor_nome e corretor_whatsapp ──
   useEffect(() => {
     let storedDeviceId = localStorage.getItem('escala_device_id')
@@ -289,9 +297,9 @@ export default function App() {
         (empresa?.exigir_cadastro_previo &&
           ((precisaZap && !corretorWhatsapp) || (precisaEmail && !corretorEmail)))
 
-      if (faltaIdentificacao || cadastroNaoAutorizado) {
+      if (faltaIdentificacao || (empresa?.exigir_cadastro_previo && cadastroNaoAutorizado)) {
         setPendingTurnoId(turnoId)
-        if (cadastroNaoAutorizado) {
+        if (empresa?.exigir_cadastro_previo && cadastroNaoAutorizado) {
           setNomeModalError('Acesso restrito: Seu cadastro não foi encontrado na equipe autorizada.')
         } else {
           setNomeModalError('')
@@ -305,8 +313,8 @@ export default function App() {
           p_turno_id: turnoId,
           p_corretor_nome: corretorNome,
           p_device_id: deviceId,
-          p_corretor_whatsapp: corretorWhatsapp || null,
-          p_corretor_email: corretorEmail || null,
+          p_corretor_whatsapp: empresa?.exigir_cadastro_previo ? (corretorWhatsapp || null) : null,
+          p_corretor_email: empresa?.exigir_cadastro_previo ? (corretorEmail || null) : null,
         })
 
         if (error) {
@@ -398,8 +406,8 @@ export default function App() {
           p_turno_id: turnoId,
           p_corretor_nome: nome,
           p_device_id: deviceId,
-          p_corretor_whatsapp: whatsapp || null,
-          p_corretor_email: email || null,
+          p_corretor_whatsapp: empresa?.exigir_cadastro_previo ? (whatsapp || null) : null,
+          p_corretor_email: empresa?.exigir_cadastro_previo ? (email || null) : null,
         })
 
         if (error) {
@@ -438,7 +446,7 @@ export default function App() {
         showToast('Erro ao reservar vaga. Tente novamente.', 'error')
       }
     },
-    [deviceId, showToast]
+    [deviceId, empresa?.exigir_cadastro_previo, showToast]
   )
 
   const handleNomeConfirm = useCallback(

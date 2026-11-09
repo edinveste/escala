@@ -25,7 +25,7 @@ export default function IdentificacaoCampos({
   membroAutorizado,
   verificando,
   naoEncontrado,
-  exigirCadastro,
+  exigirCadastro = false,
   nomeExistenteReservas,
   isNomeConflitante,
   termos = {},
@@ -34,8 +34,9 @@ export default function IdentificacaoCampos({
   nomeInputRef,
   errorMessage,
 }) {
-  const precisaZap = exigeWhatsApp(tipoValidacao)
-  const precisaEmail = exigeEmail(tipoValidacao)
+  // Quando a proteção contra invasores estiver desativada (Acesso Livre), exige APENAS o nome
+  const precisaZap = Boolean(exigirCadastro && exigeWhatsApp(tipoValidacao))
+  const precisaEmail = Boolean(exigirCadastro && exigeEmail(tipoValidacao))
 
   return (
     <div className="space-y-3.5">
