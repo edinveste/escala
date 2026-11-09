@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from './AuthContext'
 import {
@@ -21,13 +21,20 @@ export function TenantProvider({ children }) {
   const [error, setError] = useState(null)
 
   const isApp = isAppPortal()
+  const empresaRef = useRef(empresa)
+  useEffect(() => {
+    empresaRef.current = empresa
+  }, [empresa])
 
   // ─── Carrega os dados da empresa por Código Seguro, Slug ou ID ────
   const carregarEmpresa = useCallback(
-    async (alvoIdentificador) => {
+    async (alvoIdentificador, isSilent = false) => {
       const rawTarget = (alvoIdentificador || '').trim()
 
-      setLoading(true)
+      // Só ativa loading bloqueante de tela se NÃO tivermos uma empresa carregada ainda
+      if (!isSilent && !empresaRef.current) {
+        setLoading(true)
+      }
       setError(null)
       setNotFound(false)
 
@@ -176,11 +183,20 @@ export function TenantProvider({ children }) {
     [isApp, user, minhasEmpresas]
   )
 
-  // Recarrega quando auth ou identificador mudarem
+  const prevTargetRef = useRef(null)
+
+  // Recarrega quando auth ou identificador mudarem (evitando re-fetchs fantasmas em foco de aba)
   useEffect(() => {
     if (authLoading) return
-    carregarEmpresa(identifier)
-  }, [identifier, authLoading, carregarEmpresa])
+
+    const targetKey = `${isApp ? 'app' : 'public'}_${user?.id || 'anon'}_${identifier || ''}`
+    const jaCarregouMesmoAlvo = prevTargetRef.current === targetKey && Boolean(empresaRef.current)
+
+    if (!jaCarregouMesmoAlvo) {
+      prevTargetRef.current = targetKey
+      carregarEmpresa(identifier, Boolean(empresaRef.current))
+    }
+  }, [identifier, authLoading, isApp, user?.id, carregarEmpresa])
 
   // Escuta histórico de navegação (popstate)
   useEffect(() => {

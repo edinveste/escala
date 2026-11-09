@@ -409,5 +409,42 @@ npm run build
   - Unificados os dois botões anteriores em um **único botão inteligente com alternância dinâmica**.
   - O botão detecta automaticamente via `algumDiaExpandido` se há algum dia aberto para exibir **"Recolher todos"** (com `ChevronUp`) ou, caso estejam todos fechados, exibir **"Expandir todos"** (com `ChevronDown`).
 
+---
+
+## 11. Arquitetura Modular por Abas com Alternador de Layout (Fase 6 — Novembro/2026)
+- **Eliminação da Coluna Vertical Infinita ("Scroll Fatigue") no Painel do Gestor (`AdminView.jsx`)**:
+  - Separou o painel de administração em **4 menus temáticos (Abas)** limpos, responsivos e touch-friendly (mínimo de 44px de altura touch target):
+    1. 📅 **Escala & Turnos**: Operação diária com acesso rápido ao link da escala (copiar e WhatsApp em 1 clique), métricas rápidas (pontos, turnos, reservas), criação de turnos, quadro de turnos com sanfona por ponto/dia, duplicação e zona de perigo.
+    2. 👥 **Pessoas & Equipe**: Centraliza a proteção contra invasores com lista autorizada (`EquipeManager`) e gestão de coordenadores/gestores com acesso administrativo (`GestoresManager`).
+    3. 📍 **Pontos & Locais**: Gestão de locais físicos com drag-and-drop, criação, ordenação, pausa e limpeza (`PontosManager`).
+    4. ⚙️ **Ajustes & Configurações**: Preferências de visualização do painel, gerenciador completo do link seguro anti-espionagem de 12 caracteres com redefinição (`LinkSeguroManager`), white-label de vocabulário e nicho (`VocabularioModal`), e alteração de senha de administrador (`AlterarSenhaModal`).
+- **Alternador de Layout Bidirecional (Zero Risco & Liberdade do Usuário)**:
+  - Adicionado botão de alternância suave no cabeçalho e card explicativo nas configurações:
+    - 📑 **Modo em Abas (Padrão / Focado)**: Foco operacional limpo por área temática, sem poluição visual.
+    - 📜 **Visão Contínua (Clássico / Legado)**: Exibe todos os blocos empilhados verticalmente em uma única página longa com scroll, preservando o layout familiar.
+  - Persistência das preferências no `localStorage` via chaves `escala_admin_layout_mode` e `escala_admin_active_tab`.
+  - Zero duplicação de código: todos os submódulos, modais e handlers são compartilhados diretamente entre os dois modos de visualização.
+- **Barra de Abas Ultra-Compacta com Ícones Puros e Tooltips (`AdminView.jsx`)**:
+  - Removidos os rótulos de texto e badges numéricos de dentro dos botões de abas, deixando apenas os 4 ícones limpos em um grid simétrico de 4 colunas perfeitamente distribuídas (`w-5 h-5`, touch target de `44px`).
+  - O botão avulso de alternância de modo foi removido do topo para evitar poluição visual, mantendo a alternância centralizada no card dedicado dentro da aba ⚙️ Configurações.
+  - Na Visão Contínua, o card intermediário foi totalmente removido e substituído por um botão puro de ícone (`LayoutGrid`, sem texto) posicionado no extremo direito do card de identificação do gestor para retorno imediato ao Modo em Abas.
+  - Tooltips nativos dinâmicos via atributo `title` ao passar o mouse em cada ícone (*"Escala"*, *"Equipe"*, *"Pontos"* e *"Configurações"*).
+  - Eliminação total de qualquer barra de rolagem horizontal (`overflow-x`), garantindo encaixe 100% responsivo em qualquer tela.
+
+
+- **Botões de Ação do Link Seguro Apenas com Ícones (`renderQuickLinkBar` em `AdminView.jsx`)**:
+  - Removidos os textos `"Copiar"` e `"WhatsApp"` dos botões de ação rápida no card do Link Seguro da aba Escala.
+  - Transformados em um trio de botões de ícone puros (`Copy`/`Check`, `Share2` WhatsApp e `ExternalLink` Configurações) com proporção 40x40px, idênticos ao padrão do `LinkSeguroManager.jsx`, com tooltips nativos ao passar o mouse.
+- **Eliminação Completa do Flicker ("2 Piscadas / F5") ao Alternar Abas (`AuthContext`, `TenantContext` e `App.jsx`)**:
+  - **Causa Raiz Identificada**: Ao alternar o foco entre abas do navegador, o SDK do Supabase disparava eventos de verificação de sessão/token (`TOKEN_REFRESHED`). O `AuthContext` re-executava `fetchUserData` desnecessariamente e gerava uma nova referência de array para `minhasEmpresas`, acionando o `useEffect` de `TenantContext`, que por sua vez definia `loading = true` (desmontando a aplicação inteira para exibir o spinner de tela cheia). Em seguida, `App.jsx` executava `fetchData(false)` com `loading = true`, gerando uma segunda piscada visual em cascata.
+  - **Correção Aplicada**:
+    1. `AuthContext.jsx`: O listener `onAuthStateChange` agora ignora eventos corriqueiros de `TOKEN_REFRESHED` se o `userId` não mudou, e preserva a igualdade referencial dos estados `perfil` e `minhasEmpresas` via comparação profunda antes de disparar re-render.
+    2. `TenantContext.jsx`: Implementado padrão *Stale-While-Revalidate* — se a empresa já está carregada em memória (`empresaRef.current`), jamais aciona `setLoading(true)` bloqueante. Compara `targetKey` e evita refetch fantasma ao alternar foco de abas.
+    3. `App.jsx`: A tela de carregamento cheia agora só é exibida na primeira carga absoluta (`tenantLoading && !empresa`). O carregamento de turnos/pontos passa a ser silencioso (`isSilent = true`) quando dados já existem em tela (`loading && pontos.length === 0`), garantindo transição 100% suave e sem nenhum piscar.
+
+
+
+
+
 
 

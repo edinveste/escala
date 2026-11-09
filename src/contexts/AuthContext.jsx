@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
 const AuthContext = createContext(null)
@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [perfil, setPerfil] = useState(null)
   const [minhasEmpresas, setMinhasEmpresas] = useState([])
   const [loading, setLoading] = useState(true)
+  const currentUserIdRef = useRef(null)
 
   // ─── Carrega perfil e empresas do usuário autenticado ────────
   const fetchUserData = useCallback(async (userId) => {
@@ -30,7 +31,10 @@ export function AuthProvider({ children }) {
         console.warn('Aviso ao carregar perfil:', perfilErr.message)
       }
 
-      setPerfil(perfilData || null)
+      setPerfil((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(perfilData)) return prev
+        return perfilData || null
+      })
 
       // 2. Busca empresas vinculadas usando a RPC get_minhas_empresas
       const { data: empresasData, error: empresasErr } = await supabase.rpc('get_minhas_empresas')
@@ -52,10 +56,17 @@ export function AuthProvider({ children }) {
             empresa_status: m.empresas?.status || 'ativo',
             role: m.role || 'gestor',
           }))
-          setMinhasEmpresas(formatadas)
+          setMinhasEmpresas((prev) => {
+            if (JSON.stringify(prev) === JSON.stringify(formatadas)) return prev
+            return formatadas
+          })
         }
       } else {
-        setMinhasEmpresas(empresasData || [])
+        const formatadas = empresasData || []
+        setMinhasEmpresas((prev) => {
+          if (JSON.stringify(prev) === JSON.stringify(formatadas)) return prev
+          return formatadas
+        })
       }
     } catch (err) {
       console.error('Erro ao buscar dados do usuário:', err)
@@ -70,6 +81,8 @@ export function AuthProvider({ children }) {
       if (!mounted) return
       setSession(initialSession)
       setUser(initialSession?.user ?? null)
+      currentUserIdRef.current = initialSession?.user?.id || null
+
       if (initialSession?.user) {
         fetchUserData(initialSession.user.id).finally(() => {
           if (mounted) setLoading(false)
@@ -83,11 +96,19 @@ export function AuthProvider({ children }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return
+
+      const newUserId = newSession?.user?.id || null
+      const userChanged = newUserId !== currentUserIdRef.current
+      currentUserIdRef.current = newUserId
+
       setSession(newSession)
       setUser(newSession?.user ?? null)
 
+      // Evita recarregar tudo em background em eventos rotineiros de TOKEN_REFRESHED se o usuário não mudou
       if (newSession?.user) {
-        await fetchUserData(newSession.user.id)
+        if (userChanged || event === 'SIGNED_IN') {
+          await fetchUserData(newSession.user.id)
+        }
       } else {
         setPerfil(null)
         setMinhasEmpresas([])

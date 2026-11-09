@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { formatarNomeDia, migrarDiasLegados } from './lib/diasSemana'
 import { useTenant } from './contexts/TenantContext'
@@ -174,11 +174,18 @@ export default function App() {
     [empresa?.id, showToast]
   )
 
+  const prevEmpresaIdRef = useRef(null)
+
   useEffect(() => {
     if (empresa?.id) {
-      fetchData(false)
+      const isNovaEmpresa = empresa.id !== prevEmpresaIdRef.current
+      prevEmpresaIdRef.current = empresa.id
+
+      // Se for a mesma empresa que já possui dados carregados, atualiza de forma silenciosa sem piscar a tela
+      const jaTemDados = pontos.length > 0 || turnos.length > 0
+      fetchData(!isNovaEmpresa && jaTemDados)
     }
-  }, [empresa?.id, fetchData])
+  }, [empresa?.id, fetchData, pontos.length, turnos.length])
 
   // ─── Realtime: Escuta com filtro estrito de empresa_id ────────
   useEffect(() => {
@@ -514,7 +521,7 @@ export default function App() {
   }
 
   // ─── Telas de Estado de Tenant (Carregando / Não Encontrado / Erro) ─
-  if (tenantLoading) {
+  if (tenantLoading && !empresa) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-surface-900 text-gray-100">
         <div className="w-9 h-9 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />
@@ -674,7 +681,7 @@ export default function App() {
 
       {/* Conteúdo principal */}
       <main className="flex-1 max-w-xl mx-auto w-full px-2 sm:px-4 py-3 sm:py-4 pb-36 sm:pb-40">
-        {loading ? (
+        {loading && pontos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
             <p className="text-sm text-gray-500">Carregando escala...</p>
