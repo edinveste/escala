@@ -175,7 +175,7 @@ export default function LinkSeguroManager({
             className={`p-2 sm:p-2.5 rounded-xl border active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0 shadow-sm ${
               copiado
                 ? 'bg-emerald-600 text-white border-emerald-500'
-                : 'bg-brand-600 hover:bg-brand-500 text-white border-brand-500'
+                : 'bg-surface-700/60 hover:bg-surface-700 text-gray-200 border-surface-600 hover:border-brand-500/50 hover:text-brand-300'
             }`}
             title={copiado ? 'Link copiado!' : 'Copiar link'}
             aria-label={copiado ? 'Link copiado!' : 'Copiar link'}
@@ -191,7 +191,7 @@ export default function LinkSeguroManager({
           <button
             type="button"
             onClick={handleCompartilharWhatsApp}
-            className="p-2 sm:p-2.5 rounded-xl text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0"
+            className="p-2 sm:p-2.5 rounded-xl bg-surface-700/60 hover:bg-emerald-500/10 text-gray-400 hover:text-emerald-400 border border-surface-600 hover:border-emerald-500/40 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0"
             title="Compartilhar convite diretamente no WhatsApp"
             aria-label="Compartilhar convite diretamente no WhatsApp"
           >

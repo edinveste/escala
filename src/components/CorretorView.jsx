@@ -2,7 +2,64 @@ import { useMemo, useState, useEffect, useCallback } from 'react'
 import TurnoCard from './TurnoCard'
 import { formatarNomeDia, compararDias } from '../lib/diasSemana'
 import { obterTermos } from '../lib/vocabularioHelper'
-import { Copy, ClipboardCheck, Calendar, MapPin, ArrowLeft, Store, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  Copy,
+  ClipboardCheck,
+  Calendar,
+  MapPin,
+  ArrowLeft,
+  Store,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  AlertCircle,
+} from 'lucide-react'
+
+// Cabeçalho de identificação com botão de edição e alerta contra invasores
+function CorretorIdentityHeader({
+  corretorNome,
+  corretorWhatsapp,
+  corretorEmail,
+  cadastroNaoAutorizado,
+  onEditarPerfil,
+  termos,
+}) {
+  if (!corretorNome) return null
+
+  return (
+    <div className="mb-4 px-1 space-y-2">
+      <div className="flex items-center gap-1.5 text-sm text-gray-400">
+        <span>
+          Olá, <strong className="text-gray-200 dark:text-gray-100 font-semibold">{corretorNome}</strong> 👋
+        </span>
+      </div>
+
+      {cadastroNaoAutorizado && (
+        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2.5 text-xs text-red-300 animate-scale-in shadow-sm">
+          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-red-200">
+              Identificação não autorizada na equipe
+            </p>
+            <p className="text-[11px] text-red-300/80 mt-0.5 leading-relaxed">
+              O contato {corretorWhatsapp ? <strong className="font-mono text-red-200">{corretorWhatsapp}</strong> : corretorEmail ? <strong className="text-red-200">{corretorEmail}</strong> : 'informado'} não foi encontrado na lista autorizada de {termos.pessoas?.toLowerCase() || 'colaboradores'}. Se você digitou errado, clique no botão abaixo para corrigir.
+            </p>
+            {onEditarPerfil && (
+              <button
+                type="button"
+                onClick={onEditarPerfil}
+                className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 font-medium text-xs transition-colors active:scale-95 min-h-[32px]"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Corrigir meus dados agora
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function CorretorView({
   pontos,
@@ -10,6 +67,10 @@ export default function CorretorView({
   reservas,
   deviceId,
   corretorNome,
+  corretorWhatsapp,
+  corretorEmail,
+  cadastroNaoAutorizado = false,
+  onEditarPerfil,
   onReservar,
   onCancelar,
   showToast,
@@ -275,14 +336,15 @@ export default function CorretorView({
 
     return (
       <>
-        {/* Saudação */}
-        {corretorNome && (
-          <div className="mb-4 px-1">
-            <p className="text-sm text-gray-500">
-              Olá, <span className="text-brand-600 dark:text-brand-400 font-semibold">{corretorNome}</span> 👋
-            </p>
-          </div>
-        )}
+        {/* Identificação do participante com suporte a edição */}
+        <CorretorIdentityHeader
+          corretorNome={corretorNome}
+          corretorWhatsapp={corretorWhatsapp}
+          corretorEmail={corretorEmail}
+          cadastroNaoAutorizado={cadastroNaoAutorizado}
+          onEditarPerfil={onEditarPerfil}
+          termos={termos}
+        />
 
         <div className="mb-4 px-1">
           <h2 className="text-base font-bold text-gray-200 flex items-center gap-2">
@@ -401,14 +463,15 @@ export default function CorretorView({
         </div>
       </div>
 
-      {/* Saudação */}
-      {corretorNome && (
-        <div className="mb-4 px-1">
-          <p className="text-sm text-gray-500">
-            Olá, <span className="text-brand-400 font-medium">{corretorNome}</span> 👋
-          </p>
-        </div>
-      )}
+      {/* Identificação do participante com suporte a edição */}
+      <CorretorIdentityHeader
+        corretorNome={corretorNome}
+        corretorWhatsapp={corretorWhatsapp}
+        corretorEmail={corretorEmail}
+        cadastroNaoAutorizado={cadastroNaoAutorizado}
+        onEditarPerfil={onEditarPerfil}
+        termos={termos}
+      />
 
       {turnosFiltrados.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
@@ -461,11 +524,12 @@ export default function CorretorView({
             const vagasLivresDia = totalCapacidadeDia - totalReservadosDia
             const temVagas = vagasLivresDia > 0
 
-            const usuarioTemVaga =
-              Boolean(deviceId) &&
-              turnosDoDia.some((t) =>
-                (reservasPorTurno[t.id] || []).some((r) => r.device_id === deviceId)
-              )
+            // Trava Estrita de Dispositivo: exibe "Sua vaga" apenas para quem reservou por este aparelho
+            const isMinhaReservaGeral = (r) => Boolean(deviceId && r.device_id === deviceId)
+
+            const usuarioTemVaga = turnosDoDia.some((t) =>
+              (reservasPorTurno[t.id] || []).some(isMinhaReservaGeral)
+            )
 
             return (
               <section key={dia} className="transition-all">
@@ -530,6 +594,9 @@ export default function CorretorView({
                         turno={turno}
                         reservas={reservasPorTurno[turno.id] || []}
                         deviceId={deviceId}
+                        corretorNome={corretorNome}
+                        corretorWhatsapp={corretorWhatsapp}
+                        corretorEmail={corretorEmail}
                         onReservar={onReservar}
                         onCancelar={onCancelar}
                         acaoVaga={termos.acaoVaga}

@@ -59,11 +59,14 @@ export default function App() {
     signOut,
   } = useAuth()
 
-  // Estado de identidade do Corretor (Zero-Atrito)
+  // Estado de identidade do Colaborador (Zero-Atrito)
   const [deviceId, setDeviceId] = useState('')
   const [corretorNome, setCorretorNome] = useState('')
   const [corretorWhatsapp, setCorretorWhatsapp] = useState('')
+  const [corretorEmail, setCorretorEmail] = useState('')
   const [showNomeModal, setShowNomeModal] = useState(false)
+  const [nomeModalError, setNomeModalError] = useState('')
+  const [cadastroNaoAutorizado, setCadastroNaoAutorizado] = useState(false)
   const [pendingTurnoId, setPendingTurnoId] = useState(null)
 
   // Estado de dados da escala
@@ -93,6 +96,8 @@ export default function App() {
   // Reseta autenticação de PIN e ajusta visão ao alternar de empresa
   useEffect(() => {
     setIsPinAuth(false)
+    setCadastroNaoAutorizado(false)
+    setNomeModalError('')
     if (isPortalDomain) {
       setView('admin')
     } else if (!isAuthorizedGestor) {
@@ -117,6 +122,11 @@ export default function App() {
     const storedZap = localStorage.getItem('escala_corretor_whatsapp')
     if (storedZap) {
       setCorretorWhatsapp(storedZap)
+    }
+
+    const storedEmail = localStorage.getItem('escala_corretor_email')
+    if (storedEmail) {
+      setCorretorEmail(storedEmail)
     }
   }, [])
 
@@ -267,12 +277,25 @@ export default function App() {
     }
   }, [empresa?.id])
 
-  // ─── Ações de Reserva e Cancelamento (Corretor Zero-Atrito) ───
+  // ─── Ações de Reserva e Cancelamento (Colaborador Zero-Atrito) ───
   const handleReservar = useCallback(
     async (turnoId) => {
-      // Se não tiver nome cadastrado ou a empresa exigir WhatsApp e não tiver WhatsApp
-      if (!corretorNome || (!corretorWhatsapp && empresa?.exigir_cadastro_previo)) {
+      const tipoValidacao = empresa?.tipo_validacao_equipe || 'whatsapp'
+      const precisaZap = tipoValidacao === 'whatsapp' || tipoValidacao === 'ambos'
+      const precisaEmail = tipoValidacao === 'email' || tipoValidacao === 'ambos'
+
+      const faltaIdentificacao =
+        !corretorNome ||
+        (empresa?.exigir_cadastro_previo &&
+          ((precisaZap && !corretorWhatsapp) || (precisaEmail && !corretorEmail)))
+
+      if (faltaIdentificacao || cadastroNaoAutorizado) {
         setPendingTurnoId(turnoId)
+        if (cadastroNaoAutorizado) {
+          setNomeModalError('Acesso restrito: Seu cadastro não foi encontrado na equipe autorizada.')
+        } else {
+          setNomeModalError('')
+        }
         setShowNomeModal(true)
         return
       }
@@ -283,17 +306,24 @@ export default function App() {
           p_corretor_nome: corretorNome,
           p_device_id: deviceId,
           p_corretor_whatsapp: corretorWhatsapp || null,
+          p_corretor_email: corretorEmail || null,
         })
 
         if (error) {
           if (error.message.includes('já possui')) {
-            showToast('Você já tem uma reserva neste turno!', 'warning')
+            showToast('Você já tem uma vaga reservada neste horário!', 'warning')
           } else if (
             error.message.includes('Acesso restrito') ||
             error.message.includes('cadastro prévio')
           ) {
+            setCadastroNaoAutorizado(true)
+            setNomeModalError(
+              'Acesso restrito: Seu cadastro não foi encontrado na equipe desta empresa.'
+            )
+            setPendingTurnoId(turnoId)
+            setShowNomeModal(true)
             showToast(
-              'Acesso restrito: Seu cadastro não foi encontrado na equipe desta imobiliária. Fale com seu coordenador.',
+              'Acesso restrito: Cadastro não encontrado na equipe. Corrija seus dados abaixo.',
               'error'
             )
           } else {
@@ -303,6 +333,8 @@ export default function App() {
         }
 
         if (data === true) {
+          setCadastroNaoAutorizado(false)
+          setNomeModalError('')
           showToast('Vaga garantida com sucesso! ✅', 'success')
         } else {
           showToast('Turno esgotado! Tente outro horário.', 'error')
@@ -312,7 +344,16 @@ export default function App() {
         showToast('Erro ao reservar vaga. Tente novamente.', 'error')
       }
     },
-    [corretorNome, corretorWhatsapp, deviceId, empresa?.exigir_cadastro_previo, showToast]
+    [
+      corretorNome,
+      corretorWhatsapp,
+      corretorEmail,
+      deviceId,
+      empresa?.exigir_cadastro_previo,
+      empresa?.tipo_validacao_equipe,
+      cadastroNaoAutorizado,
+      showToast,
+    ]
   )
 
   const handleCancelar = useCallback(
@@ -320,7 +361,7 @@ export default function App() {
       const ok = await confirm({
         title: 'Cancelar sua vaga?',
         message:
-          'Tem certeza que deseja cancelar sua vaga neste turno?\nEla ficará disponível para outro corretor da equipe.',
+          'Tem certeza que deseja cancelar sua vaga neste turno?\nEla ficará disponível para outro colaborador da equipe.',
         confirmText: 'Sim, cancelar vaga',
         cancelText: 'Voltar',
         variant: 'danger',
@@ -331,6 +372,8 @@ export default function App() {
         const { data, error } = await supabase.rpc('cancelar_vaga', {
           p_reserva_id: reservaId,
           p_device_id: deviceId,
+          p_corretor_whatsapp: corretorWhatsapp || null,
+          p_corretor_email: corretorEmail || null,
         })
 
         if (error) throw error
@@ -345,28 +388,35 @@ export default function App() {
         showToast('Erro ao cancelar reserva.', 'error')
       }
     },
-    [confirm, deviceId, showToast]
+    [confirm, deviceId, corretorWhatsapp, corretorEmail, showToast]
   )
 
   const handleReservarComDados = useCallback(
-    async (turnoId, nome, whatsapp) => {
+    async (turnoId, nome, whatsapp, email) => {
       try {
         const { data, error } = await supabase.rpc('reservar_vaga', {
           p_turno_id: turnoId,
           p_corretor_nome: nome,
           p_device_id: deviceId,
           p_corretor_whatsapp: whatsapp || null,
+          p_corretor_email: email || null,
         })
 
         if (error) {
           if (error.message.includes('já possui')) {
-            showToast('Você já tem uma reserva neste turno!', 'warning')
+            showToast('Você já tem uma vaga reservada neste horário!', 'warning')
           } else if (
             error.message.includes('Acesso restrito') ||
             error.message.includes('cadastro prévio')
           ) {
+            setCadastroNaoAutorizado(true)
+            setNomeModalError(
+              'Acesso restrito: Seu cadastro não foi encontrado na equipe desta empresa.'
+            )
+            setPendingTurnoId(turnoId)
+            setShowNomeModal(true)
             showToast(
-              'Acesso restrito: Seu cadastro não foi encontrado na equipe desta imobiliária. Fale com seu coordenador.',
+              'Acesso restrito: Cadastro não encontrado na equipe. Corrija seus dados abaixo.',
               'error'
             )
           } else {
@@ -376,6 +426,9 @@ export default function App() {
         }
 
         if (data === true) {
+          setCadastroNaoAutorizado(false)
+          setNomeModalError('')
+          setPendingTurnoId(null)
           showToast('Vaga garantida com sucesso! ✅', 'success')
         } else {
           showToast('Turno esgotado! Tente outro horário.', 'error')
@@ -389,22 +442,43 @@ export default function App() {
   )
 
   const handleNomeConfirm = useCallback(
-    ({ nome, whatsapp }) => {
+    ({ nome, whatsapp, email }) => {
       setCorretorNome(nome)
-      setCorretorWhatsapp(whatsapp)
+      setCorretorWhatsapp(whatsapp || '')
+      setCorretorEmail(email || '')
+      setCadastroNaoAutorizado(false)
+      setNomeModalError('')
       localStorage.setItem('escala_corretor_nome', nome)
-      localStorage.setItem('escala_corretor_whatsapp', whatsapp)
+      if (whatsapp) {
+        localStorage.setItem('escala_corretor_whatsapp', whatsapp)
+      } else {
+        localStorage.removeItem('escala_corretor_whatsapp')
+      }
+      if (email) {
+        localStorage.setItem('escala_corretor_email', email)
+      } else {
+        localStorage.removeItem('escala_corretor_email')
+      }
       setShowNomeModal(false)
 
-      if (pendingTurnoId) {
+      const turnoParaReservar = pendingTurnoId
+      if (turnoParaReservar) {
+        setPendingTurnoId(null)
         setTimeout(() => {
-          handleReservarComDados(pendingTurnoId, nome, whatsapp)
-          setPendingTurnoId(null)
+          handleReservarComDados(turnoParaReservar, nome, whatsapp, email)
         }, 100)
+      } else {
+        showToast('Identificação atualizada com sucesso! ✅', 'success')
       }
     },
-    [pendingTurnoId, handleReservarComDados]
+    [pendingTurnoId, handleReservarComDados, showToast]
   )
+
+  const handleEditarPerfil = useCallback(() => {
+    setNomeModalError('')
+    setPendingTurnoId(null)
+    setShowNomeModal(true)
+  }, [])
 
   // ─── Navegação e Ações de Gestão ─────────────────────────────
   const handleAdminAccess = useCallback(() => {
@@ -693,6 +767,10 @@ export default function App() {
             reservas={reservas}
             deviceId={deviceId}
             corretorNome={corretorNome}
+            corretorWhatsapp={corretorWhatsapp}
+            corretorEmail={corretorEmail}
+            cadastroNaoAutorizado={cadastroNaoAutorizado}
+            onEditarPerfil={handleEditarPerfil}
             onReservar={handleReservar}
             onCancelar={handleCancelar}
             showToast={showToast}
@@ -716,16 +794,23 @@ export default function App() {
         ) : null}
       </main>
 
-      {/* Modal de identificação (Corretor 1º uso ou complementação) */}
+      {/* Modal de identificação (Colaborador 1º uso, complementação ou correção) */}
       {showNomeModal && (
         <NomeModal
           initialNome={corretorNome}
           initialWhatsapp={corretorWhatsapp}
+          initialEmail={corretorEmail}
+          deviceId={deviceId}
+          tipoValidacao={empresa?.tipo_validacao_equipe || 'whatsapp'}
           exigirCadastro={empresa?.exigir_cadastro_previo || false}
+          empresaId={empresa?.id}
           termos={termos}
+          errorMessage={nomeModalError}
+          hasPendingTurno={Boolean(pendingTurnoId)}
           onConfirm={handleNomeConfirm}
           onClose={() => {
             setShowNomeModal(false)
+            setNomeModalError('')
             setPendingTurnoId(null)
           }}
         />

@@ -5,6 +5,9 @@ export default function TurnoCard({
   turno,
   reservas,
   deviceId,
+  corretorNome,
+  corretorWhatsapp,
+  corretorEmail,
   onReservar,
   onCancelar,
   acaoVaga,
@@ -15,9 +18,16 @@ export default function TurnoCard({
   const vagasRestantes = vagasTotal - vagasOcupadas
   const esgotado = vagasRestantes <= 0
 
-  // Verifica se o device atual tem reserva neste turno
+  const cleanZap = (corretorWhatsapp || '').replace(/\D/g, '').replace(/^55(\d{10,11})$/, '$1')
+  const cleanEmail = (corretorEmail || '').trim().toLowerCase()
+  const nomeLower = (corretorNome || '').trim().toLowerCase()
+
+  // Trava Estrita de Dispositivo: apenas quem reservou por ESTE aparelho físico pode cancelá-la
+  const isMinhaReservaItem = (r) => Boolean(deviceId && r.device_id === deviceId)
+
+  // Verifica se o usuário atual tem reserva neste turno
   const minhaReserva = useMemo(
-    () => reservas.find((r) => r.device_id === deviceId),
+    () => reservas.find(isMinhaReservaItem),
     [reservas, deviceId]
   )
 
@@ -68,24 +78,27 @@ export default function TurnoCard({
       {/* Lista de corretores */}
       {reservas.length > 0 && (
         <div className="mb-3 space-y-1.5">
-          {reservas.map((reserva) => (
-            <div
-              key={reserva.id}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-                reserva.device_id === deviceId
-                  ? 'bg-brand-500/10 text-brand-600 dark:text-brand-300 border border-brand-500/20'
-                  : 'bg-surface-700/60 text-gray-400'
-              }`}
-            >
-              <User className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="truncate font-medium">{reserva.corretor_nome}</span>
-              {reserva.device_id === deviceId && (
-                <span className="ml-auto text-[10px] bg-brand-500/20 text-brand-600 dark:text-brand-300 px-1.5 py-0.5 rounded font-bold">
-                  VOCÊ
-                </span>
-              )}
-            </div>
-          ))}
+          {reservas.map((reserva) => {
+            const ehMinha = isMinhaReservaItem(reserva)
+            return (
+              <div
+                key={reserva.id}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                  ehMinha
+                    ? 'bg-brand-500/10 text-brand-600 dark:text-brand-300 border border-brand-500/20'
+                    : 'bg-surface-700/60 text-gray-400'
+                }`}
+              >
+                <User className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate font-medium">{reserva.corretor_nome}</span>
+                {ehMinha && (
+                  <span className="ml-auto text-[10px] bg-brand-500/20 text-brand-600 dark:text-brand-300 px-1.5 py-0.5 rounded font-bold">
+                    VOCÊ
+                  </span>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

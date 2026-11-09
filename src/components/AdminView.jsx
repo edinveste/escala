@@ -628,7 +628,7 @@ export default function AdminView({
           <button
             type="button"
             onClick={handleCompartilharWhatsAppRapido}
-            className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0 shadow-sm"
+            className="p-2.5 rounded-xl bg-surface-700/60 hover:bg-emerald-500/10 text-gray-400 hover:text-emerald-400 border border-surface-600 hover:border-emerald-500/40 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0 shadow-sm"
             title="Compartilhar no WhatsApp da equipe"
             aria-label="Compartilhar no WhatsApp da equipe"
           >
@@ -1221,6 +1221,8 @@ export default function AdminView({
                 empresaNome={empresaNome}
                 exigirCadastro={empresa?.exigir_cadastro_previo || false}
                 onExigirCadastroChange={onEmpresaUpdated}
+                tipoValidacao={empresa?.tipo_validacao_equipe || 'whatsapp'}
+                onTipoValidacaoChange={onEmpresaUpdated}
                 isFullAdmin={isFullAdmin}
                 showToast={showToast}
                 termos={termos}
@@ -1314,6 +1316,8 @@ export default function AdminView({
             empresaNome={empresaNome}
             exigirCadastro={empresa?.exigir_cadastro_previo || false}
             onExigirCadastroChange={onEmpresaUpdated}
+            tipoValidacao={empresa?.tipo_validacao_equipe || 'whatsapp'}
+            onTipoValidacaoChange={onEmpresaUpdated}
             isFullAdmin={isFullAdmin}
             showToast={showToast}
             termos={termos}

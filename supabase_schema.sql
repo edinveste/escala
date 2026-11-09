@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS public.empresas (
   plano                  TEXT NOT NULL DEFAULT 'trial',
   status                 TEXT NOT NULL DEFAULT 'ativo', -- 'ativo', 'inativo', 'bloqueado'
   exigir_cadastro_previo BOOLEAN NOT NULL DEFAULT false,
+  tipo_validacao_equipe  TEXT NOT NULL DEFAULT 'whatsapp' CHECK (tipo_validacao_equipe IN ('whatsapp', 'email', 'ambos')),
   asaas_customer_id      TEXT,
   asaas_subscription_id  TEXT,
   asaas_payment_id       TEXT,
@@ -124,19 +125,23 @@ CREATE TABLE IF NOT EXISTS public.reservas (
   turno_id          UUID NOT NULL REFERENCES public.turnos(id) ON DELETE CASCADE,
   corretor_nome     TEXT NOT NULL,
   corretor_whatsapp TEXT,
+  corretor_email    TEXT,
   device_id         TEXT NOT NULL,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_reservas_empresa_id ON public.reservas(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_reservas_turno_id ON public.reservas(turno_id);
+CREATE INDEX IF NOT EXISTS idx_reservas_corretor_email ON public.reservas(empresa_id, lower(trim(corretor_email)));
 
--- 1.7 Tabela de corretores autorizados da imobiliária (Equipe)
+-- 1.7 Tabela de colaboradores autorizados da empresa (Equipe)
 CREATE TABLE IF NOT EXISTS public.equipe_corretores (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   empresa_id  UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
   nome        TEXT NOT NULL,
-  whatsapp    TEXT NOT NULL,
+  whatsapp    TEXT,
+  email       TEXT,
+  device_id   TEXT,
   ativo       BOOLEAN NOT NULL DEFAULT true,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -144,7 +149,10 @@ CREATE TABLE IF NOT EXISTS public.equipe_corretores (
 CREATE INDEX IF NOT EXISTS idx_equipe_corretores_empresa ON public.equipe_corretores(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_equipe_corretores_whatsapp ON public.equipe_corretores(whatsapp);
 CREATE INDEX IF NOT EXISTS idx_equipe_corretores_ativo ON public.equipe_corretores(empresa_id, ativo);
+CREATE INDEX IF NOT EXISTS idx_equipe_corretores_device ON public.equipe_corretores(empresa_id, device_id);
+CREATE INDEX IF NOT EXISTS idx_equipe_corretores_email_lower ON public.equipe_corretores(empresa_id, lower(trim(email)));
 CREATE UNIQUE INDEX IF NOT EXISTS idx_equipe_corretores_empresa_zap_clean ON public.equipe_corretores (empresa_id, (regexp_replace(whatsapp, '[^0-9]', '', 'g')));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_equipe_corretores_empresa_email_unico ON public.equipe_corretores (empresa_id, lower(trim(email))) WHERE email IS NOT NULL AND trim(email) <> '';
 
 -- 1.8 Tabela de logs de webhooks Asaas (Auditoria e Idempotência)
 CREATE TABLE IF NOT EXISTS public.asaas_webhooks_log (
@@ -511,15 +519,17 @@ CREATE POLICY "asaas_webhooks_log_select_superadmin"
 -- 4. RPCS CRÍTICAS DO CORE (PL/PGSQL COM SECURITY DEFINER)
 -- ============================================================
 
--- 4.1 RPC: reservar_vaga (com concorrência FOR UPDATE, WhatsApp, equipe e validação de inadimplência)
+-- 4.1 RPC: reservar_vaga (com concorrência FOR UPDATE, WhatsApp, E-mail, equipe autorizada, vínculo de aparelho e anti-spoofing)
 DROP FUNCTION IF EXISTS public.reservar_vaga(UUID, TEXT, TEXT);
 DROP FUNCTION IF EXISTS public.reservar_vaga(UUID, TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.reservar_vaga(UUID, TEXT, TEXT, TEXT, TEXT);
 
 CREATE OR REPLACE FUNCTION public.reservar_vaga(
   p_turno_id          UUID,
   p_corretor_nome     TEXT,
   p_device_id         TEXT,
-  p_corretor_whatsapp TEXT DEFAULT NULL
+  p_corretor_whatsapp TEXT DEFAULT NULL,
+  p_corretor_email    TEXT DEFAULT NULL
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -527,13 +537,25 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_capacidade      INT;
-  v_atual           INT;
-  v_empresa_id      UUID;
-  v_status          TEXT;
-  v_exigir_cadastro BOOLEAN;
-  v_zap_limpo       TEXT;
+  v_capacidade        INT;
+  v_atual             INT;
+  v_empresa_id        UUID;
+  v_status            TEXT;
+  v_exigir_cadastro   BOOLEAN;
+  v_tipo_validacao    TEXT;
+  v_zap_limpo         TEXT;
+  v_email_limpo       TEXT;
+  v_membro_id         UUID;
+  v_nome_oficial      TEXT;
+  v_device_cadastrado TEXT;
+  v_nome_existente    TEXT;
+  v_nome_final        TEXT;
 BEGIN
+  -- Validação de device_id
+  IF trim(COALESCE(p_device_id, '')) = '' THEN
+    RAISE EXCEPTION 'Dispositivo não identificado. Atualize a página e tente novamente.';
+  END IF;
+
   -- 1. Trava o turno contra concorrência simultânea (Race Condition)
   SELECT capacidade, empresa_id INTO v_capacidade, v_empresa_id
   FROM public.turnos
@@ -544,64 +566,205 @@ BEGIN
     RAISE EXCEPTION 'Turno não encontrado';
   END IF;
 
-  -- 2. Valida o status da empresa (Bloqueio por inadimplência ou inatividade)
-  SELECT status, COALESCE(exigir_cadastro_previo, false) 
-  INTO v_status, v_exigir_cadastro
+  -- 2. Valida o status da empresa e configurações de equipe
+  SELECT 
+    status, 
+    COALESCE(exigir_cadastro_previo, false),
+    COALESCE(tipo_validacao_equipe, 'whatsapp')
+  INTO 
+    v_status, 
+    v_exigir_cadastro,
+    v_tipo_validacao
   FROM public.empresas
   WHERE id = v_empresa_id;
 
   IF v_status = 'bloqueado' THEN
-    RAISE EXCEPTION 'Acesso temporariamente suspenso: A escala desta imobiliária está com pendência cadastral ou financeira. Fale com seu coordenador.';
+    RAISE EXCEPTION 'Acesso temporariamente suspenso: A escala desta empresa está com pendência cadastral ou financeira. Fale com seu coordenador.';
   ELSIF v_status = 'inativo' THEN
-    RAISE EXCEPTION 'Esta imobiliária está inativa no momento.';
+    RAISE EXCEPTION 'Esta empresa está inativa no momento.';
   END IF;
 
-  -- 3. Proteção contra invasores (Equipe de Corretores da Imobiliária)
-  IF v_exigir_cadastro THEN
-    v_zap_limpo := regexp_replace(COALESCE(p_corretor_whatsapp, ''), '[^0-9]', '', 'g');
+  -- Normaliza o WhatsApp (apenas dígitos, removendo DDI 55 de 12 ou 13 dígitos)
+  v_zap_limpo := regexp_replace(COALESCE(p_corretor_whatsapp, ''), '[^0-9]', '', 'g');
+  IF length(v_zap_limpo) IN (12, 13) AND v_zap_limpo LIKE '55%' THEN
+    v_zap_limpo := substr(v_zap_limpo, 3);
+  END IF;
 
-    IF NOT EXISTS (
-      SELECT 1 FROM public.equipe_corretores
+  -- Normaliza E-mail
+  v_email_limpo := lower(trim(COALESCE(p_corretor_email, '')));
+
+  v_nome_final := trim(p_corretor_nome);
+
+  -- 3. Proteção contra invasores (Equipe Autorizada da Empresa com Vínculo de Aparelho)
+  IF v_exigir_cadastro THEN
+    IF v_tipo_validacao = 'whatsapp' THEN
+      IF v_zap_limpo = '' THEN
+        RAISE EXCEPTION 'O WhatsApp é obrigatório para garantir vaga nesta empresa.';
+      END IF;
+
+      SELECT id, nome, device_id 
+      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
+      FROM public.equipe_corretores
+      WHERE empresa_id = v_empresa_id
+        AND ativo = true
+        AND regexp_replace(regexp_replace(whatsapp, '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+      LIMIT 1;
+
+    ELSIF v_tipo_validacao = 'email' THEN
+      IF v_email_limpo = '' THEN
+        RAISE EXCEPTION 'O E-mail corporativo é obrigatório para garantir vaga nesta empresa.';
+      END IF;
+
+      SELECT id, nome, device_id 
+      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
+      FROM public.equipe_corretores
+      WHERE empresa_id = v_empresa_id
+        AND ativo = true
+        AND lower(trim(COALESCE(email, ''))) = v_email_limpo
+      LIMIT 1;
+
+    ELSIF v_tipo_validacao = 'ambos' THEN
+      IF v_zap_limpo = '' OR v_email_limpo = '' THEN
+        RAISE EXCEPTION 'WhatsApp e E-mail corporativo são obrigatórios para garantir vaga nesta empresa.';
+      END IF;
+
+      SELECT id, nome, device_id 
+      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
+      FROM public.equipe_corretores
+      WHERE empresa_id = v_empresa_id
+        AND ativo = true
+        AND regexp_replace(regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+        AND lower(trim(COALESCE(email, ''))) = v_email_limpo
+      LIMIT 1;
+    ELSE
+      SELECT id, nome, device_id 
+      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
+      FROM public.equipe_corretores
       WHERE empresa_id = v_empresa_id
         AND ativo = true
         AND (
-          (v_zap_limpo <> '' AND regexp_replace(whatsapp, '[^0-9]', '', 'g') = v_zap_limpo)
-          OR (lower(trim(nome)) = lower(trim(p_corretor_nome)))
+          (v_zap_limpo <> '' AND regexp_replace(regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo)
+          OR (v_email_limpo <> '' AND lower(trim(COALESCE(email, ''))) = v_email_limpo)
         )
-    ) THEN
-      RAISE EXCEPTION 'Acesso restrito: Seu cadastro não foi encontrado na equipe autorizada desta imobiliária. Fale com seu coordenador.';
+      LIMIT 1;
+    END IF;
+
+    -- Fallback final por nome
+    IF v_nome_oficial IS NULL AND v_nome_final <> '' THEN
+      SELECT id, nome, device_id 
+      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
+      FROM public.equipe_corretores
+      WHERE empresa_id = v_empresa_id
+        AND ativo = true
+        AND lower(trim(nome)) = lower(v_nome_final)
+      LIMIT 1;
+    END IF;
+
+    IF v_nome_oficial IS NULL THEN
+      IF v_tipo_validacao = 'email' THEN
+        RAISE EXCEPTION 'Acesso restrito: Seu e-mail corporativo não foi encontrado na equipe autorizada desta empresa. Fale com seu coordenador.';
+      ELSIF v_tipo_validacao = 'ambos' THEN
+        RAISE EXCEPTION 'Acesso restrito: Seus dados não foram encontrados na equipe autorizada desta empresa. Fale com seu coordenador.';
+      ELSE
+        RAISE EXCEPTION 'Acesso restrito: Seu cadastro não foi encontrado na equipe autorizada desta empresa. Fale com seu coordenador.';
+      END IF;
+    END IF;
+
+    -- ─── BLINDAGEM ANTI-SABOTAGEM: TRAVA DE APARELHO CELULAR ───
+    IF v_device_cadastrado IS NOT NULL AND v_device_cadastrado <> p_device_id THEN
+      RAISE EXCEPTION 'Acesso bloqueado: Este cadastro já está vinculado a outro aparelho celular. Por segurança contra uso indevido, cada colaborador deve acessar exclusivamente pelo seu próprio aparelho. Solicite ao coordenador a liberação caso tenha trocado de celular.';
+    ELSIF v_device_cadastrado IS NULL AND v_membro_id IS NOT NULL THEN
+      -- Vincula o celular ao colaborador automaticamente no 1º uso
+      UPDATE public.equipe_corretores
+      SET device_id = p_device_id
+      WHERE id = v_membro_id;
+    END IF;
+
+    -- REGRA CRÍTICA: Se a empresa exige cadastro, utiliza SEMPRE o nome oficial cadastrado pelo gestor
+    v_nome_final := v_nome_oficial;
+  END IF;
+
+  -- 4. Anti-Spoofing: Impede que o mesmo WhatsApp ou E-mail seja utilizado por nomes diferentes
+  IF v_zap_limpo <> '' THEN
+    SELECT corretor_nome INTO v_nome_existente
+    FROM public.reservas
+    WHERE empresa_id = v_empresa_id
+      AND regexp_replace(regexp_replace(COALESCE(corretor_whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+      AND lower(trim(corretor_nome)) <> lower(trim(v_nome_final))
+    LIMIT 1;
+
+    IF v_nome_existente IS NOT NULL THEN
+      RAISE EXCEPTION 'Este WhatsApp já está associado a "%". Cada colaborador deve utilizar seu próprio número de WhatsApp.', v_nome_existente;
     END IF;
   END IF;
 
-  -- 4. Valida vagas disponíveis no turno
+  IF v_email_limpo <> '' THEN
+    SELECT corretor_nome INTO v_nome_existente
+    FROM public.reservas
+    WHERE empresa_id = v_empresa_id
+      AND lower(trim(COALESCE(corretor_email, ''))) = v_email_limpo
+      AND lower(trim(corretor_nome)) <> lower(trim(v_nome_final))
+    LIMIT 1;
+
+    IF v_nome_existente IS NOT NULL THEN
+      RAISE EXCEPTION 'Este e-mail corporativo já está associado a "%". Cada colaborador deve utilizar seu próprio e-mail.', v_nome_existente;
+    END IF;
+  END IF;
+
+  -- 5. Valida vagas disponíveis no turno
   SELECT COUNT(*) INTO v_atual
   FROM public.reservas
   WHERE turno_id = p_turno_id;
 
   IF v_atual >= v_capacidade THEN
-    RETURN FALSE;
+    RETURN FALSE; -- Turno esgotado
   END IF;
 
-  -- 5. Impede reserva duplicada do mesmo corretor (device_id) no mesmo turno
+  -- 6. Impede reserva duplicada do mesmo colaborador no mesmo turno
   IF EXISTS (
     SELECT 1 FROM public.reservas
-    WHERE turno_id = p_turno_id AND device_id = p_device_id
+    WHERE turno_id = p_turno_id
+      AND (
+        device_id = p_device_id
+        OR (v_zap_limpo <> '' AND regexp_replace(regexp_replace(COALESCE(corretor_whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo)
+        OR (v_email_limpo <> '' AND lower(trim(COALESCE(corretor_email, ''))) = v_email_limpo)
+        OR (lower(trim(corretor_nome)) = lower(trim(v_nome_final)))
+      )
   ) THEN
-    RAISE EXCEPTION 'Você já possui uma reserva neste turno';
+    RAISE EXCEPTION 'Você já possui uma vaga reservada neste horário.';
   END IF;
 
-  -- 6. Insere a reserva vinculando automaticamente a empresa e WhatsApp
-  INSERT INTO public.reservas (turno_id, corretor_nome, device_id, empresa_id, corretor_whatsapp)
-  VALUES (p_turno_id, trim(p_corretor_nome), p_device_id, v_empresa_id, p_corretor_whatsapp);
+  -- 7. Insere a reserva vinculando automaticamente a empresa, device_id, whatsapp e email
+  INSERT INTO public.reservas (
+    turno_id,
+    corretor_nome,
+    device_id,
+    empresa_id,
+    corretor_whatsapp,
+    corretor_email
+  ) VALUES (
+    p_turno_id,
+    v_nome_final,
+    p_device_id,
+    v_empresa_id,
+    NULLIF(trim(p_corretor_whatsapp), ''),
+    NULLIF(v_email_limpo, '')
+  );
 
   RETURN TRUE;
 END;
 $$;
 
--- 4.2 RPC: cancelar_vaga
+-- 4.2 RPC: cancelar_vaga (com trava estrita de device_id: apenas o celular que reservou pode cancelar)
+DROP FUNCTION IF EXISTS public.cancelar_vaga(UUID, TEXT);
+DROP FUNCTION IF EXISTS public.cancelar_vaga(UUID, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.cancelar_vaga(UUID, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.cancelar_vaga(
-  p_reserva_id UUID,
-  p_device_id  TEXT
+  p_reserva_id          UUID,
+  p_device_id           TEXT,
+  p_corretor_whatsapp   TEXT DEFAULT NULL,
+  p_corretor_email      TEXT DEFAULT NULL
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -611,11 +774,38 @@ AS $$
 DECLARE
   v_rows INT;
 BEGIN
+  -- Apenas o aparelho físico que realizou a reserva tem autorização para cancelá-la
   DELETE FROM public.reservas
-  WHERE id = p_reserva_id AND device_id = p_device_id;
+  WHERE id = p_reserva_id
+    AND device_id = p_device_id;
 
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   RETURN v_rows > 0;
+END;
+$$;
+
+-- 4.3 RPC: desvincular_aparelho_corretor (liberar celular para novo aparelho)
+CREATE OR REPLACE FUNCTION public.desvincular_aparelho_corretor(
+  p_corretor_id UUID,
+  p_empresa_id  UUID
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
+      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
+    END IF;
+  END IF;
+
+  UPDATE public.equipe_corretores
+  SET device_id = NULL
+  WHERE id = p_corretor_id AND empresa_id = p_empresa_id;
+
+  RETURN TRUE;
 END;
 $$;
 
@@ -1085,10 +1275,43 @@ BEGIN
 END;
 $$;
 
+-- 5.7 Política de Validação da Equipe (WhatsApp, E-mail ou Ambos)
+CREATE OR REPLACE FUNCTION public.alternar_tipo_validacao_equipe(
+  p_empresa_id     UUID,
+  p_tipo_validacao TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin']) OR public.is_superadmin()) THEN
+      RAISE EXCEPTION 'Apenas administradores podem alterar a política de identificação da equipe.';
+    END IF;
+  END IF;
+
+  IF p_tipo_validacao NOT IN ('whatsapp', 'email', 'ambos') THEN
+    RAISE EXCEPTION 'Tipo de validação inválido. Escolha "whatsapp", "email" ou "ambos".';
+  END IF;
+
+  UPDATE public.empresas
+  SET tipo_validacao_equipe = p_tipo_validacao
+  WHERE id = p_empresa_id;
+
+  RETURN TRUE;
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.adicionar_corretor_equipe(UUID, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.adicionar_corretor_equipe(UUID, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.adicionar_corretor_equipe(
   p_empresa_id UUID,
   p_nome       TEXT,
-  p_whatsapp   TEXT
+  p_whatsapp   TEXT DEFAULT NULL,
+  p_email      TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -1096,9 +1319,11 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_novo RECORD;
-  v_zap_limpo TEXT := regexp_replace(COALESCE(p_whatsapp, ''), '[^0-9]', '', 'g');
+  v_zap_limpo      TEXT := regexp_replace(COALESCE(p_whatsapp, ''), '[^0-9]', '', 'g');
+  v_email_limpo    TEXT := lower(trim(COALESCE(p_email, '')));
   v_nome_existente TEXT;
+  v_tipo_validacao TEXT;
+  v_novo           RECORD;
 BEGIN
   IF auth.uid() IS NOT NULL THEN
     IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
@@ -1106,22 +1331,77 @@ BEGIN
     END IF;
   END IF;
 
-  IF length(v_zap_limpo) < 10 THEN
-    RAISE EXCEPTION 'WhatsApp inválido. Informe o número com DDD.';
+  IF trim(COALESCE(p_nome, '')) = '' THEN
+    RAISE EXCEPTION 'O nome completo do colaborador é obrigatório.';
   END IF;
 
-  SELECT nome INTO v_nome_existente
-  FROM public.equipe_corretores
-  WHERE empresa_id = p_empresa_id
-    AND regexp_replace(whatsapp, '[^0-9]', '', 'g') = v_zap_limpo
-  LIMIT 1;
+  SELECT COALESCE(tipo_validacao_equipe, 'whatsapp')
+  INTO v_tipo_validacao
+  FROM public.empresas
+  WHERE id = p_empresa_id;
 
-  IF v_nome_existente IS NOT NULL THEN
-    RAISE EXCEPTION 'Este WhatsApp já está cadastrado para o corretor "%".', v_nome_existente;
+  IF length(v_zap_limpo) IN (12, 13) AND v_zap_limpo LIKE '55%' THEN
+    v_zap_limpo := substr(v_zap_limpo, 3);
   END IF;
 
-  INSERT INTO public.equipe_corretores (empresa_id, nome, whatsapp, ativo)
-  VALUES (p_empresa_id, trim(p_nome), trim(p_whatsapp), true)
+  IF v_tipo_validacao = 'whatsapp' THEN
+    IF length(v_zap_limpo) < 10 THEN
+      RAISE EXCEPTION 'WhatsApp inválido. Informe o número com DDD.';
+    END IF;
+  ELSIF v_tipo_validacao = 'email' THEN
+    IF v_email_limpo = '' OR v_email_limpo NOT LIKE '%_@__%.__%' THEN
+      RAISE EXCEPTION 'E-mail corporativo inválido. Informe um endereço válido.';
+    END IF;
+  ELSIF v_tipo_validacao = 'ambos' THEN
+    IF length(v_zap_limpo) < 10 THEN
+      RAISE EXCEPTION 'WhatsApp obrigatório. Informe o número com DDD.';
+    END IF;
+    IF v_email_limpo = '' OR v_email_limpo NOT LIKE '%_@__%.__%' THEN
+      RAISE EXCEPTION 'E-mail corporativo obrigatório. Informe um endereço válido.';
+    END IF;
+  ELSE
+    IF length(v_zap_limpo) < 10 AND (v_email_limpo = '' OR v_email_limpo NOT LIKE '%_@__%.__%') THEN
+      RAISE EXCEPTION 'Informe um WhatsApp ou E-mail válido para cadastrar o colaborador.';
+    END IF;
+  END IF;
+
+  IF length(v_zap_limpo) >= 10 THEN
+    SELECT nome INTO v_nome_existente
+    FROM public.equipe_corretores
+    WHERE empresa_id = p_empresa_id
+      AND regexp_replace(regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+    LIMIT 1;
+
+    IF v_nome_existente IS NOT NULL THEN
+      RAISE EXCEPTION 'Este WhatsApp já está cadastrado para o colaborador "%". Cada membro deve ter um número único.', v_nome_existente;
+    END IF;
+  END IF;
+
+  IF v_email_limpo <> '' THEN
+    SELECT nome INTO v_nome_existente
+    FROM public.equipe_corretores
+    WHERE empresa_id = p_empresa_id
+      AND lower(trim(COALESCE(email, ''))) = v_email_limpo
+    LIMIT 1;
+
+    IF v_nome_existente IS NOT NULL THEN
+      RAISE EXCEPTION 'Este e-mail já está cadastrado para o colaborador "%". Cada membro deve ter um e-mail único.', v_nome_existente;
+    END IF;
+  END IF;
+
+  INSERT INTO public.equipe_corretores (
+    empresa_id,
+    nome,
+    whatsapp,
+    email,
+    ativo
+  ) VALUES (
+    p_empresa_id,
+    trim(p_nome),
+    NULLIF(trim(COALESCE(p_whatsapp, '')), ''),
+    NULLIF(v_email_limpo, ''),
+    true
+  )
   RETURNING * INTO v_novo;
 
   RETURN to_jsonb(v_novo);
@@ -1173,6 +1453,93 @@ BEGIN
   WHERE id = p_corretor_id AND empresa_id = p_empresa_id;
 
   RETURN TRUE;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.editar_corretor_equipe(
+  p_corretor_id UUID,
+  p_empresa_id  UUID,
+  p_nome        TEXT,
+  p_whatsapp    TEXT DEFAULT NULL,
+  p_email       TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_zap_limpo   TEXT;
+  v_email_limpo TEXT;
+  v_nome_limpo  TEXT;
+  v_atualizado  RECORD;
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
+      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
+    END IF;
+  END IF;
+
+  v_nome_limpo := trim(p_nome);
+  IF length(v_nome_limpo) < 2 THEN
+    RAISE EXCEPTION 'O nome deve ter pelo menos 2 caracteres.';
+  END IF;
+
+  IF p_whatsapp IS NOT NULL AND trim(p_whatsapp) <> '' THEN
+    v_zap_limpo := regexp_replace(p_whatsapp, '[^0-9]', '', 'g');
+    IF length(v_zap_limpo) IN (12, 13) AND v_zap_limpo LIKE '55%' THEN
+      v_zap_limpo := substr(v_zap_limpo, 3);
+    END IF;
+    IF length(v_zap_limpo) < 10 OR length(v_zap_limpo) > 11 THEN
+      RAISE EXCEPTION 'WhatsApp inválido. Digite o DDD e o número (10 ou 11 dígitos).';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1 FROM public.equipe_corretores
+      WHERE empresa_id = p_empresa_id
+        AND id <> p_corretor_id
+        AND regexp_replace(regexp_replace(whatsapp, '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+    ) THEN
+      RAISE EXCEPTION 'Este número de WhatsApp já está cadastrado para outro colaborador nesta empresa.';
+    END IF;
+  ELSE
+    v_zap_limpo := NULL;
+  END IF;
+
+  IF p_email IS NOT NULL AND trim(p_email) <> '' THEN
+    v_email_limpo := lower(trim(p_email));
+    IF length(v_email_limpo) < 5 OR v_email_limpo NOT LIKE '%@%.%' THEN
+      RAISE EXCEPTION 'E-mail corporativo inválido.';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1 FROM public.equipe_corretores
+      WHERE empresa_id = p_empresa_id
+        AND id <> p_corretor_id
+        AND lower(trim(email)) = v_email_limpo
+    ) THEN
+      RAISE EXCEPTION 'Este e-mail corporativo já está cadastrado para outro colaborador nesta empresa.';
+    END IF;
+  ELSE
+    v_email_limpo := NULL;
+  END IF;
+
+  UPDATE public.equipe_corretores
+  SET
+    nome = v_nome_limpo,
+    whatsapp = CASE 
+      WHEN v_zap_limpo IS NOT NULL THEN trim(p_whatsapp) 
+      ELSE NULL 
+    END,
+    email = v_email_limpo
+  WHERE id = p_corretor_id AND empresa_id = p_empresa_id
+  RETURNING * INTO v_atualizado;
+
+  IF v_atualizado.id IS NULL THEN
+    RAISE EXCEPTION 'Colaborador não encontrado.';
+  END IF;
+
+  RETURN to_jsonb(v_atualizado);
 END;
 $$;
 

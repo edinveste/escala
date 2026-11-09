@@ -443,6 +443,121 @@ npm run build
     2. `TenantContext.jsx`: Implementado padrão *Stale-While-Revalidate* — se a empresa já está carregada em memória (`empresaRef.current`), jamais aciona `setLoading(true)` bloqueante. Compara `targetKey` e evita refetch fantasma ao alternar foco de abas.
     3. `App.jsx`: A tela de carregamento cheia agora só é exibida na primeira carga absoluta (`tenantLoading && !empresa`). O carregamento de turnos/pontos passa a ser silencioso (`isSilent = true`) quando dados já existem em tela (`loading && pontos.length === 0`), garantindo transição 100% suave e sem nenhum piscar.
 
+---
+
+## 12. Fluxo de Recuperação e Correção de Identidade no Modo Contra Invasores (Novembro/2026)
+- **Problema de UX e Dead-End Identificado**:
+  - Quando o modo contra invasores (`exigir_cadastro_previo`) estava ativo e um corretor digitava um WhatsApp com erro de digitação ou ainda não autorizado pela coordenação, o sistema salvava o nome e WhatsApp no `localStorage`.
+  - Ao receber o erro da RPC `reservar_vaga` (*"Acesso restrito: Seu cadastro não foi encontrado na equipe desta imobiliária"*), o modal já havia fechado.
+  - Ao clicar novamente em "Garantir Vaga" para tentar digitar outro número, o sistema verificava que `corretorNome` e `corretorWhatsapp` já existiam em memória/localStorage, pulando a abertura do `NomeModal` e reenviando em loop infinito os mesmos dados rejeitados, travando o usuário sem opção de corrigir o telefone.
+- **Solução Implementada (Engenharia Preventiva & Zero-Atrito)**:
+  1. **Reabertura Automática com Feedback Contextual (`NomeModal.jsx` & `App.jsx`)**:
+     - Ao detectar a exceção de acesso restrito / não autorizado, o sistema agora seta a flag `cadastroNaoAutorizado = true` e **reabre imediatamente o `NomeModal`** com os dados previamente digitados, destacando um alerta explicativo amigável em vermelho/âmbar dentro do modal.
+     - O campo de WhatsApp recebe foco e seleção automática (`.select()`) para que o usuário possa corrigir o DDD ou os dígitos com zero atrito.
+  2. **Intercepção Preventiva no Clique (`handleReservar` em `App.jsx`)**:
+     - Se `cadastroNaoAutorizado` for `true`, qualquer clique futuro em "Garantir Vaga" abre diretamente o `NomeModal` com mensagem de correção, em vez de reenviar a requisição rejeitada ao banco de dados.
+  3. **Botão Universal "Alterar meus dados" e Card de Correção (`CorretorView.jsx` — `CorretorIdentityHeader`)**:
+     - Criado o componente modular `CorretorIdentityHeader` presente tanto na tela de seleção de pontos quanto no quadro de horários.
+     - Exibe a saudação limpa apenas com o nome (`Olá, Nome 👋`) e um botão discreto minimalista com ícone de lápis (`Pencil`), sem expor o número de telefone na linha e sem texto longo no botão.
+     - Se o cadastro estiver pendente de autorização (`cadastroNaoAutorizado === true`), exibe um card de alerta destacado com o botão de 1 clique **"Corrigir número agora"**.
+  4. **Atualização Reativa de Identidade**:
+     - Ao submeter o formulário sem pendência de vaga (edição voluntária), salva no `localStorage`, reseta os erros e emite o toast *"Identificação atualizada com sucesso! ✅"*.
+     - Se houver turno pendente, prossegue automaticamente para garantir a vaga com os dados corrigidos.
+
+---
+
+## 13. Proteção Contra Múltiplos Usuários com o Mesmo Telefone & Anti-Spoofing (Fase 6 — Novembro/2026)
+- **Problema Identificado**:
+  - Usuários conseguiam cadastrar múltiplos nomes diferentes na escala utilizando o mesmo número de WhatsApp.
+  - No Modo Contra Invasores, se um número estivesse na equipe autorizada (ex: "Carlos Silva"), qualquer pessoa poderia digitar outro nome (ex: "Usuario 1", "Usuario 2") e o sistema salvava reservas com esses nomes avulsos, pois a RPC apenas checava se o telefone existia na equipe, mas não amarrava a reserva ao nome oficial do membro.
+  - Além disso, a verificação de duplicidade de reserva no mesmo turno checava apenas `device_id`, permitindo que um mesmo telefone reservasse múltiplas vagas no mesmo turno usando navegadores diferentes ou alterando os dados.
+- **Solução Implementada (Frontend & Backend)**:
+  1. **Script de Migração SQL (`supabase_migration_fase6_telefone_unico.sql`)**:
+     - **Vínculo Estrito com Nome Oficial**: No Modo Contra Invasores, a RPC `reservar_vaga` agora busca o membro oficial na `equipe_corretores` e força `v_nome_final := v_nome_oficial`. Ninguém consegue forjar nomes avulsos com o telefone de outro corretor.
+     - **Regra de Telefone Único por Empresa**: A RPC impede que um mesmo WhatsApp seja associado a nomes diferentes na mesma empresa em `reservas`. Se o telefone já estiver em uso por outro corretor, bloqueia com mensagem explicativa.
+     - **Trava de Turno Completa**: A verificação de vaga duplicada no mesmo turno agora checa `device_id`, `corretor_whatsapp` (dígitos limpos) e `corretor_nome`, impedindo que o mesmo telefone reserve mais de uma vaga no mesmo horário.
+     - **Índice Único em `equipe_corretores`**: Criado índice único `idx_equipe_corretores_empresa_zap_unico` para impedir cadastros duplicados do mesmo telefone na equipe.
+  2. **Identificação Inteligente Reativa no Frontend (`NomeModal.jsx`)**:
+     - Campo de WhatsApp posicionado como identificador primário no formulário.
+     - Ao digitar o WhatsApp (10-11 dígitos), o modal consulta a equipe em tempo real:
+       - Se autorizado: preenche automaticamente o Nome com o registro oficial, bloqueia o campo contra alterações maliciosas (`readOnly`) e exibe badge verde: *"✓ Cadastro autorizado: [Nome]"*.
+       - Se a empresa exigir cadastro e o número não for encontrado: exibe aviso em tempo real e desabilita o botão de confirmação.
+       - Se não exigir cadastro prévio mas o telefone já pertencer a outro corretor na escala: alerta sobre o conflito e impede a apropriação indevida do telefone.
+  3. **Normalização de DDI 55 (`EquipeManager.jsx` & RPCs)**:
+     - Normalização inteligente que remove DDI `55` em números de 12 ou 13 dígitos, garantindo consistência absoluta nas comparações.
+
+---
+
+## 14. Validação por E-mail Corporativo e Flexibilidade de Identificação (Fase 7 — Novembro/2026)
+- **Motivação e Generalização**:
+  - A plataforma expandiu para múltiplos nichos e segmentos de mercado (saúde, eventos, varejo, corporate, etc.) onde o uso de **E-mail Corporativo/Institucional** é prioritário ou complementar ao WhatsApp.
+  - Substituição da nomenclatura restritiva de *"corretor"* por **"colaborador"** / **"membro"**, mantendo a identidade universal em todos os fluxos.
+- **Solução Implementada (Arquitetura Limpa e Componentizada)**:
+  1. **Script de Migração SQL (`supabase_migration_fase7_validacao_email.sql` e sincronizado em `supabase_schema.sql`)**:
+     - **Coluna `tipo_validacao_equipe`** em `empresas` (`'whatsapp'`, `'email'`, `'ambos'`, default `'whatsapp'`).
+     - **Coluna `email`** em `equipe_corretores` com busca case-insensitive (`idx_equipe_corretores_email_lower`) e índice único parcial (`idx_equipe_corretores_empresa_email_unico`).
+     - **Flexibilização da Tabela**: `whatsapp` em `equipe_corretores` passa a permitir `NULL` para empresas que operam exclusivamente com e-mail corporativo.
+     - **Coluna `corretor_email`** na tabela `reservas` para auditoria e rastreamento completo de identidade.
+     - **RPC `alternar_tipo_validacao_equipe`**: Permite aos administradores alterar com segurança a política de identificação do tenant.
+     - **RPC `adicionar_corretor_equipe`**: Aceita WhatsApp e/ou E-mail, aplicando regras de obrigatoriedade e checagem de duplicidade no banco.
+     - **RPC `reservar_vaga`**: Valida a equipe autorizada conforme o modo configurado (`'whatsapp'`, `'email'` ou `'ambos'`), aplica proteção anti-spoofing em reservas e amarra o registro ao nome oficial.
+     - **RPC `cancelar_vaga`**: Suporte a cancelamento seguro por `device_id`, WhatsApp ou E-mail.
+  2. **Módulos Utilitários e Hooks Dedicados (`src/lib/validacaoHelper.js` & `src/hooks/useVerificacaoIdentidade.js`)**:
+     - `validacaoHelper.js`: Funções puras de validação, normalização e metadados das opções de validação.
+     - `useVerificacaoIdentidade.js`: Hook desacoplado com consulta reativa e debounced (220ms) na equipe e em reservas.
+  3. **Componentes Modulares sem Inflar Arquivos Existentes**:
+     - `TipoValidacaoSelector.jsx`: Seletor touch-friendly para o gestor alternar entre WhatsApp, E-mail Corporativo e Ambos.
+     - `AdicionarMembroForm.jsx`: Submódulo dedicado no `EquipeManager.jsx` com campos adaptáveis conforme a política ativa.
+     - `IdentificacaoCampos.jsx`: Submódulo para o `NomeModal.jsx` renderizando os campos e feedbacks de validação em tempo real.
+  4. **Integração no Fluxo de Reserva (`App.jsx`, `CorretorView.jsx`, `TurnoCard.jsx`)**:
+     - Detecção inteligente de campos pendentes antes de abrir o modal.
+     - Persistência no `localStorage` de `escala_corretor_email`.
+     - Identificação de reservas próprias no `TurnoCard` contemplando `corretor_email`.
+
+---
+
+## 15. Trava Estrita de Identidade por Aparelho e Anti-Sabotagem (Fase 8 — Novembro/2026)
+- **Problema de Sabotagem Identificado (Concorrência Interna / Amigos com Má Intenção)**:
+  - Como o WhatsApp ou e-mail corporativo de um colega é de conhecimento público entre os membros da equipe, um colaborador mal-intencionado poderia digitar o telefone/e-mail de outro colega em seu próprio celular.
+  - Isso permitia duas ações indevidas:
+    1. **Cancelamento indevido**: O colega conseguia ver o botão vermelho *"Cancelar Minha Vaga"* e liberar a vaga do outro.
+    2. **Reserva indevida / Falsidade de identidade**: O colega conseguia garantir vagas em horários indesejados ou bloquear plantões fingindo ser outra pessoa.
+- **Solução Implementada (Arquitetura 100% Zero-Atrito com Trava de Hardware/Device ID)**:
+  1. **Script de Migração SQL (`supabase_migration_fase8_vinculo_aparelho.sql` e sincronizado em `supabase_schema.sql`)**:
+     - **Coluna `device_id`** adicionada na tabela `equipe_corretores` com índice rápido.
+     - **Vínculo Automático no 1º Uso**: Na primeira vez que o colaborador reserva uma vaga utilizando seu WhatsApp ou E-mail, a RPC `reservar_vaga` grava seu `device_id` no cadastro oficial da equipe.
+     - **Bloqueio Transacional de Aparelhos Terceiros**: Se outro aparelho tentar reservar utilizando o WhatsApp ou E-mail do colega, a RPC barra imediatamente: *"Acesso bloqueado: Este cadastro já está vinculado a outro aparelho celular. Por segurança, cada colaborador deve acessar pelo seu próprio aparelho."*.
+     - **Cancelamento Estritamente por `device_id`**: A RPC `cancelar_vaga` exige estritamente `device_id = p_device_id`. Ninguém em outro aparelho consegue cancelar a vaga de um colega.
+     - **RPC `desvincular_aparelho_corretor`**: Permite aos administradores e coordenadores desvincular o aparelho de um colaborador com 1 clique caso ele tenha trocado de celular ou formatado o navegador.
+  2. **Intercepção em Tempo Real no Frontend (`useVerificacaoIdentidade.js` & `NomeModal.jsx`)**:
+     - Ao digitar o WhatsApp/E-mail de um colega cujo cadastro já tem aparelho vinculado, o modal acusa em tempo real: *"Acesso bloqueado: Este cadastro já está vinculado a outro aparelho celular..."* e desabilita o botão de confirmação.
+  3. **Visualização no Painel do Gestor (`EquipeManager.jsx`)**:
+     - Badge visual *"Celular vinculado 📱"* em colaboradores que já registraram seu aparelho.
+     - Botão de ação rápida de **Smartphone** com confirmação (`useConfirm`) para desvincular o celular quando necessário.
+  4. **Frontend Público (`TurnoCard.jsx` e `CorretorView.jsx`)**:
+     - O botão *"Cancelar Minha Vaga"* e a etiqueta *"VOCÊ"* aparecem exclusivamente no aparelho físico que realizou a reserva (`r.device_id === deviceId`), eliminando qualquer risco de cancelamento acidental ou sabotagem entre colegas.
+
+---
+
+## 16. Edição de Colaboradores e Resolução de Pendências (Fase 9 — Novembro/2026)
+- **Problema de UX e Gestão de Dados**:
+  - Quando a imobiliária mudava a política de identificação para E-mail ou Ambos, membros cadastrados anteriormente ficavam com *"E-mail pendente"*, porém não havia interface para editar os dados do colaborador sem ter que excluí-lo e recriá-lo.
+- **Solução Implementada**:
+  1. **Script de Migração SQL (`supabase_migration_fase9_editar_colaborador.sql` e sincronizado em `supabase_schema.sql`)**:
+     - **RPC `editar_corretor_equipe`**: Atualiza `nome`, `whatsapp` e `email` com checagem de permissões (`has_empresa_role`), validação de formato e garantia de unicidade (anti-duplicidade) em relação a outros membros da empresa.
+  2. **Componente Modular `EditarMembroModal.jsx`**:
+     - Modal com foco em edição de dados do colaborador (Nome Completo, WhatsApp e E-mail Corporativo).
+     - Alerta visual contextual para preenchimento de campos pendentes exigidos pela empresa.
+     - Suporte a desvincular aparelho celular diretamente do modal quando aplicável.
+  3. **Integração no `EquipeManager.jsx`**:
+     - Botão de ação com ícone de lápis (`Pencil`) em cada colaborador da lista.
+     - Badge interativa *"E-mail pendente"* clicável com atalho direto de 1 clique para abrir o modal de edição e incluir o e-mail faltante.
+  4. **Blindagem do Frontend Público (`CorretorView.jsx`)**:
+     - Remoção do botão de lápis ("Alterar meus dados") ao lado da saudação `Olá, [Nome] 👋` do colaborador.
+     - Uma vez identificado e validado na equipe, os dados ficam fixos e blindados no aparelho do colaborador. Alterações cadastrais de nome, telefone e e-mail passam a ser de gestão exclusiva da coordenação via painel do gestor, impedindo troca indevida de identidade ou usurpação de cadastro entre colegas.
+
+
+
 
 
 
