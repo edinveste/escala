@@ -19,7 +19,7 @@ export default function TenantBlockedView({ onOpenAdminLogin }) {
   // Link de suporte para regularização
   const handleContatarSuporte = () => {
     const texto = encodeURIComponent(
-      `Olá! Sou da imobiliária "${empresa?.nome || ''}" (slug: ${empresa?.slug || ''}) e gostaria de regularizar a assinatura do EscalaFácil.`
+      `Olá! Sou da empresa "${empresa?.nome || ''}" (slug: ${empresa?.slug || ''}) e gostaria de regularizar a assinatura do EscalaFácil.`
     )
     const zap = import.meta.env.VITE_WHATSAPP_SUPORTE || '5511999999999'
     window.open(`https://wa.me/${zap}?text=${texto}`, '_blank')
@@ -39,20 +39,20 @@ export default function TenantBlockedView({ onOpenAdminLogin }) {
             Acesso Temporariamente Suspenso
           </span>
           <h2 className="text-xl sm:text-2xl font-bold text-gray-100 mt-3 truncate">
-            {empresa?.nome || 'Imobiliária'}
+            {empresa?.nome || 'Empresa'}
           </h2>
           <p className="text-xs sm:text-sm text-gray-400 mt-2">
-            A escala de plantões e captação desta imobiliária está temporariamente indisponível.
+            A escala de vagas desta empresa está temporariamente indisponível.
           </p>
         </div>
 
-        {/* Mensagem Contextual para Corretores */}
+        {/* Mensagem Contextual para a Equipe */}
         <div className="p-3.5 rounded-2xl bg-surface-900/80 border border-surface-700/60 text-left text-xs space-y-1.5">
           <p className="font-semibold text-gray-300">
-            📌 Informação aos corretores:
+            📌 Informação à equipe:
           </p>
           <p className="text-gray-400 text-[11px] leading-relaxed">
-            As vagas e turnos estão pausados no momento. Por favor, entre em contato com a coordenação ou diretoria da sua imobiliária para liberação da escala.
+            As vagas e horários estão pausados no momento. Por favor, entre em contato com a coordenação ou diretoria para liberação da escala.
           </p>
         </div>
 
@@ -75,7 +75,7 @@ export default function TenantBlockedView({ onOpenAdminLogin }) {
               className="w-full py-2.5 px-4 rounded-xl text-xs font-medium text-gray-300 bg-surface-700/60 hover:bg-surface-700 border border-surface-600 transition-colors flex items-center justify-center gap-2"
             >
               <KeyRound className="w-3.5 h-3.5 text-gray-400" />
-              Sou o Gestor desta Imobiliária
+              Sou o Gestor desta Empresa
             </button>
           )}
 
@@ -84,7 +84,7 @@ export default function TenantBlockedView({ onOpenAdminLogin }) {
             onClick={() => switchTenant('demo')}
             className="w-full btn-ghost py-2.5 text-xs text-gray-400 hover:text-gray-200 flex items-center justify-center gap-1.5"
           >
-            Acessar Imobiliária de Demonstração
+            Acessar Escala de Demonstração
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -92,7 +92,7 @@ export default function TenantBlockedView({ onOpenAdminLogin }) {
         {/* Rodapé */}
         <div className="pt-3 border-t border-surface-700/60 text-[11px] text-gray-500 flex items-center justify-center gap-1.5">
           <Sparkles className="w-3 h-3 text-brand-400" />
-          EscalaFácil • Gestão Inteligente de Plantões
+          EscalaFácil • Gestão Inteligente de Escalas e Vagas
         </div>
       </div>
     </div>

@@ -82,7 +82,7 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast, empresaI
 
         if (!rpcError && typeof sucessoRpc === 'boolean') {
           if (sucessoRpc) {
-            showToast('Senha da imobiliária alterada com sucesso! Guarde a nova senha. 🔐', 'success')
+            showToast('Senha administrativa alterada com sucesso! Guarde a nova senha. 🔐', 'success')
             onClose()
             return
           } else {
@@ -187,7 +187,7 @@ export default function AlterarSenhaModal({ isOpen, onClose, showToast, empresaI
                 Alterar Senha do Admin
               </h3>
               <p className="text-xs text-gray-400">
-                Defina um novo PIN de acesso para esta imobiliária
+                Defina uma nova senha ou PIN de acesso para a administração
               </p>
             </div>
           </div>

@@ -21,12 +21,39 @@ export default function GestoresManager({
   isFullAdmin = true,
   currentUserId,
   showToast,
+  termos,
 }) {
   const confirm = useConfirm()
 
   const [gestores, setGestores] = useState([])
   const [loading, setLoading] = useState(true)
-  const [isExpanded, setIsExpanded] = useState(true)
+
+  // Chave de persistência de preferência (por empresa)
+  const STORAGE_KEY_GESTORES_EXPANDED = empresaId
+    ? `escala_gestores_expanded_${empresaId}`
+    : 'escala_gestores_expanded'
+
+  // Por padrão recolhido (fechado), restaurando a preferência do usuário se houver
+  const [isExpanded, setIsExpanded] = useState(() => {
+    try {
+      const salvo = localStorage.getItem(STORAGE_KEY_GESTORES_EXPANDED)
+      if (salvo !== null) {
+        return JSON.parse(salvo)
+      }
+    } catch (err) {
+      console.error('Erro ao ler preferência de gestores expandidos:', err)
+    }
+    return false
+  })
+
+  // Salva no localStorage sempre que o usuário alternar
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_GESTORES_EXPANDED, JSON.stringify(isExpanded))
+    } catch (err) {
+      console.error('Erro ao salvar preferência de gestores expandidos:', err)
+    }
+  }, [isExpanded, STORAGE_KEY_GESTORES_EXPANDED])
 
   // Formulário de novo membro
   const [novoEmail, setNovoEmail] = useState('')
@@ -134,7 +161,7 @@ export default function GestoresManager({
         return
       }
 
-      const roleNome = novoRole === 'admin' ? 'Administrador Geral' : 'Coordenador de Plantão'
+      const roleNome = novoRole === 'admin' ? 'Administrador Geral' : 'Coordenador da Escala'
       if (data?.status === 'convidado') {
         showToast(
           `Convite prévio salvo para "${emailLimpo}"! Ao criar a conta, o acesso será liberado automaticamente. ✉️`,
@@ -149,7 +176,7 @@ export default function GestoresManager({
       fetchGestores()
     } catch (err) {
       console.error('Erro ao vincular gestor:', err)
-      showToast('Erro ao vincular gestor à imobiliária.', 'error')
+      showToast('Erro ao vincular gestor à empresa.', 'error')
     } finally {
       setAdicionando(false)
     }
@@ -191,7 +218,7 @@ export default function GestoresManager({
     const papelLabel = gestor.role === 'admin' ? 'Administrador' : 'Coordenador'
     const ok = await confirm({
       title: 'Remover acesso?',
-      message: `Tem certeza que deseja remover o acesso de ${papelLabel} de "${gestor.nome || gestor.email}"?\n\nEsta pessoa perderá o acesso administrativo a esta imobiliária imediatamente.`,
+      message: `Tem certeza que deseja remover o acesso de ${papelLabel} de "${gestor.nome || gestor.email}"?\n\nEsta pessoa perderá o acesso administrativo à empresa imediatamente.`,
       confirmText: 'Remover Acesso',
       cancelText: 'Cancelar',
       variant: 'danger',
@@ -243,7 +270,7 @@ export default function GestoresManager({
               </span>
             </div>
             <p className="text-xs text-gray-400">
-              Controle quem pode acessar o painel administrativo desta imobiliária.
+              Controle quem pode acessar o painel administrativo da empresa.
             </p>
           </div>
         </div>
@@ -281,10 +308,10 @@ export default function GestoresManager({
             <Info className="w-4 h-4 text-brand-400 flex-shrink-0 mt-0.5" />
             <div className="space-y-1 leading-relaxed">
               <p>
-                <strong className="text-gray-100">Coordenador / Gestor de Plantão:</strong> pode incluir e remover corretores dos plantões e visualizar turnos, mas <em>não pode excluir pontos nem alterar configurações globais</em>.
+                <strong className="text-gray-100">Coordenador / Gestor da Escala:</strong> pode incluir e remover {termos?.pessoas ? termos.pessoas.toLowerCase() : 'participantes'} dos horários e acompanhar vagas, mas <em>não pode excluir {termos?.pontos ? termos.pontos.toLowerCase() : 'locais'} nem alterar configurações globais</em>.
               </p>
               <p>
-                <strong className="text-gray-100">Admin da Imobiliária:</strong> possui permissão irrestrita (criação e exclusão de pontos, senhas e gestão de equipe).
+                <strong className="text-gray-100">Administrador:</strong> possui permissão irrestrita (criação e exclusão de {termos?.pontos ? termos.pontos.toLowerCase() : 'locais'}, senhas e gestão de equipe).
               </p>
             </div>
           </div>
@@ -310,7 +337,7 @@ export default function GestoresManager({
                     type="email"
                     value={novoEmail}
                     onChange={(e) => setNovoEmail(e.target.value)}
-                    placeholder="coordenador@imobiliaria.com"
+                    placeholder="gestor@empresa.com"
                     className="input-field w-full text-xs py-2 pl-9 pr-3"
                     required
                   />
@@ -326,8 +353,8 @@ export default function GestoresManager({
                   onChange={(e) => setNovoRole(e.target.value)}
                   className="input-field w-full text-xs py-2 px-3 appearance-none"
                 >
-                  <option value="gestor">Coordenador (Plantões)</option>
-                  <option value="admin">Admin (Acesso Total)</option>
+                  <option value="gestor">Coordenador (Gestão de Vagas)</option>
+                  <option value="admin">Administrador (Acesso Total)</option>
                 </select>
               </div>
             </div>
@@ -335,7 +362,7 @@ export default function GestoresManager({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
               <p className="text-[11px] text-gray-400 flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-brand-400 flex-shrink-0" />
-                Se o coordenador ainda não tiver conta, o acesso será ativado automaticamente assim que ele se cadastrar.
+                Se o gestor ainda não tiver conta, o acesso será ativado automaticamente assim que ele se cadastrar.
               </p>
 
               <button
@@ -351,7 +378,7 @@ export default function GestoresManager({
                 ) : (
                   <>
                     <UserPlus className="w-3.5 h-3.5" />
-                    Vincular à Imobiliária
+                    Vincular Gestor
                   </>
                 )}
               </button>
@@ -366,7 +393,7 @@ export default function GestoresManager({
 
             {loading ? (
               <div className="text-center py-4 text-xs text-gray-500">
-                Carregando membros da imobiliária...
+                Carregando membros da equipe...
               </div>
             ) : gestores.length === 0 ? (
               <div className="text-center py-4 rounded-xl bg-surface-800/40 border border-surface-700/50 text-xs text-gray-500">
@@ -415,12 +442,12 @@ export default function GestoresManager({
                             ) : g.role === 'admin' ? (
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 flex items-center gap-1">
                                 <Shield className="w-3 h-3 text-brand-400" />
-                                Admin da Imobiliária
+                                Administrador
                               </span>
                             ) : (
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                                 <UserCheck className="w-3 h-3 text-emerald-400" />
-                                Gestor de Plantão
+                                Gestor da Escala
                               </span>
                             )}
                           </div>

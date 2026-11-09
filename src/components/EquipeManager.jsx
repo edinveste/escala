@@ -44,7 +44,33 @@ export default function EquipeManager({
   const [equipe, setEquipe] = useState([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
-  const [isExpanded, setIsExpanded] = useState(false)
+
+  // Chave de persistência de preferência (por empresa)
+  const STORAGE_KEY_EQUIPE_EXPANDED = empresaId
+    ? `escala_equipe_expanded_${empresaId}`
+    : 'escala_equipe_expanded'
+
+  // Por padrão recolhido (fechado), restaurando a preferência do usuário se houver
+  const [isExpanded, setIsExpanded] = useState(() => {
+    try {
+      const salvo = localStorage.getItem(STORAGE_KEY_EQUIPE_EXPANDED)
+      if (salvo !== null) {
+        return JSON.parse(salvo)
+      }
+    } catch (err) {
+      console.error('Erro ao ler preferência de equipe expandida:', err)
+    }
+    return false
+  })
+
+  // Salva no localStorage sempre que o usuário alternar
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_EQUIPE_EXPANDED, JSON.stringify(isExpanded))
+    } catch (err) {
+      console.error('Erro ao salvar preferência de equipe expandida:', err)
+    }
+  }, [isExpanded, STORAGE_KEY_EQUIPE_EXPANDED])
 
   // Formulário de adição
   const [nome, setNome] = useState('')
@@ -233,15 +259,15 @@ export default function EquipeManager({
       setEquipe((prev) => [...prev, novoCorretor].sort((a, b) => a.nome.localeCompare(b.nome)))
       setNome('')
       setWhatsapp('')
-      showToast(`Corretor "${nomeLimpo}" cadastrado na equipe! ✅`, 'success')
+      showToast(`"${nomeLimpo}" cadastrado(a) na equipe! ✅`, 'success')
     } catch (err) {
-      console.error('Erro ao cadastrar corretor:', err)
+      console.error('Erro ao cadastrar:', err)
       if (err.message?.includes('já está cadastrado') || err.message?.includes('idx_equipe_corretores') || err.code === '23505') {
-        showToast(err.message || 'Este número de WhatsApp já está cadastrado nesta imobiliária.', 'warning')
+        showToast(err.message || 'Este número de WhatsApp já está cadastrado nesta equipe.', 'warning')
       } else if (err.message?.includes('does not exist') || err.code === '42P01') {
         showToast('Tabela "equipe_corretores" ausente no banco. Execute a migração SQL no Supabase.', 'error')
       } else {
-        showToast('Erro ao cadastrar corretor na equipe.', 'error')
+        showToast('Erro ao cadastrar na equipe.', 'error')
       }
     } finally {
       setAdicionando(false)
@@ -545,8 +571,8 @@ export default function EquipeManager({
             ) : equipeFiltrada.length === 0 ? (
               <div className="py-6 text-center text-xs text-gray-400 italic bg-surface-900/40 rounded-xl border border-surface-700/50">
                 {busca.trim()
-                  ? 'Nenhum corretor encontrado para a busca informada.'
-                  : 'Nenhum corretor cadastrado na equipe desta imobiliária ainda.'}
+                  ? `Nenhum ${termos?.pessoa?.toLowerCase() || 'membro'} encontrado para a busca informada.`
+                  : `Nenhum ${termos?.pessoa?.toLowerCase() || 'membro'} cadastrado na equipe autorizada ainda.`}
               </div>
             ) : (
               <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">

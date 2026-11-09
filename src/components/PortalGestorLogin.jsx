@@ -244,7 +244,7 @@ export default function PortalGestorLogin({ onSuccess, showToast, empresaId, emp
             </h2>
             <p className="text-xs sm:text-sm text-gray-400 max-w-xs mx-auto">
               {modo === 'login' && 'Área restrita para administradores e gestores de plantão.'}
-              {modo === 'cadastro' && 'Cadastre-se para gerenciar as escalas da sua imobiliária.'}
+              {modo === 'cadastro' && 'Cadastre-se para gerenciar as escalas da sua empresa.'}
               {modo === 'recuperar' && 'Informe seu e-mail para receber as instruções de redefinição.'}
               {modo === 'pin_legado' && 'Acesse utilizando o código numérico PIN da sua empresa.'}
             </p>
@@ -279,7 +279,7 @@ export default function PortalGestorLogin({ onSuccess, showToast, empresaId, emp
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="gestor@suaimobiliaria.com.br"
+                    placeholder="gestor@suaempresa.com.br"
                     required
                     className="input-field pl-10 text-sm"
                     disabled={enviando}
@@ -393,7 +393,7 @@ export default function PortalGestorLogin({ onSuccess, showToast, empresaId, emp
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="gestor@suaimobiliaria.com.br"
+                    placeholder="gestor@suaempresa.com.br"
                     required
                     className="input-field pl-10 text-sm"
                     disabled={enviando}
@@ -470,7 +470,7 @@ export default function PortalGestorLogin({ onSuccess, showToast, empresaId, emp
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="gestor@suaimobiliaria.com.br"
+                    placeholder="gestor@suaempresa.com.br"
                     required
                     className="input-field pl-10 text-sm"
                     disabled={enviando}

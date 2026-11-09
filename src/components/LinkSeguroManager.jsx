@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useConfirm } from './ConfirmModal'
 import { getPublicShareUrl } from '../lib/tenantHelper'
+import { obterTermos } from '../lib/vocabularioHelper'
 import {
   ShieldCheck,
   Copy,
@@ -23,6 +24,8 @@ export default function LinkSeguroManager({
   const confirm = useConfirm()
   const [copiado, setCopiado] = useState(false)
   const [redefinindo, setRedefinindo] = useState(false)
+
+  const termos = useMemo(() => obterTermos(empresa), [empresa])
 
   if (!empresa?.id) return null
 
@@ -54,11 +57,12 @@ export default function LinkSeguroManager({
 
   // Compartilha mensagem pronta formatada com emoji no WhatsApp
   const handleCompartilharWhatsApp = () => {
+    const titulo = (termos.textoWhatsapp || 'ESCALA').replace('📋', '').trim()
     const texto = encodeURIComponent(
-      `📋 *Escala de Plantão de Captação — ${empresa.nome}*\n\n` +
+      `📋 *${titulo} — ${empresa.nome}*\n\n` +
       `Garanta ou consulte sua vaga em tempo real no nosso link oficial:\n` +
       `👉 ${shareUrl}\n\n` +
-      `_Acesso exclusivo para os corretores autorizados da equipe._`
+      `_Acesso exclusivo para os membros autorizados da equipe._`
     )
     window.open(`https://api.whatsapp.com/send?text=${texto}`, '_blank')
   }
@@ -74,8 +78,8 @@ export default function LinkSeguroManager({
       title: 'Redefinir Link Seguro da Escala?',
       message:
         'Ao gerar um novo link de 12 caracteres, o link anterior deixará de funcionar imediatamente.\n\n' +
-        '⚠️ Corretores que utilizam o link antigo não conseguirão mais acessar a escala até receberem o novo endereço no grupo do WhatsApp.\n\n' +
-        'Utilize esta opção caso o link tenha vazado para concorrentes ou corretores tenham sido desligados da equipe.',
+        '⚠️ Membros da equipe que utilizam o link antigo não conseguirão mais acessar a escala até receberem o novo endereço no grupo do WhatsApp.\n\n' +
+        'Utilize esta opção caso o link tenha vazado para concorrentes ou colaboradores tenham sido desligados da equipe.',
       confirmText: 'Sim, Gerar Novo Link',
       cancelText: 'Cancelar',
       variant: 'warning',
@@ -125,16 +129,13 @@ export default function LinkSeguroManager({
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm sm:text-base font-bold text-gray-100 flex items-center gap-1.5 truncate">
-                Link Seguro dos Corretores
+                Link Seguro da Escala
               </h3>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 select-none">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Anti-Espionagem Ativo
               </span>
             </div>
-            <p className="text-xs text-gray-400 truncate mt-0.5">
-              Código seguro de 12 caracteres para blindar os pontos da sua empresa contra concorrentes.
-            </p>
           </div>
         </div>
 
@@ -154,41 +155,35 @@ export default function LinkSeguroManager({
       </div>
 
       {/* Barra de exibição do link e botões de ação */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1">
         <div className="relative flex-1 min-w-0">
           <input
             type="text"
             readOnly
             value={shareUrl}
             onClick={(e) => e.target.select()}
-            className="input-field text-xs sm:text-sm font-mono py-2 sm:py-2.5 pl-3 pr-20 text-gray-200 bg-surface-900 border-surface-600 select-all cursor-text"
-            aria-label="URL segura da escala de corretores"
+            className="input-field text-xs sm:text-sm font-mono py-2 sm:py-2.5 px-3 text-gray-200 bg-surface-900 border-surface-600 select-all cursor-text"
+            aria-label="URL segura da escala"
           />
-          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-            <span className="text-[10px] font-bold text-gray-500 bg-surface-800 px-1.5 py-0.5 rounded border border-surface-700">
-              {codigoAtual?.length === 12 ? '12 chars' : 'slug'}
-            </span>
-          </div>
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Botão Copiar */}
+          {/* Botão Copiar (Apenas ícone) */}
           <button
             type="button"
             onClick={handleCopiarLink}
-            className="btn-primary flex-1 sm:flex-initial py-2 sm:py-2.5 px-3 sm:px-4 text-xs font-semibold flex items-center justify-center gap-1.5 min-h-[40px] shadow-sm"
-            title="Copiar link para o WhatsApp"
+            className={`p-2 sm:p-2.5 rounded-xl border active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0 shadow-sm ${
+              copiado
+                ? 'bg-emerald-600 text-white border-emerald-500'
+                : 'bg-brand-600 hover:bg-brand-500 text-white border-brand-500'
+            }`}
+            title={copiado ? 'Link copiado!' : 'Copiar link'}
+            aria-label={copiado ? 'Link copiado!' : 'Copiar link'}
           >
             {copiado ? (
-              <>
-                <Check className="w-4 h-4 text-white" />
-                <span>Copiado!</span>
-              </>
+              <Check className="w-4 h-4 text-white" />
             ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                <span>Copiar Link</span>
-              </>
+              <Copy className="w-4 h-4" />
             )}
           </button>
 
@@ -209,8 +204,8 @@ export default function LinkSeguroManager({
             target="_blank"
             rel="noopener noreferrer"
             className="p-2 sm:p-2.5 rounded-xl text-gray-400 hover:text-gray-200 bg-surface-700/60 hover:bg-surface-700 border border-surface-600 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0"
-            title="Visualizar a escala exatamente como seus corretores a veem"
-            aria-label="Visualizar a escala do corretor em nova aba"
+            title="Visualizar a escala exatamente como sua equipe a vê"
+            aria-label="Visualizar a escala em nova aba"
           >
             <ExternalLink className="w-4 h-4" />
           </a>

@@ -10,7 +10,6 @@ import AdminView from './components/AdminView'
 import NomeModal from './components/NomeModal'
 import AdminLoginModal from './components/AdminLoginModal'
 import PortalGestorLogin from './components/PortalGestorLogin'
-import TenantSwitcherModal from './components/TenantSwitcherModal'
 import TenantNotFound from './components/TenantNotFound'
 import TenantBlockedView from './components/TenantBlockedView'
 import LandingPage from './components/LandingPage'
@@ -23,10 +22,8 @@ import {
   CalendarCheck,
   LogOut,
   Building2,
-  ChevronDown,
   AlertCircle,
   RefreshCw,
-  ExternalLink,
 } from 'lucide-react'
 
 // Gera um UUID v4 simples
@@ -62,9 +59,6 @@ export default function App() {
     signOut,
   } = useAuth()
 
-  // Modal para alternar de imobiliária / compartilhar link
-  const [showTenantSwitcher, setShowTenantSwitcher] = useState(false)
-
   // Estado de identidade do Corretor (Zero-Atrito)
   const [deviceId, setDeviceId] = useState('')
   const [corretorNome, setCorretorNome] = useState('')
@@ -88,8 +82,6 @@ export default function App() {
   const isAdminSession = isAuthorizedGestor || isPinAuth
   const userEmpresaRole = empresa?.id ? getEmpresaRole(empresa.id) : null
   const isFullAdmin = userEmpresaRole === 'admin' || isPinAuth
-  // Alternar imobiliárias é restrito a gestores em modo administrativo
-  const canSwitchTenant = (view === 'admin' && isAdminSession) || (isPortalDomain && (user || isPinAuth))
 
   // Toast
   const [toast, setToast] = useState(null)
@@ -501,13 +493,13 @@ export default function App() {
             <Building2 className="w-7 h-7" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-100">Nenhuma Imobiliária Vinculada</h2>
+            <h2 className="text-xl font-bold text-gray-100">Nenhuma Empresa Vinculada</h2>
             <p className="text-xs sm:text-sm text-gray-400 mt-2">
-              Sua conta ({user.email}) ainda não possui vínculo de gestão com nenhuma imobiliária cadastrada.
+              Sua conta ({user.email}) ainda não possui vínculo de gestão com nenhuma empresa cadastrada.
             </p>
           </div>
           <p className="text-xs text-gray-500">
-            Solicite ao diretor da sua imobiliária para adicionar seu e-mail como gestor no painel de administração.
+            Solicite ao administrador para adicionar seu e-mail como gestor no painel de administração.
           </p>
           <button
             onClick={() => signOut()}
@@ -636,29 +628,6 @@ export default function App() {
                   </span>
                 )}
               </h1>
-              {/* Seletor de tenant interativo (apenas Visão Admin) vs. Nome Fixo Informativo (Corretor) */}
-              {canSwitchTenant ? (
-                <button
-                  type="button"
-                  onClick={() => setShowTenantSwitcher(true)}
-                  className="group flex items-center gap-1 text-[11px] text-gray-400 hover:text-brand-400 -mt-0.5 transition-colors max-w-[170px] sm:max-w-[240px]"
-                  title="Clique para alternar imobiliária ou copiar link"
-                >
-                  <Building2 className="w-3 h-3 text-gray-500 group-hover:text-brand-400 flex-shrink-0" />
-                  <span className="truncate font-medium">{empresa?.nome || 'Minha Imobiliária'}</span>
-                  <ChevronDown className="w-3 h-3 text-gray-500 group-hover:text-brand-400 flex-shrink-0" />
-                </button>
-              ) : (
-                <div
-                  className="flex items-center gap-1 text-[11px] text-gray-400 -mt-0.5 max-w-[170px] sm:max-w-[240px] select-none"
-                  title={empresa?.nome || 'Minha Imobiliária'}
-                >
-                  <Building2 className="w-3 h-3 text-brand-400 flex-shrink-0" />
-                  <span className="truncate font-medium text-gray-300">
-                    {empresa?.nome || 'Minha Imobiliária'}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 
@@ -670,34 +639,20 @@ export default function App() {
 
           {view === 'admin' && (
             <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
-              {/* Botão de Ver Escala Pública dos Corretores em nova aba */}
-              {empresa && (
-                <a
-                  href={getPublicShareUrl(empresa)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-gray-300 hover:text-white bg-surface-800 hover:bg-surface-700 border border-surface-600 px-3 py-2 rounded-xl transition-all shadow-sm"
-                  title="Abrir a escala pública exatamente como os corretores a veem"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-brand-400" />
-                  <span>Escala Pública</span>
-                </a>
-              )}
-
               <ThemeToggle />
 
               {/* Badge de Papel */}
               {userEmpresaRole === 'admin' ? (
                 <span
                   className="p-2 sm:p-2.5 rounded-xl text-brand-400 bg-brand-500/10 border border-brand-500/20 min-h-[40px] min-w-[40px] flex items-center justify-center"
-                  title="Administrador da Imobiliária"
+                  title="Administrador"
                 >
                   <Shield className="w-5 h-5 text-brand-400" />
                 </span>
               ) : (
                 <span
                   className="p-2 sm:p-2.5 rounded-xl text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 min-h-[40px] min-w-[40px] flex items-center justify-center"
-                  title="Gestor de Plantão"
+                  title="Gestor"
                 >
                   <Shield className="w-5 h-5 text-emerald-400" />
                 </span>
@@ -781,15 +736,6 @@ export default function App() {
         empresaId={empresa?.id}
         empresaNome={empresa?.nome}
       />
-
-      {/* Modal para alternar de imobiliária / link do WhatsApp (apenas na visão admin) */}
-      {canSwitchTenant && (
-        <TenantSwitcherModal
-          isOpen={showTenantSwitcher}
-          onClose={() => setShowTenantSwitcher(false)}
-          showToast={showToast}
-        />
-      )}
 
       {/* Toast */}
       {toast && (

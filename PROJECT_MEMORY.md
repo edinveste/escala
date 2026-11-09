@@ -179,7 +179,6 @@ e:\Escala\
         ├── GestoresManager.jsx  # Gestão de coordenadores e gestores da imobiliária (convite por e-mail e papéis)
         ├── EquipeManager.jsx    # Gerenciador de equipe autorizada e chave de proteção contra invasores
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
-        ├── TenantSwitcherModal.jsx # Modal para trocar de imobiliária e copiar link direto do WhatsApp
         ├── TenantNotFound.jsx   # Tela elegante de 404 quando o slug não existe com busca e demo
         ├── TenantBlockedView.jsx# Tela de suspensão amigável para empresas inadimplentes ou bloqueadas
         ├── ThemeToggle.jsx      # Botão animado de alternância Modo Claro / Escuro (Sun/Moon com persistência)
@@ -382,5 +381,33 @@ npm run build
   - Alternador Anual / Mensal com economia destacada (abre por padrão no plano anual).
   - 7 dias de garantia incondicional e suporte WhatsApp.
   - **FAQ Acordeon**: Respostas completas sanando todas as principais objeções de compra.
+
+---
+
+## 10. Refinamentos de UI/UX e Microinterações (Novembro/2026)
+- **Generalização Completa de Coordenadores e Gestores (`GestoresManager.jsx`)**:
+  - Removidas todas as referências estáticas a "imobiliária", "corretores" e "plantões".
+  - Integrado com `termos` dinâmicos da empresa para adaptar o texto explicativo de permissões de acordo com o nicho (locais/pontos e participantes/colaboradores).
+  - Badges atualizadas para `"Administrador"` e `"Gestor da Escala"`.
+  - Placeholder ajustado para `gestor@empresa.com` e botão para `"Vincular Gestor"`.
+  - Opções do seletor de papel atualizadas para `"Coordenador (Gestão de Vagas)"` e `"Administrador (Acesso Total)"`.
+  - **Estado por Padrão Fechado com Persistência**: O card de Coordenadores e Gestores (assim como o de Equipe) agora inicia recolhido (`false`) por padrão ao carregar a página pela primeira vez, e persiste a preferência de expansão/recolhimento do usuário no `localStorage` por tenant (`escala_gestores_expanded_${empresaId}`).
+- **Limpeza Total do Cabeçalho e Remoção de Redundâncias (`App.jsx`)**:
+  - Removido o subtítulo `"Minha Imobiliária"` do cabeçalho, deixando apenas a identidade visual limpa `EscalaFácil [Gestão]`.
+  - Removido o botão redundante `"Escala Pública"` do topo do cabeçalho (já disponível de forma nativa e compacta no card `Link Seguro da Escala`).
+  - Removido o modal legado `TenantSwitcherModal.jsx` e o seletor com dropdown de empresas.
+  - Termos generalizados de `"Admin da Imobiliária"` / `"Gestor de Plantão"` para `"Administrador"` e `"Gestor"`.
+- **Generalização e Limpeza do Card de Link Seguro (`LinkSeguroManager.jsx`)**:
+  - Título alterado de `"Link Seguro dos Corretores"` para **`"Link Seguro da Escala"`**, tornando-o 100% universal para qualquer segmento (imobiliárias, eventos, clínicas/saúde, varejo, igrejas, academias).
+  - Removido o subtítulo redundante `"Código seguro de 12 caracteres para blindar os pontos..."`, deixando o cabeçalho do card limpo e direto.
+  - Removido o badge `"12 chars"` de dentro do input, liberando largura total para a visualização da URL.
+  - Integrado com `obterTermos(empresa)` para mensagens dinâmicas de compartilhamento no WhatsApp e diálogos de confirmação de revogação.
+- **Botão de Copiar Link Seguro Compacto (`LinkSeguroManager.jsx`)**:
+  - Removido o rótulo de texto `"Copiar Link"`, deixando o botão com apenas o ícone (`Copy` / `Check` ao copiar).
+  - Alinhado como um bloco de botões de ícone com `min-h-[40px] min-w-[40px]` e design idêntico ao WhatsApp e visualização externa, eliminando poluição visual e garantindo layout perfeito em linha única tanto no mobile quanto no desktop.
+- **Unificação dos Botões "Recolher todos" e "Expandir todos" na Visão do Corretor (`CorretorView.jsx`)**:
+  - Unificados os dois botões anteriores em um **único botão inteligente com alternância dinâmica**.
+  - O botão detecta automaticamente via `algumDiaExpandido` se há algum dia aberto para exibir **"Recolher todos"** (com `ChevronUp`) ou, caso estejam todos fechados, exibir **"Expandir todos"** (com `ChevronDown`).
+
 
 

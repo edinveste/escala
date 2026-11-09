@@ -24,7 +24,7 @@ export default function TenantNotFound() {
             Escala Indisponível ou Link Expirado
           </h2>
           <p className="text-xs sm:text-sm text-gray-400 leading-relaxed">
-            O endereço acessado não corresponde a nenhuma imobiliária ativa ou foi recentemente redefinido pelo seu coordenador.
+            O endereço acessado não corresponde a nenhuma empresa ativa ou foi recentemente redefinido pelo seu coordenador.
           </p>
         </div>
 

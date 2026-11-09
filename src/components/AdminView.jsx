@@ -475,12 +475,12 @@ export default function AdminView({
                 {role === 'admin' ? (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 flex items-center gap-1">
                     <Shield className="w-3 h-3 text-brand-400" />
-                    Admin da Imobiliária
+                    Administrador
                   </span>
                 ) : (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                     <Shield className="w-3 h-3 text-emerald-400" />
-                    Gestor de Plantão
+                    Gestor
                   </span>
                 )}
               </div>
@@ -492,7 +492,7 @@ export default function AdminView({
         </div>
       )}
 
-      {/* ═══ LINK SEGURO DOS CORRETORES (ANTI-ESPIONAGEM) ═══ */}
+      {/* ═══ LINK SEGURO DA ESCALA (ANTI-ESPIONAGEM) ═══ */}
       <LinkSeguroManager
         empresa={empresa}
         onEmpresaUpdated={onEmpresaUpdated}
@@ -584,7 +584,7 @@ export default function AdminView({
                 Senha de Administrador
               </h3>
               <p className="text-xs text-gray-400 truncate">
-                Altere o PIN de acesso desta imobiliária
+                Altere a senha de acesso administrativo
               </p>
             </div>
           </div>
@@ -598,7 +598,7 @@ export default function AdminView({
         </div>
       )}
 
-      {/* ═══ COORDENADORES E GESTORES DA IMOBILIÁRIA (Apenas Administrador) ═══ */}
+      {/* ═══ COORDENADORES E GESTORES (Apenas Administrador) ═══ */}
       {isFullAdmin && (
         <GestoresManager
           empresaId={empresaId}
@@ -606,6 +606,7 @@ export default function AdminView({
           isFullAdmin={isFullAdmin}
           currentUserId={user?.id}
           showToast={showToast}
+          termos={termos}
         />
       )}
 
@@ -900,7 +901,7 @@ export default function AdminView({
             <div>
               <h3 className="text-sm font-bold text-red-400">Zona de Perigo</h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Limpar todas as reservas desta imobiliária. Esta ação não afeta outras empresas.
+                Limpar todas as reservas desta escala. Esta ação não afeta outros locais.
               </p>
             </div>
           </div>
@@ -909,7 +910,7 @@ export default function AdminView({
             className="btn-danger w-full flex items-center justify-center gap-2"
           >
             <Trash2 className="w-4.5 h-4.5" />
-            Limpar Escala Desta Imobiliária
+            Limpar Todas as Reservas da Escala
           </button>
         </div>
       )}

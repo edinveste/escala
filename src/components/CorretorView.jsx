@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useCallback } from 'react'
 import TurnoCard from './TurnoCard'
 import { formatarNomeDia, compararDias } from '../lib/diasSemana'
 import { obterTermos } from '../lib/vocabularioHelper'
-import { Copy, ClipboardCheck, Calendar, MapPin, ArrowLeft, Store, ChevronDown } from 'lucide-react'
+import { Copy, ClipboardCheck, Calendar, MapPin, ArrowLeft, Store, ChevronDown, ChevronUp } from 'lucide-react'
 
 export default function CorretorView({
   pontos,
@@ -151,6 +151,19 @@ export default function CorretorView({
       return novo
     })
   }, [selectedPontoId, diasOrdenados])
+
+  const algumDiaExpandido = useMemo(() => {
+    if (!selectedPontoId) return false
+    return diasOrdenados.some((dia) => Boolean(diasExpandidos[`${selectedPontoId}_${dia}`]))
+  }, [selectedPontoId, diasOrdenados, diasExpandidos])
+
+  const toggleTodosDias = useCallback(() => {
+    if (algumDiaExpandido) {
+      recolherTodosDias()
+    } else {
+      expandirTodosDias()
+    }
+  }, [algumDiaExpandido, recolherTodosDias, expandirTodosDias])
 
   // Gerar texto para copiar (com suporte a Multi-tenant e link WhatsApp)
   const gerarTextoEscala = () => {
@@ -411,29 +424,29 @@ export default function CorretorView({
         </div>
       ) : (
         <div className="space-y-3">
-          {/* Barra de controle / contagem e botões Expandir/Recolher todos */}
+          {/* Barra de controle / contagem e botão unificado Expandir/Recolher todos */}
           <div className="flex items-center justify-between px-1 mb-1">
             <span className="text-xs text-gray-400 font-medium">
               {diasOrdenados.length} dia{diasOrdenados.length !== 1 ? 's' : ''} com horários
             </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={recolherTodosDias}
-                className="text-[11px] font-medium text-gray-400 hover:text-gray-200 bg-surface-800 hover:bg-surface-700 px-2.5 py-1 rounded-lg transition-colors border border-surface-600/50"
-                title="Recolher todos os dias"
-              >
-                Recolher todos
-              </button>
-              <button
-                type="button"
-                onClick={expandirTodosDias}
-                className="text-[11px] font-medium text-gray-400 hover:text-gray-200 bg-surface-800 hover:bg-surface-700 px-2.5 py-1 rounded-lg transition-colors border border-surface-600/50"
-                title="Expandir todos os dias"
-              >
-                Expandir todos
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={toggleTodosDias}
+              className="text-[11px] font-medium text-gray-400 hover:text-gray-200 flex items-center gap-1.5 bg-surface-800 hover:bg-surface-700 px-2.5 py-1 rounded-lg transition-colors border border-surface-600/50"
+              title={algumDiaExpandido ? 'Recolher todos os dias' : 'Expandir todos os dias'}
+            >
+              {algumDiaExpandido ? (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                  <span>Recolher todos</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                  <span>Expandir todos</span>
+                </>
+              )}
+            </button>
           </div>
 
           {diasOrdenados.map((dia) => {

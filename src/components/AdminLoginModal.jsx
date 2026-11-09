@@ -44,7 +44,7 @@ export default function AdminLoginModal({
   const { empresa } = useTenant()
 
   const targetEmpresaId = empresaId || empresa?.id
-  const targetEmpresaNome = empresaNome || empresa?.nome || 'Imobiliária'
+  const targetEmpresaNome = empresaNome || empresa?.nome || 'Empresa'
 
   // Modos: 'login' | 'cadastro' | 'recuperar' | 'pin_legado'
   const [modo, setModo] = useState('login')
@@ -226,7 +226,7 @@ export default function AdminLoginModal({
     setErroMsg('')
     const pinLimpo = pinVinculo.trim()
     if (!pinLimpo) {
-      setErroMsg('Digite o PIN de administrador desta imobiliária.')
+      setErroMsg('Digite o PIN de administrador desta empresa.')
       return
     }
 
@@ -272,7 +272,7 @@ export default function AdminLoginModal({
         return
       }
 
-      setErroMsg('PIN incorreto para esta imobiliária.')
+      setErroMsg('PIN incorreto para esta empresa.')
       setPinVinculo('')
     } catch (err) {
       console.error('Erro ao verificar PIN para vinculação:', err)
@@ -337,7 +337,7 @@ export default function AdminLoginModal({
         }
       }
 
-      setErroMsg('PIN incorreto para esta imobiliária.')
+      setErroMsg('PIN incorreto para esta empresa.')
       setPinLegado('')
       pinInputRef.current?.focus()
     } catch (err) {
@@ -394,9 +394,9 @@ export default function AdminLoginModal({
               <div className="flex items-start gap-2.5">
                 <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="font-bold text-sm text-gray-100">Acesso Restrito a Esta Imobiliária</p>
+                  <p className="font-bold text-sm text-gray-100">Acesso Restrito a Esta Empresa</p>
                   <p className="text-gray-300 text-xs leading-relaxed">
-                    Você está conectado como <strong className="text-gray-100 font-semibold">{user.email}</strong>, mas esta conta ainda não foi vinculada à imobiliária{' '}
+                    Você está conectado como <strong className="text-gray-100 font-semibold">{user.email}</strong>, mas esta conta ainda não foi vinculada à empresa{' '}
                     <strong className="text-amber-300 font-semibold">{targetEmpresaNome}</strong>.
                   </p>
                 </div>
@@ -404,7 +404,7 @@ export default function AdminLoginModal({
 
               {minhasEmpresas.length > 0 && (
                 <div className="pt-2 border-t border-amber-500/20 space-y-1.5">
-                  <p className="text-[11px] text-gray-300 font-medium">Suas imobiliárias autorizadas:</p>
+                  <p className="text-[11px] text-gray-300 font-medium">Suas empresas autorizadas:</p>
                   {minhasEmpresas.map((emp) => (
                     <button
                       key={emp.empresa_id}
@@ -440,7 +440,7 @@ export default function AdminLoginModal({
               </div>
             )}
 
-            {/* Opção 1: Validar e Vincular com o PIN da Imobiliária */}
+            {/* Opção 1: Validar e Vincular com o PIN da Empresa */}
             <form
               onSubmit={handleVincularComPin}
               className="p-4 rounded-2xl bg-surface-900/60 border border-surface-700/80 space-y-3"
@@ -451,7 +451,7 @@ export default function AdminLoginModal({
                   Vincular Conta com PIN de Administrador
                 </p>
                 <p className="text-[11px] text-gray-400">
-                  Possui a senha/PIN desta imobiliária? Digite abaixo para vincular sua conta ({user.email}) como administradora:
+                  Possui a senha/PIN desta empresa? Digite abaixo para vincular sua conta ({user.email}) como administradora:
                 </p>
               </div>
 
@@ -460,7 +460,7 @@ export default function AdminLoginModal({
                   type="password"
                   value={pinVinculo}
                   onChange={(e) => setPinVinculo(e.target.value)}
-                  placeholder="Digite o PIN da imobiliária"
+                  placeholder="Digite o PIN da empresa"
                   className="input-field text-center font-mono tracking-widest text-sm"
                   maxLength={20}
                   autoFocus
@@ -531,7 +531,7 @@ export default function AdminLoginModal({
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="gestor@imobiliaria.com.br"
+                    placeholder="gestor@suaempresa.com.br"
                     disabled={enviando}
                     className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-3.5 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
                     required
@@ -619,7 +619,7 @@ export default function AdminLoginModal({
                 className="text-[11px] text-gray-500 hover:text-gray-400 flex items-center justify-center gap-1 transition-colors"
               >
                 <KeyRound className="w-3 h-3" />
-                Acessar com PIN da Imobiliária (Legado)
+                Acessar com PIN de Contingência (Legado)
               </button>
             </div>
           </form>
@@ -655,7 +655,7 @@ export default function AdminLoginModal({
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="carlos@imobiliaria.com.br"
+                    placeholder="carlos@suaempresa.com.br"
                     disabled={enviando}
                     className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-3.5 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
                     required
@@ -737,7 +737,7 @@ export default function AdminLoginModal({
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="gestor@imobiliaria.com.br"
+                  placeholder="gestor@suaempresa.com.br"
                   disabled={enviando}
                   className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-3.5 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
                   required
@@ -782,7 +782,7 @@ export default function AdminLoginModal({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-semibold text-gray-300">
-                  PIN de Acesso da Imobiliária
+                  PIN de Acesso da Empresa
                 </label>
                 <span className="text-[10px] text-gray-500">Padrão inicial: 1234</span>
               </div>
