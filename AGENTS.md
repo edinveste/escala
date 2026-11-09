@@ -170,6 +170,10 @@ e:\Escala\
     ├── contexts/
     │   ├── AuthContext.jsx      # Provedor de contexto do Supabase Auth, RBAC e sessões
     │   └── TenantContext.jsx    # Provedor de contexto do tenant ativo, detecção e troca de empresa
+    ├── hooks/
+    │   ├── useEscalaData.js     # Hook de busca, cache e sincronização em tempo real (Supabase Realtime)
+    │   ├── useColaborador.js    # Hook de identidade Zero-Atrito, localStorage e reservas do colaborador
+    │   └── useVerificacaoIdentidade.js # Hook de checagem em tempo real contra equipe autorizada e anti-spoofing
     ├── lib/
     │   ├── supabaseClient.js    # Instância do createClient configurada
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
@@ -177,6 +181,7 @@ e:\Escala\
     │   ├── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
     │   └── demoData.js          # Mock data e persistência local da escala demonstrativa sandbox (/demo)
     └── components/
+        ├── AppHeader.jsx        # Barra superior com logo, badge do portal de gestão, tema e logout
         ├── LandingPage.jsx      # Página de vendas oficial de alta conversão (escalafacil.online/)
         ├── DemoBanner.jsx       # Banner informativo superior da demonstração com ações de conversão
         ├── DemoEscalaView.jsx   # Visão da escala demonstrativa 100% sandbox e isolada do banco Supabase
@@ -187,6 +192,7 @@ e:\Escala\
         ├── ConfirmModal.jsx     # Modal universal assíncrono de confirmação/exclusão (useConfirm)
         ├── AdminLoginModal.jsx  # Modal estilizado para login do gestor (Email/Senha, Cadastro, Reset e PIN legado)
         ├── PortalGestorLogin.jsx# Tela full-page de login exclusivo dos gestores (app.escalafacil.online)
+        ├── PortalSemEmpresaView.jsx # Tela de aviso amigável quando o gestor logado não tem empresa vinculada
         ├── LinkSeguroManager.jsx# Gerenciador de link seguro anti-espionagem (12 chars) com redefinição no AdminView
         ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo gestor da empresa
         ├── AdminView.jsx        # Painel do Administrador (banner de identidade, turnos, pontos e equipe)
@@ -195,6 +201,7 @@ e:\Escala\
         ├── EquipeManager.jsx    # Gerenciador de equipe autorizada e chave de proteção contra invasores
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
         ├── TenantNotFound.jsx   # Tela elegante de 404 quando o slug não existe com busca e demo
+        ├── TenantErrorView.jsx  # Tela amigável para falhas críticas de configuração do tenant com retry
         ├── TenantBlockedView.jsx# Tela de suspensão amigável para empresas inadimplentes ou bloqueadas
         ├── ThemeToggle.jsx      # Botão animado de alternância Modo Claro / Escuro (Sun/Moon com persistência)
         └── Toast.jsx            # Notificações visuais animadas

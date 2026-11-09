@@ -1134,7 +1134,7 @@ export default function AdminView({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-2.5">
       {/* ═══ BANNER DE IDENTIDADE DO GESTOR ═══ */}
       {user && (
         <div className="card bg-gradient-to-r from-surface-800 to-surface-850 border-surface-700 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
@@ -1237,10 +1237,10 @@ export default function AdminView({
 
       {/* ═══ CONTEÚDO PRINCIPAL: MODO ABAS ═══ */}
       {layoutMode === 'abas' && (
-        <div className="space-y-5">
+        <div className="space-y-2.5">
           {/* Aba 1: Escala & Turnos */}
           {activeTab === 'escala' && (
-            <div className="space-y-5 animate-fade-in">
+            <div className="space-y-2.5 animate-fade-in">
               {renderQuickLinkBar()}
               {renderStats()}
               {renderFormAddTurno()}
@@ -1251,7 +1251,7 @@ export default function AdminView({
 
           {/* Aba 2: Pessoas & Equipe */}
           {activeTab === 'equipe' && (
-            <div className="space-y-5 animate-fade-in">
+            <div className="space-y-2.5 animate-fade-in">
               <EquipeManager
                 empresaId={empresaId}
                 empresaNome={empresaNome}
@@ -1279,7 +1279,7 @@ export default function AdminView({
 
           {/* Aba 3: Pontos de Captação / Locais */}
           {activeTab === 'pontos' && (
-            <div className="space-y-5 animate-fade-in">
+            <div className="space-y-2.5 animate-fade-in">
               <PontosManager
                 pontos={pontos}
                 turnos={turnos}
@@ -1297,7 +1297,7 @@ export default function AdminView({
 
           {/* Aba 4: Ajustes & Configurações */}
           {activeTab === 'configuracoes' && (
-            <div className="space-y-5 animate-fade-in">
+            <div className="space-y-2.5 animate-fade-in">
               {renderLayoutPreferencesCard()}
 
               <LinkSeguroManager
@@ -1316,7 +1316,7 @@ export default function AdminView({
 
       {/* ═══ CONTEÚDO PRINCIPAL: VISÃO CONTÍNUA (LEGADO) ═══ */}
       {layoutMode === 'continuo' && (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-3 animate-fade-in">
           {/* Link Seguro Completo */}
           <LinkSeguroManager
             empresa={empresa}
