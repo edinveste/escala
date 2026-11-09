@@ -426,9 +426,10 @@ npm run build
   - Zero duplicação de código: todos os submódulos, modais e handlers são compartilhados diretamente entre os dois modos de visualização.
 - **Barra de Abas Ultra-Compacta com Ícones Puros e Tooltips (`AdminView.jsx`)**:
   - Removidos os rótulos de texto e badges numéricos de dentro dos botões de abas, deixando apenas os 4 ícones limpos em um grid simétrico de 4 colunas perfeitamente distribuídas (`w-5 h-5`, touch target de `44px`).
+  - **Reordenação e Aba Padrão**: A aba 📍 **Pontos de Escala** (`'pontos'`) foi definida como a **primeira da lista** e como a **aba padrão** de abertura ao carregar o painel em Modo Abas, facilitando a visualização e criação de novos locais/stands imediatamente.
   - O botão avulso de alternância de modo foi removido do topo para evitar poluição visual, mantendo a alternância centralizada no card dedicado dentro da aba ⚙️ Configurações.
   - Na Visão Contínua, o card intermediário foi totalmente removido e substituído por um botão puro de ícone (`LayoutGrid`, sem texto) posicionado no extremo direito do card de identificação do gestor para retorno imediato ao Modo em Abas.
-  - Tooltips nativos dinâmicos via atributo `title` ao passar o mouse em cada ícone (*"Escala"*, *"Equipe"*, *"Pontos"* e *"Configurações"*).
+  - Tooltips nativos dinâmicos via atributo `title` ao passar o mouse em cada ícone (*"Pontos"*, *"Escala"*, *"Equipe"* e *"Configurações"*).
   - Eliminação total de qualquer barra de rolagem horizontal (`overflow-x`), garantindo encaixe 100% responsivo em qualquer tela.
 
 

@@ -79,12 +79,12 @@ export default function AdminView({
     }
   })
 
-  // Preferência de Aba Ativa
+  // Preferência de Aba Ativa (Padrão: 'pontos')
   const [activeTab, setActiveTab] = useState(() => {
     try {
-      return localStorage.getItem('escala_admin_active_tab') || 'escala'
+      return localStorage.getItem('escala_admin_active_tab') || 'pontos'
     } catch (err) {
-      return 'escala'
+      return 'pontos'
     }
   })
 
@@ -547,9 +547,15 @@ export default function AdminView({
     [reservas, turnoIdsValidosSet]
   )
 
-  // Lista de abas da interface com contadores em tempo real e tooltips descritivos
+  // Lista de abas da interface com contadores em tempo real e tooltips descritivos (Pontos em 1º)
   const TABS = useMemo(
     () => [
+      {
+        id: 'pontos',
+        label: termos.pontos || 'Pontos',
+        tooltip: `${termos.pontos || 'Pontos'} (${pontos.length} locais)`,
+        icon: MapPin,
+      },
       {
         id: 'escala',
         label: 'Escala',
@@ -563,19 +569,13 @@ export default function AdminView({
         icon: Users,
       },
       {
-        id: 'pontos',
-        label: termos.pontos || 'Pontos',
-        tooltip: `${termos.pontos || 'Pontos'} (${pontos.length} locais)`,
-        icon: MapPin,
-      },
-      {
         id: 'configuracoes',
         label: 'Configurações',
         tooltip: 'Ajustes & Configurações da Empresa',
         icon: Settings,
       },
     ],
-    [turnosValidos.length, reservasValidas.length, termos.pontos, pontos.length]
+    [pontos.length, termos.pontos, turnosValidos.length, reservasValidas.length]
   )
 
   // ─── Renderizadores de Seções Modulares ──────────────────────
