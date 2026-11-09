@@ -78,15 +78,6 @@ export default function TenantBlockedView({ onOpenAdminLogin }) {
               Sou o Gestor desta Empresa
             </button>
           )}
-
-          {/* Alternar para empresa Demo */}
-          <button
-            onClick={() => switchTenant('demo')}
-            className="w-full btn-ghost py-2.5 text-xs text-gray-400 hover:text-gray-200 flex items-center justify-center gap-1.5"
-          >
-            Acessar Escala de Demonstração
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
         </div>
 
         {/* Rodapé */}

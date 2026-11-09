@@ -1,9 +1,7 @@
-import { Building2, ArrowRight, Sparkles, ExternalLink, ShieldCheck } from 'lucide-react'
-import { useTenant } from '../contexts/TenantContext'
+import { Building2, Sparkles, ExternalLink, ShieldCheck } from 'lucide-react'
 import { getAppPortalUrl } from '../lib/tenantHelper'
 
 export default function TenantNotFound() {
-  const { switchTenant } = useTenant()
   const appPortalUrl = getAppPortalUrl()
 
   return (
@@ -38,21 +36,20 @@ export default function TenantNotFound() {
           </p>
         </div>
 
-        <div className="pt-2 space-y-2.5">
-          <button
-            onClick={() => switchTenant('demo')}
-            className="w-full btn-primary py-3 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20"
-          >
-            <span>Ver Escala Demonstrativa (Demo)</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-
+        <div className="pt-2 space-y-2">
           <a
             href={appPortalUrl}
+            className="w-full btn-primary py-3 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20"
+          >
+            <span>Acessar Portal do Gestor</span>
+            <ExternalLink className="w-4 h-4" />
+          </a>
+
+          <a
+            href="/demo"
             className="w-full py-2.5 px-4 rounded-xl text-xs font-medium text-gray-300 hover:text-white bg-surface-700/50 hover:bg-surface-700 border border-surface-600 transition-all flex items-center justify-center gap-1.5"
           >
-            <span>Você é gestor? Acessar Portal do Gestor</span>
-            <ExternalLink className="w-3.5 h-3.5 text-brand-400" />
+            <span>Ver Escala de Demonstração (Demo)</span>
           </a>
         </div>
 

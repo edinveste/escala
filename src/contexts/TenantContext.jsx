@@ -8,7 +8,9 @@ import {
   isToken12Chars,
   isAppPortal,
   isLandingPage,
+  isDemoRoute,
 } from '../lib/tenantHelper'
+import { DEMO_EMPRESA } from '../lib/demoData'
 
 const TenantContext = createContext(null)
 
@@ -39,6 +41,17 @@ export function TenantProvider({ children }) {
       setNotFound(false)
 
       try {
+        // Cenário 0: Modo Demonstração 100% Isolado (/demo) — Zero chamadas ao Supabase
+        if (isDemoRoute() || rawTarget.toLowerCase() === 'demo') {
+          setEmpresa(DEMO_EMPRESA)
+          setIdentifier('demo')
+          setLoading(false)
+          setNotFound(false)
+          setError(null)
+          document.title = 'Demonstração Interativa — EscalaFácil'
+          return
+        }
+
         // Cenário A: Portal do Gestor (app.escalafacil.online)
         if (isApp) {
           // Se o usuário ainda não estiver logado no portal do gestor,
@@ -112,8 +125,14 @@ export function TenantProvider({ children }) {
           return
         }
 
-        // Cenário C: Área Pública da Escala (escalafacil.online/[codigo12] ou [slug] ou /demo)
-        const target = rawTarget || 'demo'
+        // Cenário C: Área Pública da Escala (escalafacil.online/[codigo12] ou [slug])
+        const target = rawTarget
+        if (!target) {
+          setEmpresa(null)
+          setNotFound(true)
+          setLoading(false)
+          return
+        }
 
         // 1. Tenta buscar primeiro pelo Código Seguro de 12 caracteres (exato / case-sensitive)
         let empresaEncontrada = null
@@ -147,19 +166,6 @@ export function TenantProvider({ children }) {
           }
           if (dataSlug) {
             empresaEncontrada = dataSlug
-          }
-        }
-
-        // 3. Se for 'demo' e não encontrou, busca a primeira empresa ativa como fallback
-        if (!empresaEncontrada && (slugify(target) === 'demo' || !target)) {
-          const { data: listaEmpresas } = await supabase
-            .from('empresas')
-            .select('*')
-            .eq('status', 'ativo')
-            .limit(1)
-
-          if (listaEmpresas && listaEmpresas.length > 0) {
-            empresaEncontrada = listaEmpresas[0]
           }
         }
 
@@ -203,14 +209,15 @@ export function TenantProvider({ children }) {
     const handlePopState = () => {
       const current = extractTenantIdentifier()
       setIdentifier(current)
+      carregarEmpresa(current)
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [])
+  }, [carregarEmpresa])
 
   // ─── Realtime: Escuta atualizações da empresa ativa ────────────
   useEffect(() => {
-    if (!empresa?.id) return
+    if (!empresa?.id || empresa.id === DEMO_EMPRESA.id) return
 
     const channel = supabase
       .channel(`realtime-empresa-${empresa.id}`)
@@ -264,6 +271,7 @@ export function TenantProvider({ children }) {
         refreshEmpresa,
         isAppPortal: isApp,
         isLandingPage: isLandingPage(),
+        isDemo: isDemoRoute() || identifier === 'demo',
       }}
     >
       {children}

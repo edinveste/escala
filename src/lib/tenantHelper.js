@@ -29,18 +29,40 @@ export function isToken12Chars(str) {
 }
 
 /**
+ * Verifica se a sessão atual é a Escala Demonstrativa (/demo)
+ * 1. Pathname /demo ou /demo/
+ * 2. Query param ?demo=true ou ?modo=demo
+ */
+export function isDemoRoute() {
+  if (typeof window === 'undefined') return false
+  if (isAppPortal()) return false
+
+  const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase()
+  if (pathname === 'demo') return true
+
+  const searchParams = new URLSearchParams(window.location.search)
+  if (searchParams.get('demo') === 'true' || searchParams.get('modo') === 'demo') {
+    return true
+  }
+
+  return false
+}
+
+/**
  * Verifica se a sessão atual deve exibir a Landing Page (Página de Vendas):
  * 1. Não está no portal do gestor (app.*)
- * 2. Não possui query params de tenant (?codigo=, ?empresa=, etc.)
- * 3. Não possui segmento de tenant no pathname (ex: /A7bjs92Rlzm6 ou /demo)
- * 4. Não possui subdomínio de tenant personalizado (ex: imobiliaria.escalafacil.online)
- * 5. Ou possui rota explícita /landing ou /inicio
+ * 2. Não está na rota da demonstração (/demo)
+ * 3. Não possui query params de tenant (?codigo=, ?empresa=, etc.)
+ * 4. Não possui segmento de tenant no pathname (ex: /A7bjs92Rlzm6)
+ * 5. Não possui subdomínio de tenant personalizado (ex: imobiliaria.escalafacil.online)
+ * 6. Ou possui rota explícita /landing ou /inicio
  */
 export function isLandingPage() {
   if (typeof window === 'undefined') return false
 
-  // Se estiver no portal do gestor, nunca é landing page
+  // Se estiver no portal do gestor ou na demonstração, nunca é landing page
   if (isAppPortal()) return false
+  if (isDemoRoute()) return false
 
   const searchParams = new URLSearchParams(window.location.search)
   const hasTokenQuery =
@@ -108,7 +130,12 @@ export function isAppPortal() {
  * IMPORTANTE: Tokens de 12 caracteres preservam estritamente o case-sensitive (maiúsculas e minúsculas).
  */
 export function extractTenantIdentifier() {
-  if (typeof window === 'undefined') return 'demo'
+  if (typeof window === 'undefined') return ''
+
+  // Se for a rota da demonstração interativa, retorna 'demo'
+  if (isDemoRoute()) {
+    return 'demo'
+  }
 
   // Se for a página inicial / landing page, não força carregamento de tenant
   if (isLandingPage()) {
@@ -131,7 +158,7 @@ export function extractTenantIdentifier() {
   if (isAppPortal()) {
     try {
       const saved = localStorage.getItem('escala_tenant_identifier') || localStorage.getItem('escala_tenant_slug')
-      if (saved && saved.trim()) {
+      if (saved && saved.trim() && saved !== 'demo') {
         const rawSaved = saved.trim()
         return isToken12Chars(rawSaved) ? rawSaved : slugify(rawSaved)
       }
@@ -139,7 +166,7 @@ export function extractTenantIdentifier() {
     return ''
   }
 
-  // Detecção por pathname: /A7bjs92Rlzm6 ou /alphaville
+  // Detecção por pathname: /A7bjs92Rlzm6 ou /alphaville ou /demo
   const pathname = window.location.pathname.replace(/^\/+|\/+$/g, '')
   if (pathname) {
     const firstSegment = pathname.split('/')[0]?.trim()
@@ -168,10 +195,10 @@ export function extractTenantIdentifier() {
     return slugify(hostParts[0])
   }
 
-  // Fallback por memória do navegador
+  // Fallback por memória do navegador se não for demo
   try {
     const saved = localStorage.getItem('escala_tenant_identifier') || localStorage.getItem('escala_tenant_slug')
-    if (saved && saved.trim()) {
+    if (saved && saved.trim() && saved !== 'demo') {
       const rawSaved = saved.trim()
       return isToken12Chars(rawSaved) ? rawSaved : slugify(rawSaved)
     }
@@ -179,7 +206,7 @@ export function extractTenantIdentifier() {
     console.error('Erro ao ler tenant do localStorage:', e)
   }
 
-  return 'demo'
+  return ''
 }
 
 /**
@@ -203,6 +230,15 @@ export function getPublicShareUrl(empresaOuToken) {
     token = empresaOuToken.trim()
   } else if (empresaOuToken && typeof empresaOuToken === 'object') {
     token = empresaOuToken.codigo_escala || empresaOuToken.slug || 'demo'
+  }
+
+  if (
+    token === 'demo' ||
+    token === 'DEMO-ESCALA' ||
+    token === 'DEMO-PREVIEW' ||
+    token === 'demo-sandbox-empresa'
+  ) {
+    token = 'demo'
   }
 
   const hostname = window.location.hostname.toLowerCase()
@@ -251,6 +287,18 @@ export function getAppPortalUrl() {
 export function setTenantUrl(tokenOrSlug) {
   if (typeof window === 'undefined') return
   const raw = (tokenOrSlug || '').trim()
+
+  if (!raw) {
+    try {
+      localStorage.removeItem('escala_tenant_identifier')
+      localStorage.removeItem('escala_tenant_slug')
+    } catch {}
+    if (!isAppPortal() && window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/')
+    }
+    return
+  }
+
   const clean = isToken12Chars(raw) ? raw : slugify(raw)
 
   try {

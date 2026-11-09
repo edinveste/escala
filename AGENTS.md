@@ -174,9 +174,12 @@ e:\Escala\
     │   ├── supabaseClient.js    # Instância do createClient configurada
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
     │   ├── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
-    │   └── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
+    │   ├── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
+    │   └── demoData.js          # Mock data e persistência local da escala demonstrativa sandbox (/demo)
     └── components/
         ├── LandingPage.jsx      # Página de vendas oficial de alta conversão (escalafacil.online/)
+        ├── DemoBanner.jsx       # Banner informativo superior da demonstração com ações de conversão
+        ├── DemoEscalaView.jsx   # Visão da escala demonstrativa 100% sandbox e isolada do banco Supabase
         ├── VocabularioModal.jsx # Modal para personalizar vocabulário e nicho da empresa (presets e manual)
         ├── CorretorView.jsx     # Tela pública do corretor (seleção de ponto, turnos e link WhatsApp)
         ├── TurnoCard.jsx        # Card de turno na visão do corretor (progresso, botões contextuais)
@@ -264,5 +267,19 @@ e:\Escala\
    - Simulador interativo em tempo real direto na hero section.
    - Abas comparativas de dor vs. solução por nicho.
    - Links transparentes para demonstração ao vivo (`/demo`) e Portal do Gestor (`app.escalafacil.online`).
+
+### 5.7. Escala Demonstrativa 100% Isolada (Rota `/demo` & Sandbox Mock)
+1. **Rota Dedicada `/demo`**:
+   - Roteamento transparente via `isDemoRoute()` no `tenantHelper.js` e interceptação no `TenantContext.jsx`.
+   - Pode ser acessada diretamente pela URL (`escalafacil.online/demo`) ou pelo botão "Ver Demonstração ao Vivo" na Landing Page.
+2. **Isolamento Total do Banco de Dados (Zero Supabase Footprint)**:
+   - Não consulta a tabela `empresas` nem realiza fallback para empresas reais cadastradas.
+   - Estado de pontos, turnos e reservas provido por `demoData.js`, com dados pré-populados de colegas de equipe em diferentes estados de ocupação (livre, parcial e esgotado).
+   - O visitante pode clicar em "Garantir Vaga", informar seu nome de teste no `NomeModal`, ver a vaga preenchida com badge "VOCÊ" e cancelá-la com confirmação.
+   - Persistência das alterações de teste no `localStorage` (`escala_demo_sandbox_reservas`).
+3. **Banner Superior e UI/UX (`DemoBanner.jsx` e `DemoEscalaView.jsx`)**:
+   - Banner discreto no topo: *"💡 Modo Demonstração Interativo — Experimente garantir uma vaga como se fosse um colaborador da equipe."*.
+   - Botões de alta conversão: *"Voltar para o Site"* (navegação SPA para `/`) e *"Criar Escala da Minha Empresa"* (redireciona para o Portal do Gestor).
+
 
 

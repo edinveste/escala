@@ -13,6 +13,8 @@ import PortalGestorLogin from './components/PortalGestorLogin'
 import TenantNotFound from './components/TenantNotFound'
 import TenantBlockedView from './components/TenantBlockedView'
 import LandingPage from './components/LandingPage'
+import DemoEscalaView from './components/DemoEscalaView'
+import { DEMO_EMPRESA } from './lib/demoData'
 import Toast from './components/Toast'
 import ThemeToggle from './components/ThemeToggle'
 import { useConfirm } from './components/ConfirmModal'
@@ -45,6 +47,7 @@ export default function App() {
     refreshEmpresa,
     isAppPortal: isPortalDomain,
     isLandingPage: isLanding,
+    isDemo,
     switchTenant,
   } = useTenant()
 
@@ -141,7 +144,7 @@ export default function App() {
   // ─── Carregamento de dados (Isolado pelo empresa_id) ─────────
   const fetchData = useCallback(
     async (isSilent = true) => {
-      if (!empresa?.id) return
+      if (!empresa?.id || isDemo || empresa.id === DEMO_EMPRESA.id) return
 
       if (!isSilent) {
         setLoading(true)
@@ -189,13 +192,13 @@ export default function App() {
         }
       }
     },
-    [empresa?.id, showToast]
+    [empresa?.id, isDemo, showToast]
   )
 
   const prevEmpresaIdRef = useRef(null)
 
   useEffect(() => {
-    if (empresa?.id) {
+    if (empresa?.id && !isDemo && empresa.id !== DEMO_EMPRESA.id) {
       const isNovaEmpresa = empresa.id !== prevEmpresaIdRef.current
       prevEmpresaIdRef.current = empresa.id
 
@@ -203,11 +206,11 @@ export default function App() {
       const jaTemDados = pontos.length > 0 || turnos.length > 0
       fetchData(!isNovaEmpresa && jaTemDados)
     }
-  }, [empresa?.id, fetchData, pontos.length, turnos.length])
+  }, [empresa?.id, isDemo, fetchData, pontos.length, turnos.length])
 
   // ─── Realtime: Escuta com filtro estrito de empresa_id ────────
   useEffect(() => {
-    if (!empresa?.id) return
+    if (!empresa?.id || isDemo || empresa.id === DEMO_EMPRESA.id) return
 
     const channel = supabase
       .channel(`realtime-tenant-${empresa.id}`)
@@ -617,10 +620,29 @@ export default function App() {
     return (
       <LandingPage
         onOpenDemo={() => {
-          window.history.pushState({}, '', '/demo')
           switchTenant('demo')
         }}
         onOpenLogin={() => {
+          if (isPortalDomain) {
+            setShowAdminLoginModal(true)
+          } else {
+            window.location.href = window.location.hostname.includes('localhost')
+              ? '/?portal=app'
+              : 'https://app.escalafacil.online'
+          }
+        }}
+      />
+    )
+  }
+
+  // ─── Escala Demonstrativa 100% Isolada (Rota /demo) ───────────
+  if (isDemo) {
+    return (
+      <DemoEscalaView
+        onBackToSite={() => {
+          switchTenant('')
+        }}
+        onCadastrarEmpresa={() => {
           if (isPortalDomain) {
             setShowAdminLoginModal(true)
           } else {
