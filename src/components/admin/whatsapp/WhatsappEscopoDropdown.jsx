@@ -17,6 +17,8 @@ export default function WhatsappEscopoDropdown({
   alvoId,
   pontoAtual,
   pontos = [],
+  empresa,
+  drafts = {},
   onSelecionarAlvo,
   isCopiaGeralAtiva,
   isCopiaPontoAtiva,
@@ -136,6 +138,15 @@ export default function WhatsappEscopoDropdown({
                   <p className="text-[10px] text-gray-400 font-normal">
                     Todos os pontos consolidados
                   </p>
+                  {Boolean(
+                    (drafts['geral']?.cabecalho !== undefined
+                      ? drafts['geral'].cabecalho
+                      : empresa?.msg_whatsapp_geral || empresa?.termos?.msgWhatsappGeral)?.trim()
+                  ) && (
+                    <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                      ✓ Personalizado
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -176,7 +187,11 @@ export default function WhatsappEscopoDropdown({
                 {pontos.map((p) => {
                   const isSelecionado = alvoId === p.id
                   const copiaAtiva = isCopiaPontoAtiva(p.id)
-                  const temTextoCustom = Boolean(p.cabecalho_whatsapp?.trim())
+                  const textoPontoAtual =
+                    drafts[p.id]?.cabecalho !== undefined
+                      ? drafts[p.id].cabecalho
+                      : p.cabecalho_whatsapp || empresa?.termos?.whatsappPontos?.[p.id]?.cabecalho
+                  const temTextoCustom = Boolean(textoPontoAtual?.trim())
 
                   return (
                     <div

@@ -191,24 +191,31 @@ export function TenantProvider({ children }) {
 
   const prevTargetRef = useRef(null)
 
-  // Recarrega quando auth ou identificador mudarem (evitando re-fetchs fantasmas em foco de aba)
+  // Recarrega quando auth, identificador ou empresas vinculadas mudarem
   useEffect(() => {
-    if (authLoading) return
+    if (authLoading) {
+      if (isApp) {
+        setLoading(true)
+      }
+      return
+    }
 
-    const targetKey = `${isApp ? 'app' : 'public'}_${user?.id || 'anon'}_${identifier || ''}`
+    const empresasIdsKey = minhasEmpresas.map((m) => m.empresa_id).sort().join(',')
+    const targetKey = `${isApp ? 'app' : 'public'}_${user?.id || 'anon'}_${identifier || ''}_${empresasIdsKey}`
     const jaCarregouMesmoAlvo = prevTargetRef.current === targetKey && Boolean(empresaRef.current)
 
     if (!jaCarregouMesmoAlvo) {
       prevTargetRef.current = targetKey
       carregarEmpresa(identifier, Boolean(empresaRef.current))
     }
-  }, [identifier, authLoading, isApp, user?.id, carregarEmpresa])
+  }, [identifier, authLoading, isApp, user?.id, minhasEmpresas, carregarEmpresa])
 
   // Escuta histórico de navegação (popstate)
   useEffect(() => {
     const handlePopState = () => {
       const current = extractTenantIdentifier()
       setIdentifier(current)
+      prevTargetRef.current = null
       carregarEmpresa(current)
     }
     window.addEventListener('popstate', handlePopState)
@@ -249,6 +256,7 @@ export function TenantProvider({ children }) {
       const raw = (novoAlvo || '').trim()
       setTenantUrl(raw)
       setIdentifier(raw)
+      prevTargetRef.current = null
       carregarEmpresa(raw)
     },
     [carregarEmpresa]

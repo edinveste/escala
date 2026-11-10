@@ -64,9 +64,9 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
 
     setEnviando(true)
     try {
-      await signIn(email, senha)
+      const res = await signIn(email, senha)
       if (showToast) showToast('Login realizado com sucesso! 🛡️', 'success')
-      if (onSuccess) onSuccess()
+      if (onSuccess) onSuccess('auth', res?.empresas?.[0])
     } catch (err) {
       console.error('Erro no login do portal:', err)
       const msg = err.message || ''

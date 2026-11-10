@@ -54,6 +54,8 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
    - `asaas_subscription_id` (text, opcional para billing Asaas)
    - `email_cobranca` (text, e-mail financeiro)
    - `telefone_cobranca` (text)
+   - `copia_whatsapp_geral_ativa` (boolean, padrão `true`)
+   - `ocultar_nomes_escala` (boolean, padrão `false`, modo anônimo para corretores)
    - `created_at` (timestamptz)
 2. **`perfis`** (Perfis de Usuários Supabase Auth):
    - `id` (uuid, PK REFERENCES `auth.users.id` ON DELETE CASCADE)
@@ -268,13 +270,15 @@ e:\Escala\
         │   ├── InputSenhaPin.jsx          # Campo reutilizável para entrada de senha/PIN com botão Eye/EyeOff
         │   ├── LayoutPreferencesCard.jsx  # Card para alternar modo de navegação (Abas vs Visão Contínua)
         │   ├── LinkSeguroManager.jsx      # Gerenciador de link seguro anti-espionagem (12 chars) com redefinição
+        │   ├── EmpresaNomeCard.jsx        # Card de visualização e atalho para alteração do nome da empresa
+        │   ├── EditarNomeEmpresaModal.jsx # Modal para edição do nome oficial da empresa com atualização Realtime
         │   ├── EscalaPrivacidadeCard.jsx  # Card de privacidade da escala pública (Modo Anônimo / Ocultar Nomes)
         │   ├── VocabularioCard.jsx        # Card de atalho para customização de vocabulário e nicho
         │   ├── AdminSenhaCard.jsx         # Card de alteração da senha de contingência/admin
         │   ├── whatsapp/                  # Submódulos isolados de customização do WhatsApp
-        │   │   ├── useWhatsappConfig.js     # Hook de lógica, tags, preview e persistência da mensagem geral
+        │   │   ├── useWhatsappConfig.js     # Hook de lógica, tags, preview e persistência multi-alvo (pontos e geral)
         │   │   ├── WhatsappConfigCard.jsx   # Card de atalho na aba Configurações com status
-        │   │   ├── WhatsappConfigModal.jsx  # Modal de configuração da mensagem geral da escala completa
+        │   │   ├── WhatsappConfigModal.jsx  # Modal de configuração de mensagens de WhatsApp com menu suspenso individual
         │   │   ├── WhatsappEscopoDropdown.jsx # Menu dropdown suspenso com alternador do olho (Eye/EyeOff) para cópia
         │   │   └── WhatsappPreviewBubble.jsx# Simulador visual realista da bolha de mensagem do WhatsApp
         │   ├── AdminTabEscala.jsx         # Submódulo da aba/seção de escala e turnos (com QuickLink, Stats, Form, Lista e Zona de Perigo)
@@ -291,8 +295,7 @@ e:\Escala\
         │   ├── PontosList.jsx             # Lista reordenável via SortableJS com touch delay e fluidez mobile
         │   ├── PontoItem.jsx              # Card de ponto com drag-handle, vagas, edição inline e ações
         │   ├── PontoMobileMenu.jsx        # Menu dropdown suspenso touch-friendly com backdrop invisível
-        │   ├── DuplicarPontoModal.jsx     # Modal via Portal com trava de scroll para clonagem estrutural de turnos
-        │   └── PontoWhatsappModal.jsx     # Modal de personalização do cabeçalho e avisos do WhatsApp deste ponto
+        │   └── DuplicarPontoModal.jsx     # Modal via Portal com trava de scroll para clonagem estrutural de turnos
         ├── GestoresManager.jsx  # Painel orquestrador modularizado e enxuto de gestão de coordenadores e gestores
         ├── gestores/            # Submódulos e componentes isolados de gestão de coordenadores e gestores
         │   ├── useGestores.js             # Hook customizado de dados, Realtime e mutações via RPCs do Supabase

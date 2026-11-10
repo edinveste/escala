@@ -51,7 +51,16 @@ export function useEscalaData({ empresa, isDemo, showToast, confirm }) {
           dia: formatarNomeDia(t.dia),
         }))
 
-        setPontos(pontosRes.data || [])
+        const pontosMapeados = (pontosRes.data || []).map((p) => {
+          const zapPonto = empresa?.termos?.whatsappPontos?.[p.id]
+          return {
+            ...p,
+            cabecalho_whatsapp: p.cabecalho_whatsapp || zapPonto?.cabecalho || null,
+            rodape_whatsapp: p.rodape_whatsapp || zapPonto?.rodape || null,
+          }
+        })
+
+        setPontos(pontosMapeados)
         setTurnos(turnosNormalizados)
         setReservas(reservasRes.data || [])
 
@@ -149,7 +158,17 @@ export function useEscalaData({ empresa, isDemo, showToast, confirm }) {
             .eq('empresa_id', empresa.id)
             .order('ordem', { ascending: true })
             .then(({ data }) => {
-              if (data) setPontos(data)
+              if (data) {
+                const pontosMapeados = data.map((p) => {
+                  const zapPonto = empresa?.termos?.whatsappPontos?.[p.id]
+                  return {
+                    ...p,
+                    cabecalho_whatsapp: p.cabecalho_whatsapp || zapPonto?.cabecalho || null,
+                    rodape_whatsapp: p.rodape_whatsapp || zapPonto?.rodape || null,
+                  }
+                })
+                setPontos(pontosMapeados)
+              }
             })
         }
       )

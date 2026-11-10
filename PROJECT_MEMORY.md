@@ -893,6 +893,107 @@ npm run build
 
 ---
 
+## 27. Correção de Concorrência e Sincronização de Sessão no Portal do Gestor (`app.escalafacil.online`) — Novembro/2026
+- **Contexto e Causa Raiz do Bug**:
+  - Ao acessar a página de vendas e clicar em *"Área do Gestor"* (redirecionando para `https://app.escalafacil.online`), usuários com sessão ativa no navegador eram indevidamente recebidos com a tela `"Nenhuma Empresa Vinculada"`.
+  - Ao desconectar e fazer login novamente com as mesmas credenciais, a tela `"Nenhuma Empresa Vinculada"` dava uma piscada rápida (~150-300ms) antes de abrir o painel.
+  - **Causa Raiz Identificada**:
+    1. *Race Condition entre `getSession()` e `onAuthStateChange`*: na montagem inicial, ambos os métodos assíncronos do `@supabase/supabase-js` eram disparados concorrentemente. O `onAuthStateChange` recebia `INITIAL_SESSION` com `userChanged = false`, pulava o `fetchUserData` e chamava `setLoading(false)` prematuramente, enquanto a RPC `get_minhas_empresas` da chamada concorrente ainda estava em trânsito pela rede.
+    2. *`minhasEmpresas` ausente nas dependências do `TenantContext`*: com `authLoading = false` precoce, `carregarEmpresa` avaliava `minhasEmpresas = []`, cacheava o alvo como resolvido sem empresa e nunca mais re-disparava quando os dados reais chegavam.
+    3. *Falta de ordenação de guards no `App.jsx`*: o guard do `PortalSemEmpresaView` era avaliado antes da tela de carregamento global e sem verificar `authLoading`, renderizando a mensagem de erro antes do término das consultas assíncronas.
+    4. *Retorno assíncrono do `signIn`*: o método `signIn` resolvia antes de carregar o perfil e as empresas do usuário, gerando uma breve janela em que `user` existia mas `minhasEmpresas` era `[]`.
+- **Implementações Técnicas e Blindagem**:
+  1. **Unificação do Ciclo de Autenticação (`AuthContext.jsx`)**:
+     - `onAuthStateChange` atua como fonte primária com flag de inicialização, garantindo que `setLoading(false)` só seja executado **após** a conclusão bem-sucedida de `fetchUserData`.
+     - `signIn` aguarda o término do `fetchUserData` e retorna `{ ...data, empresas }` diretamente para o formulário.
+     - Fallback resiliente no `fetchUserData`: se a RPC `get_minhas_empresas` retornar vazia (ex: transição de token JWT em storage), consulta diretamente a tabela `usuarios_empresas` com `user_id = userId`.
+     - Limpeza do `localStorage.removeItem('escala_gestor_empresa_id')` no `signOut`.
+  2. **Reatividade e Cache Dinâmico no `TenantContext.jsx`**:
+     - `minhasEmpresas` adicionado às dependências do `useEffect`.
+     - Chave de cache (`targetKey`) agora inclui a relação ordenada de IDs das empresas vinculadas, forçando re-avaliação imediata e suave assim que as permissões são carregadas.
+     - Enquanto `authLoading = true`, o tenant força `loading = true` no subdomínio do portal.
+  3. **Hierarquia Blindada de Guards no `App.jsx`**:
+     - Guard 1: `(authLoading || tenantLoading) && !empresa && !isPinAuth` exibe o spinner elegante "Carregando..." enquanto qualquer operação assíncrona estiver pendente, eliminando 100% dos flashes e piscadas visuais.
+     - Guard 2: Portal desconectado exibe `PortalGestorLogin`.
+     - Guard 3: `PortalSemEmpresaView` só é renderizado se `authLoading` e `tenantLoading` forem falsos e `minhasEmpresas.length === 0`.
+  4. **Fluxo Otimizado no `usePortalAuth.js`**:
+     - Após autenticação por senha bem-sucedida, repassa a empresa retornada para o `onSuccess('auth', res?.empresas?.[0])`, ativando o tenant imediatamente.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros.
+
+---
+
+## 28. Gerenciamento e Edição do Nome Oficial da Empresa (`EmpresaNomeCard` e `EditarNomeEmpresaModal`) — Novembro/2026
+- **Contexto e Necessidade**:
+  - A empresa inicial ou recém-criada vinha cadastrada por padrão com o nome `"Minha Imobiliária"`.
+  - O gestor precisava alterar esse nome para a razão social/marca real da sua imobiliária diretamente pelo painel administrativo, sem necessidade de intervenção direta no banco Supabase.
+- **Implementações Técnicas**:
+  1. **Componente de Configuração (`EmpresaNomeCard.jsx`)**:
+     - Posicionado na aba **Configurações** (`AdminTabConfiguracoes.jsx`), exibe o ícone `Building2` em azul, o título *"Nome da Empresa"* com badge contendo o nome atual e o botão de ação *"Alterar Nome"*.
+  2. **Modal Modularizado de Edição (`EditarNomeEmpresaModal.jsx`)**:
+     - Modal acessível com foco automático no input, validação de comprimento (mínimo 2 caracteres), tratamento de loading (`salvando`), fechamento por clique externo/ESC e feedback em toast.
+     - Atualização direta e reativa no Supabase: `supabase.from('empresas').update({ nome }).eq('id', empresa.id)`.
+     - Propagação instantânea em tempo real via canal WebSocket do Supabase Realtime para todos os aparelhos conectados (atualizando o título da aba do navegador `document.title`, cabeçalho da escala pública e mensagens do WhatsApp).
+  3. **Exportação e Orquestração**:
+     - Exportado no barrel `src/components/admin/index.js`.
+     - Integrado aos modais do painel em `AdminModals.jsx` e ao hook de estado `useAdminView.js`.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso sem erros.
+
+---
+
+## 29. Unificação do Modal de WhatsApp dos Pontos e Limpeza Visual de Emojis — Novembro/2026
+- **Contexto e Decisão de Design**:
+  - Na aba **Pontos de Captação**, o botão de WhatsApp ainda acionava o modal legado `PontoWhatsappModal.jsx` (sem as novidades do seletor de escopo, tags e live preview da bolha).
+  - Além disso, a presença de muitos botões coloridos de emojis fixos criava ruído visual excessivo na interface.
+- **Implementações Realizadas**:
+  1. **Unificação Total de Modais**:
+     - `PontoWhatsappModal.jsx` foi completamente removido e descontinuado.
+     - O botão de WhatsApp na lista de pontos (`PontosList.jsx` / `PontoItem.jsx`) agora aciona diretamente o modal unificado oficial `WhatsappConfigModal.jsx`, passando o `id` do ponto como alvo selecionado.
+     - O modal já abre com o ponto selecionado no topo, permitindo alternar entre a mensagem geral e qualquer ponto sem precisar fechar a janela.
+  2. **Limpeza Visual e Destaque para Atalhos Nativos do Teclado**:
+     - Removidos todos os botões soltos e coloridos de emojis do cabeçalho e do rodapé do modal, bem como o banner fixo que ocupava espaço.
+     - Posicionado um botão discreto e elegante `[😀 Emojis no PC]` na mesma linha das tags (ao lado de `{link}`), com visibilidade exclusiva para desktop (`hidden sm:inline-flex`), permanecendo 100% oculto no celular onde o teclado nativo já supre essa função.
+     - Ao clicar no botão, abre-se um modal dedicado, limpo e focado, explicando detalhadamente os atalhos nativos do sistema:
+       - **Windows**: <kbd>Win</kbd> + <kbd>.</kbd>
+       - **Mac**: <kbd>Ctrl</kbd> + <kbd>Cmd ⌘</kbd> + <kbd>Espaço</kbd>
+     - Preservadas e organizadas as tags inteligentes clicáveis (`{ponto}`, `{empresa}`, `{capacidade}`, `{link}`).
+     - **Remoção do Bloco de Sugestão Rápida & Realocação do Botão Padrão**: o bloco superior *"Sugestão Rápida"* (com o botão de inserir modelo pré-fixado) foi totalmente removido para deixar o formulário mais enxuto e direto ao ponto. O botão `[🔄 Padrão]` foi reposicionado diretamente na barra de ações/tags, logo ao lado do botão de emojis.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso, reduzindo bundle e sem erros.
+
+---
+
+## 30. Persistência e Gerenciamento Individual de WhatsApp por Ponto no Menu Suspenso — Novembro/2026
+- **Contexto e Problema Identificado**:
+  - No menu suspenso do modal de WhatsApp, o gestor pode alternar entre a *Escala Completa (Geral)* e cada um dos *Pontos de Captação* cadastrados.
+  - Anteriormente, ao redigir o cabeçalho/rodapé de um ponto e selecionar outro no menu suspenso antes de salvar, os dados digitados eram perdidos da memória e sobrescritos com o valor original do novo ponto. Além disso, ao clicar em *"Salvar Alterações"*, apenas o ponto que estava ativo no instante do clique era gravado.
+- **Implementações Realizadas**:
+  1. **Buffer e Rascunhos em Memória Multi-Alvo (`drafts`) no `useWhatsappConfig.js`**:
+     - Introduzido estado `drafts: { [id]: { cabecalho, rodape, modificado } }`.
+     - Ao digitar no cabeçalho ou rodapé, o rascunho do ponto atualmente ativo é atualizado em tempo real.
+     - A função `mudarAlvo` preserva automaticamente as edições do alvo anterior antes de carregar o próximo, permitindo que o gestor alterne livremente entre todos os pontos do menu sem perder nenhuma linha de texto.
+  2. **Persistência Individual Completa no Banco de Dados (`salvarConfiguracao`)**:
+     - Ao clicar no botão *"Salvar Alterações"*, todos os pontos modificados durante a sessão (e a escala geral se tiver sido alterada) são persistidos individualmente no banco de dados.
+     - **Salvamento Direto nas Tabelas**:
+       - Para a escala geral: colunas `msg_whatsapp_geral` e `rodape_whatsapp_geral` em `public.empresas` (com fallback para RPC `atualizar_whatsapp_empresa`).
+       - Para cada ponto: colunas `cabecalho_whatsapp` e `rodape_whatsapp` em `public.pontos` (com fallback para RPC `atualizar_whatsapp_ponto`).
+     - **Blindagem em Dupla Camada (`empresas.termos.whatsappPontos`)**:
+       - Cada mensagem individual de ponto é adicionalmente espelhada no JSONB `termos.whatsappPontos[pontoId]`, garantindo funcionamento 100% resiliente mesmo em bancos de dados onde as migrações de coluna ainda não tenham sido executadas.
+     - Atualização instantânea dos objetos em memória (`pontos[index]` e `empresa`) com disparo de `onEmpresaUpdated` e `onDataChanged`.
+  3. **Suporte no Gerador de Texto (`escalaTextoHelper.js`)**:
+     - Leitura integrada com fallback: `pontoUnico?.cabecalho_whatsapp || empresa?.termos?.whatsappPontos?.[pontoUnico?.id]?.cabecalho`.
+     - Ao copiar a escala de um ponto específico (seja no painel ou no app do corretor), o texto gerado utiliza fielmente a mensagem personalizada exclusiva daquele ponto.
+  4. **Feedback Visual em Tempo Real no Menu Suspenso (`WhatsappEscopoDropdown.jsx`)**:
+     - Itens do menu suspenso (geral e cada ponto) exibem a tag verde `✓ Personalizado` em tempo real sempre que possuírem mensagem customizada gravada ou em rascunho na sessão.
+  5. **Sincronização e Hidratação de Pontos (`useEscalaData.js`)**:
+     - O hook hidrata silenciosamente na carga inicial e no canal Realtime cada ponto com sua respectiva mensagem individual vinda do JSONB `empresas.termos.whatsappPontos`, assegurando consistência em toda a interface (como as badges `💬 WhatsApp` em `PontoItem.jsx`) sem depender de migrações SQL.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros.
+
+
+---
+
 ### Fase 12: Privacidade da Escala Pública (Modo Anônimo / Ocultar Nomes)
 - **Data**: 10/11/2026
 - **Contexto**:
@@ -914,3 +1015,104 @@ npm run build
      - Implementado fallback automático para `empresa.termos.ocultarNomesEscala` (JSONB), assegurando funcionamento imediato mesmo antes da execução manual do script SQL no Supabase.
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero regressões.
+
+---
+
+## 27. Correção de Concorrência e Sincronização de Sessão no Portal do Gestor (`app.escalafacil.online`) — Novembro/2026
+- **Contexto e Causa Raiz do Bug**:
+  - Ao acessar a página de vendas e clicar em *"Área do Gestor"* (redirecionando para `https://app.escalafacil.online`), usuários com sessão ativa no navegador eram indevidamente recebidos com a tela `"Nenhuma Empresa Vinculada"`.
+  - Ao desconectar e fazer login novamente com as mesmas credenciais, a tela `"Nenhuma Empresa Vinculada"` dava uma piscada rápida (~150-300ms) antes de abrir o painel.
+  - **Causa Raiz Identificada**:
+    1. *Race Condition entre `getSession()` e `onAuthStateChange`*: na montagem inicial, ambos os métodos assíncronos do `@supabase/supabase-js` eram disparados concorrentemente. O `onAuthStateChange` recebia `INITIAL_SESSION` com `userChanged = false`, pulava o `fetchUserData` e chamava `setLoading(false)` prematuramente, enquanto a RPC `get_minhas_empresas` da chamada concorrente ainda estava em trânsito pela rede.
+    2. *`minhasEmpresas` ausente nas dependências do `TenantContext`*: com `authLoading = false` precoce, `carregarEmpresa` avaliava `minhasEmpresas = []`, cacheava o alvo como resolvido sem empresa e nunca mais re-disparava quando os dados reais chegavam.
+    3. *Falta de ordenação de guards no `App.jsx`*: o guard do `PortalSemEmpresaView` era avaliado antes da tela de carregamento global e sem verificar `authLoading`, renderizando a mensagem de erro antes do término das consultas assíncronas.
+    4. *Retorno assíncrono do `signIn`*: o método `signIn` resolvia antes de carregar o perfil e as empresas do usuário, gerando uma breve janela em que `user` existia mas `minhasEmpresas` era `[]`.
+- **Implementações Técnicas e Blindagem**:
+  1. **Unificação do Ciclo de Autenticação (`AuthContext.jsx`)**:
+     - `onAuthStateChange` atua como fonte primária com flag de inicialização, garantindo que `setLoading(false)` só seja executado **após** a conclusão bem-sucedida de `fetchUserData`.
+     - `signIn` aguarda o término do `fetchUserData` e retorna `{ ...data, empresas }` diretamente para o formulário.
+     - Fallback resiliente no `fetchUserData`: se a RPC `get_minhas_empresas` retornar vazia (ex: transição de token JWT em storage), consulta diretamente a tabela `usuarios_empresas` com `user_id = userId`.
+     - Limpeza do `localStorage.removeItem('escala_gestor_empresa_id')` no `signOut`.
+  2. **Reatividade e Cache Dinâmico no `TenantContext.jsx`**:
+     - `minhasEmpresas` adicionado às dependências do `useEffect`.
+     - Chave de cache (`targetKey`) agora inclui a relação ordenada de IDs das empresas vinculadas, forçando re-avaliação imediata e suave assim que as permissões são carregadas.
+     - Enquanto `authLoading = true`, o tenant força `loading = true` no subdomínio do portal.
+  3. **Hierarquia Blindada de Guards no `App.jsx`**:
+     - Guard 1: `(authLoading || tenantLoading) && !empresa && !isPinAuth` exibe o spinner elegante "Carregando..." enquanto qualquer operação assíncrona estiver pendente, eliminando 100% dos flashes e piscadas visuais.
+     - Guard 2: Portal desconectado exibe `PortalGestorLogin`.
+     - Guard 3: `PortalSemEmpresaView` só é renderizado se `authLoading` e `tenantLoading` forem falsos e `minhasEmpresas.length === 0`.
+  4. **Fluxo Otimizado no `usePortalAuth.js`**:
+     - Após autenticação por senha bem-sucedida, repassa a empresa retornada para o `onSuccess('auth', res?.empresas?.[0])`, ativando o tenant imediatamente.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros.
+
+---
+
+## 28. Gerenciamento e Edição do Nome Oficial da Empresa (`EmpresaNomeCard` e `EditarNomeEmpresaModal`) — Novembro/2026
+- **Contexto e Necessidade**:
+  - A empresa inicial ou recém-criada vinha cadastrada por padrão com o nome `"Minha Imobiliária"`.
+  - O gestor precisava alterar esse nome para a razão social/marca real da sua imobiliária diretamente pelo painel administrativo, sem necessidade de intervenção direta no banco Supabase.
+- **Implementações Técnicas**:
+  1. **Componente de Configuração (`EmpresaNomeCard.jsx`)**:
+     - Posicionado na aba **Configurações** (`AdminTabConfiguracoes.jsx`), exibe o ícone `Building2` em azul, o título *"Nome da Empresa"* com badge contendo o nome atual e o botão de ação *"Alterar Nome"*.
+  2. **Modal Modularizado de Edição (`EditarNomeEmpresaModal.jsx`)**:
+     - Modal acessível com foco automático no input, validação de comprimento (mínimo 2 caracteres), tratamento de loading (`salvando`), fechamento por clique externo/ESC e feedback em toast.
+     - Atualização direta e reativa no Supabase: `supabase.from('empresas').update({ nome }).eq('id', empresa.id)`.
+     - Propagação instantânea em tempo real via canal WebSocket do Supabase Realtime para todos os aparelhos conectados (atualizando o título da aba do navegador `document.title`, cabeçalho da escala pública e mensagens do WhatsApp).
+  3. **Exportação e Orquestração**:
+     - Exportado no barrel `src/components/admin/index.js`.
+     - Integrado aos modais do painel em `AdminModals.jsx` e ao hook de estado `useAdminView.js`.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso sem erros.
+
+---
+
+## 29. Unificação do Modal de WhatsApp dos Pontos e Limpeza Visual de Emojis — Novembro/2026
+- **Contexto e Decisão de Design**:
+  - Na aba **Pontos de Captação**, o botão de WhatsApp ainda acionava o modal legado `PontoWhatsappModal.jsx` (sem as novidades do seletor de escopo, tags e live preview da bolha).
+  - Além disso, a presença de muitos botões coloridos de emojis fixos criava ruído visual excessivo na interface.
+- **Implementações Realizadas**:
+  1. **Unificação Total de Modais**:
+     - `PontoWhatsappModal.jsx` foi completamente removido e descontinuado.
+     - O botão de WhatsApp na lista de pontos (`PontosList.jsx` / `PontoItem.jsx`) agora aciona diretamente o modal unificado oficial `WhatsappConfigModal.jsx`, passando o `id` do ponto como alvo selecionado.
+     - O modal já abre com o ponto selecionado no topo, permitindo alternar entre a mensagem geral e qualquer ponto sem precisar fechar a janela.
+  2. **Limpeza Visual e Destaque para Atalhos Nativos do Teclado**:
+     - Removidos todos os botões soltos e coloridos de emojis do cabeçalho e do rodapé do modal, bem como o banner fixo que ocupava espaço.
+     - Posicionado um botão discreto e elegante `[😀 Emojis no PC]` na mesma linha das tags (ao lado de `{link}`), com visibilidade exclusiva para desktop (`hidden sm:inline-flex`), permanecendo 100% oculto no celular onde o teclado nativo já supre essa função.
+     - Ao clicar no botão, abre-se um modal dedicado, limpo e focado, explicando detalhadamente os atalhos nativos do sistema:
+       - **Windows**: <kbd>Win</kbd> + <kbd>.</kbd>
+       - **Mac**: <kbd>Ctrl</kbd> + <kbd>Cmd ⌘</kbd> + <kbd>Espaço</kbd>
+     - Preservadas e organizadas as tags inteligentes clicáveis (`{ponto}`, `{empresa}`, `{capacidade}`, `{link}`).
+     - **Remoção do Bloco de Sugestão Rápida & Realocação do Botão Padrão**: o bloco superior *"Sugestão Rápida"* (com o botão de inserir modelo pré-fixado) foi totalmente removido para deixar o formulário mais enxuto e direto ao ponto. O botão `[🔄 Padrão]` foi reposicionado diretamente na barra de ações/tags, logo ao lado do botão de emojis.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso, reduzindo bundle e sem erros.
+
+---
+
+## 30. Persistência e Gerenciamento Individual de WhatsApp por Ponto no Menu Suspenso — Novembro/2026
+- **Contexto e Problema Identificado**:
+  - No menu suspenso do modal de WhatsApp, o gestor pode alternar entre a *Escala Completa (Geral)* e cada um dos *Pontos de Captação* cadastrados.
+  - Anteriormente, ao redigir o cabeçalho/rodapé de um ponto e selecionar outro no menu suspenso antes de salvar, os dados digitados eram perdidos da memória e sobrescritos com o valor original do novo ponto. Além disso, ao clicar em *"Salvar Alterações"*, apenas o ponto que estava ativo no instante do clique era gravado.
+- **Implementações Realizadas**:
+  1. **Buffer e Rascunhos em Memória Multi-Alvo (`drafts`) no `useWhatsappConfig.js`**:
+     - Introduzido estado `drafts: { [id]: { cabecalho, rodape, modificado } }`.
+     - Ao digitar no cabeçalho ou rodapé, o rascunho do ponto atualmente ativo é atualizado em tempo real.
+     - A função `mudarAlvo` preserva automaticamente as edições do alvo anterior antes de carregar o próximo, permitindo que o gestor alterne livremente entre todos os pontos do menu sem perder nenhuma linha de texto.
+  2. **Persistência Individual Completa no Banco de Dados (`salvarConfiguracao`)**:
+     - Ao clicar no botão *"Salvar Alterações"*, todos os pontos modificados durante a sessão (e a escala geral se tiver sido alterada) são persistidos individualmente no banco de dados.
+     - **Salvamento Direto nas Tabelas**:
+       - Para a escala geral: colunas `msg_whatsapp_geral` e `rodape_whatsapp_geral` em `public.empresas` (com fallback para RPC `atualizar_whatsapp_empresa`).
+       - Para cada ponto: colunas `cabecalho_whatsapp` e `rodape_whatsapp` em `public.pontos` (com fallback para RPC `atualizar_whatsapp_ponto`).
+     - **Blindagem em Dupla Camada (`empresas.termos.whatsappPontos`)**:
+       - Cada mensagem individual de ponto é adicionalmente espelhada no JSONB `termos.whatsappPontos[pontoId]`, garantindo funcionamento 100% resiliente mesmo em bancos de dados onde as migrações de coluna ainda não tenham sido executadas.
+     - Atualização instantânea dos objetos em memória (`pontos[index]` e `empresa`) com disparo de `onEmpresaUpdated` e `onDataChanged`.
+  3. **Suporte no Gerador de Texto (`escalaTextoHelper.js`)**:
+     - Leitura integrada com fallback: `pontoUnico?.cabecalho_whatsapp || empresa?.termos?.whatsappPontos?.[pontoUnico?.id]?.cabecalho`.
+     - Ao copiar a escala de um ponto específico (seja no painel ou no app do corretor), o texto gerado utiliza fielmente a mensagem personalizada exclusiva daquele ponto.
+  4. **Feedback Visual em Tempo Real no Menu Suspenso (`WhatsappEscopoDropdown.jsx`)**:
+     - Itens do menu suspenso (geral e cada ponto) exibem a tag verde `✓ Personalizado` em tempo real sempre que possuírem mensagem customizada gravada ou em rascunho na sessão.
+  5. **Sincronização e Hidratação de Pontos (`useEscalaData.js`)**:
+     - O hook hidrata silenciosamente na carga inicial e no canal Realtime cada ponto com sua respectiva mensagem individual vinda do JSONB `empresas.termos.whatsappPontos`, assegurando consistência em toda a interface (como as badges `💬 WhatsApp` em `PontoItem.jsx`) sem depender de migrações SQL.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros.
+

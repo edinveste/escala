@@ -3,7 +3,6 @@ import {
   FormAddPonto,
   PontosList,
   DuplicarPontoModal,
-  PontoWhatsappModal,
   usePontosManager,
 } from './pontos'
 
@@ -23,6 +22,7 @@ export default function PontosManager({
   empresa = null,
   isFullAdmin = true,
   termos = {},
+  onAbrirModalWhatsapp,
 }) {
   const {
     listaPontos,
@@ -39,10 +39,6 @@ export default function PontosManager({
     fecharModalDuplicarPonto,
     duplicarPonto,
     duplicandoPonto,
-    modalWhatsappPonto,
-    abrirModalWhatsappPonto,
-    fecharModalWhatsappPonto,
-    salvarWhatsappPonto,
   } = usePontosManager({
     pontos,
     turnos,
@@ -79,7 +75,7 @@ export default function PontosManager({
           onDelete={excluirPonto}
           onDuplicar={abrirModalDuplicarPonto}
           onLimparEscala={onLimparEscala}
-          onConfigWhatsapp={abrirModalWhatsappPonto}
+          onConfigWhatsapp={(ponto) => onAbrirModalWhatsapp?.(ponto.id)}
         />
       </div>
 
@@ -90,15 +86,6 @@ export default function PontosManager({
         onConfirm={duplicarPonto}
         isDuplicating={duplicandoPonto}
         termos={termos}
-      />
-
-      {/* Modal de Configuração de Texto do WhatsApp do Ponto */}
-      <PontoWhatsappModal
-        isOpen={Boolean(modalWhatsappPonto)}
-        onClose={fecharModalWhatsappPonto}
-        ponto={modalWhatsappPonto}
-        empresa={empresa}
-        onSave={salvarWhatsappPonto}
       />
     </>
   )

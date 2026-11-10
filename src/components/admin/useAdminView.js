@@ -52,6 +52,7 @@ export function useAdminView({
   const [modalDuplicar, setModalDuplicar] = useState(null)
   const [modalIncluirPessoa, setModalIncluirPessoa] = useState(null)
   const [modalEditarTurno, setModalEditarTurno] = useState(null)
+  const [showModalNome, setShowModalNome] = useState(false)
   const [showModalSenha, setShowModalSenha] = useState(false)
   const [showModalVocabulario, setShowModalVocabulario] = useState(false)
   const [showModalWhatsapp, setShowModalWhatsapp] = useState(false)
@@ -266,6 +267,8 @@ export function useAdminView({
     modalEditarTurno,
     setModalEditarTurno,
     handleAbrirEditarTurno,
+    showModalNome,
+    setShowModalNome,
     showModalSenha,
     setShowModalSenha,
     showModalVocabulario,

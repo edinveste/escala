@@ -1,6 +1,7 @@
 import DuplicarDiaModal from './DuplicarDiaModal'
 import IncluirPessoaModal from './IncluirPessoaModal'
 import EditarTurnoModal from './EditarTurnoModal'
+import EditarNomeEmpresaModal from './EditarNomeEmpresaModal'
 import AlterarSenhaModal from './AlterarSenhaModal'
 import VocabularioModal from '../VocabularioModal'
 import WhatsappConfigModal from './whatsapp/WhatsappConfigModal'
@@ -8,7 +9,7 @@ import WhatsappConfigModal from './whatsapp/WhatsappConfigModal'
 /**
  * Agrupador dos modais específicos do painel de administração:
  * Duplicação de dia, inclusão manual de colaborador, edição de turno,
- * alteração de senha de contingência e vocabulário/nicho.
+ * edição de nome da empresa, alteração de senha de contingência e vocabulário/nicho.
  */
 export default function AdminModals({
   modalDuplicar,
@@ -17,6 +18,8 @@ export default function AdminModals({
   onCloseIncluirPessoa,
   modalEditarTurno,
   onCloseEditarTurno,
+  showModalNome,
+  onCloseNome,
   showModalSenha,
   onCloseSenha,
   showModalVocabulario,
@@ -54,6 +57,14 @@ export default function AdminModals({
         modalEditarTurno={modalEditarTurno}
         onClose={onCloseEditarTurno}
         onDataChanged={onDataChanged}
+        showToast={showToast}
+      />
+
+      <EditarNomeEmpresaModal
+        isOpen={Boolean(showModalNome)}
+        onClose={onCloseNome}
+        empresa={empresa}
+        onEmpresaUpdated={onEmpresaUpdated}
         showToast={showToast}
       />
 

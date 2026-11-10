@@ -1,4 +1,5 @@
-import { MessageSquare, Sparkles, RotateCcw, Save, X, MapPin } from 'lucide-react'
+import { useState } from 'react'
+import { MessageSquare, RotateCcw, Save, X, MapPin } from 'lucide-react'
 import WhatsappPreviewBubble from './WhatsappPreviewBubble'
 import WhatsappEscopoDropdown from './WhatsappEscopoDropdown'
 import { useWhatsappConfig } from './useWhatsappConfig'
@@ -13,10 +14,13 @@ export default function WhatsappConfigModal({
   onDataChanged,
   showToast,
 }) {
+  const [showModalHelpEmojis, setShowModalHelpEmojis] = useState(false)
+
   const {
     alvoId,
     pontoAtual,
     mudarAlvo,
+    drafts,
     cabecalho,
     setCabecalho,
     rodape,
@@ -24,7 +28,6 @@ export default function WhatsappConfigModal({
     saving,
     inserirTag,
     inserirEmoji,
-    aplicarModeloSugerido,
     restaurarPadrao,
     salvarConfiguracao,
     textoPreview,
@@ -88,6 +91,8 @@ export default function WhatsappConfigModal({
             alvoId={alvoId}
             pontoAtual={pontoAtual}
             pontos={pontos}
+            empresa={empresa}
+            drafts={drafts}
             onSelecionarAlvo={mudarAlvo}
             isCopiaGeralAtiva={isCopiaGeralAtiva}
             isCopiaPontoAtiva={isCopiaPontoAtiva}
@@ -98,32 +103,6 @@ export default function WhatsappConfigModal({
 
         {/* Corpo do Modal com Rolagem */}
         <div className="p-4 sm:p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* Botões de Ações Rápidas */}
-          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-surface-900/40 border border-surface-700/50">
-            <span className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              Sugestão Rápida:
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={aplicarModeloSugerido}
-                className="px-2.5 py-1 text-xs font-medium text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-colors flex items-center gap-1"
-              >
-                Inserir Modelo {isGeral ? 'Geral' : 'do Ponto'}
-              </button>
-              <button
-                type="button"
-                onClick={restaurarPadrao}
-                className="px-2.5 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 bg-surface-700/50 hover:bg-surface-700 rounded-lg transition-colors flex items-center gap-1"
-                title="Voltar ao formato padrão automático do sistema"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Padrão
-              </button>
-            </div>
-          </div>
-
           {/* Campo: Cabeçalho Personalizado */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -134,63 +113,63 @@ export default function WhatsappConfigModal({
               <span className="text-[11px] text-gray-500">{cabecalho.length} caracteres</span>
             </div>
 
-            {/* Barra de Emojis e Tags Clicáveis */}
-            <div className="space-y-1.5 pb-1">
-              {/* Emojis Rápidos */}
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="text-[10px] text-gray-400 font-semibold mr-0.5">Emojis:</span>
-                {['🛑', '⚠️', '📍', '🏢', '📌', '🕐', '📋', '🚀', '👉', '🔥', '📅', '🚨', '✅', '✨'].map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => inserirEmoji(emoji, 'cabecalho')}
-                    className="w-7 h-7 flex items-center justify-center text-sm hover:scale-125 hover:bg-surface-700 active:scale-95 transition-all rounded select-none cursor-pointer"
-                    title={`Inserir ${emoji}`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-                <span className="text-[10px] text-gray-500 font-mono ml-auto hidden sm:inline" title="No Windows, aperte tecla Windows + ponto (.)">
-                  💡 Teclado: <kbd className="px-1.5 py-0.5 bg-surface-700 rounded text-gray-300">Win</kbd> + <kbd className="px-1.5 py-0.5 bg-surface-700 rounded text-gray-300">.</kbd>
-                </span>
-              </div>
+            {/* Tags Clicáveis, Botão de Emojis para PC & Botão Restaurar Padrão */}
+            <div className="flex flex-wrap items-center gap-1.5 pb-1">
+              <span className="text-[10px] text-gray-400 font-semibold mr-0.5">Inserir Tag:</span>
+              <button
+                type="button"
+                onClick={() => inserirTag('{ponto}', 'cabecalho')}
+                className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
+                title="Insere o nome do ponto"
+              >
+                {'{ponto}'}
+              </button>
+              <button
+                type="button"
+                onClick={() => inserirTag('{empresa}', 'cabecalho')}
+                className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
+                title="Insere o nome da empresa"
+              >
+                {'{empresa}'}
+              </button>
+              <button
+                type="button"
+                onClick={() => inserirTag('{capacidade}', 'cabecalho')}
+                className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
+                title="Insere a quantidade de vagas por horário"
+              >
+                {'{capacidade}'}
+              </button>
+              <button
+                type="button"
+                onClick={() => inserirTag('{link}', 'cabecalho')}
+                className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
+                title="Insere o link seguro do app"
+              >
+                {'{link}'}
+              </button>
 
-              {/* Tags */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] text-gray-400 font-semibold mr-0.5">Tags:</span>
-                <button
-                  type="button"
-                  onClick={() => inserirTag('{ponto}', 'cabecalho')}
-                  className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
-                  title="Insere o nome do ponto"
-                >
-                  {'{ponto}'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => inserirTag('{empresa}', 'cabecalho')}
-                  className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
-                  title="Insere o nome da empresa"
-                >
-                  {'{empresa}'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => inserirTag('{capacidade}', 'cabecalho')}
-                  className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
-                  title="Insere a quantidade de vagas por horário"
-                >
-                  {'{capacidade}'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => inserirTag('{link}', 'cabecalho')}
-                  className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
-                  title="Insere o link seguro do app"
-                >
-                  {'{link}'}
-                </button>
-              </div>
+              {/* Botão de Emojis exclusivo para PC (oculto no celular) */}
+              <button
+                type="button"
+                onClick={() => setShowModalHelpEmojis(true)}
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded border border-amber-500/30 transition-all active:scale-95 ml-1"
+                title="Ver como abrir a janela de emojis no teclado do computador"
+              >
+                <span>😀</span>
+                <span>Emojis no PC</span>
+              </button>
+
+              {/* Botão Restaurar Padrão */}
+              <button
+                type="button"
+                onClick={restaurarPadrao}
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-medium text-gray-300 hover:text-gray-100 bg-surface-700/60 hover:bg-surface-700 rounded border border-surface-600 transition-all active:scale-95 ml-auto sm:ml-1"
+                title="Limpar campos e voltar ao formato padrão automático do sistema"
+              >
+                <RotateCcw className="w-3 h-3 text-gray-400" />
+                <span>Padrão</span>
+              </button>
             </div>
 
             <textarea
@@ -216,20 +195,7 @@ export default function WhatsappConfigModal({
                 <span>2. Rodapé / Avisos Finais</span>
                 <span className="text-emerald-400 text-[11px] font-normal">(opcional)</span>
               </label>
-              <div className="flex items-center gap-1">
-                {['⚠️', '🚀', '👉', '📌', 'ℹ️', '✅'].map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => inserirEmoji(emoji, 'rodape')}
-                    className="w-6 h-6 flex items-center justify-center text-xs hover:scale-125 hover:bg-surface-700 transition-all rounded select-none cursor-pointer"
-                    title={`Inserir ${emoji} no rodapé`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-                <span className="text-[11px] text-gray-500 ml-1">{rodape.length} chars</span>
-              </div>
+              <span className="text-[11px] text-gray-500">{rodape.length} caracteres</span>
             </div>
 
             <textarea
@@ -266,6 +232,74 @@ export default function WhatsappConfigModal({
           </button>
         </div>
       </div>
+
+      {/* Modal Explicativo: Como Inserir Emojis no PC */}
+      {showModalHelpEmojis && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowModalHelpEmojis(false)
+          }}
+        >
+          <div className="w-full max-w-sm bg-surface-800 border border-surface-700 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 animate-scale-in">
+            {/* Cabeçalho */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center text-xl select-none">
+                  😀
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-gray-100">Emojis no Computador</h4>
+                  <p className="text-xs text-gray-400">Atalhos rápidos do teclado</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModalHelpEmojis(false)}
+                className="p-1 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-surface-700 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Conteúdo Explicativo */}
+            <div className="space-y-2.5 text-xs text-gray-300">
+              <div className="p-3 rounded-2xl bg-surface-900 border border-surface-700/80 space-y-1.5">
+                <div className="flex items-center justify-between font-semibold text-gray-200">
+                  <span>💻 Teclado Windows</span>
+                  <span className="text-[11px] text-amber-400 font-mono">Win + .</span>
+                </div>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  Pressione a tecla <kbd className="px-1.5 py-0.5 bg-surface-800 rounded text-gray-200 font-mono border border-surface-600 font-semibold shadow-xs">Windows</kbd> junto com o ponto final <kbd className="px-1.5 py-0.5 bg-surface-800 rounded text-gray-200 font-mono border border-surface-600 font-semibold shadow-xs">.</kbd>
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-surface-900 border border-surface-700/80 space-y-1.5">
+                <div className="flex items-center justify-between font-semibold text-gray-200">
+                  <span>🍎 Teclado Mac (Apple)</span>
+                  <span className="text-[11px] text-amber-400 font-mono">Ctrl + Cmd + Espaço</span>
+                </div>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  Pressione <kbd className="px-1.5 py-0.5 bg-surface-800 rounded text-gray-200 font-mono border border-surface-600 font-semibold shadow-xs">Control</kbd> + <kbd className="px-1.5 py-0.5 bg-surface-800 rounded text-gray-200 font-mono border border-surface-600 font-semibold shadow-xs">Command ⌘</kbd> + <kbd className="px-1.5 py-0.5 bg-surface-800 rounded text-gray-200 font-mono border border-surface-600 font-semibold shadow-xs">Espaço</kbd>
+                </p>
+              </div>
+
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                💡 O seu próprio computador abrirá a tela nativa com todos os emojis para você escolher e inserir no texto.
+              </p>
+            </div>
+
+            {/* Ação */}
+            <button
+              type="button"
+              onClick={() => setShowModalHelpEmojis(false)}
+              className="w-full btn-secondary py-2.5 text-xs font-semibold rounded-xl"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

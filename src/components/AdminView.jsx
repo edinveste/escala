@@ -53,6 +53,8 @@ export default function AdminView({
     modalEditarTurno,
     setModalEditarTurno,
     handleAbrirEditarTurno,
+    showModalNome,
+    setShowModalNome,
     showModalSenha,
     setShowModalSenha,
     showModalVocabulario,
@@ -148,6 +150,7 @@ export default function AdminView({
                 empresa={empresa}
                 isFullAdmin={isFullAdmin}
                 termos={termos}
+                onAbrirModalWhatsapp={(pontoId) => setShowModalWhatsapp(pontoId)}
               />
             </div>
           )}
@@ -160,6 +163,7 @@ export default function AdminView({
               showToast={showToast}
               isFullAdmin={isFullAdmin}
               termos={termos}
+              onAbrirModalNome={() => setShowModalNome(true)}
               onAbrirModalVocabulario={() => setShowModalVocabulario(true)}
               onAbrirModalSenha={() => setShowModalSenha(true)}
               onAbrirModalWhatsapp={() => setShowModalWhatsapp(true)}
@@ -177,6 +181,7 @@ export default function AdminView({
             showToast={showToast}
             isFullAdmin={isFullAdmin}
             termos={termos}
+            onAbrirModalNome={() => setShowModalNome(true)}
             onAbrirModalVocabulario={() => setShowModalVocabulario(true)}
             onAbrirModalSenha={() => setShowModalSenha(true)}
             onAbrirModalWhatsapp={() => setShowModalWhatsapp(true)}
@@ -205,6 +210,7 @@ export default function AdminView({
             empresa={empresa}
             isFullAdmin={isFullAdmin}
             termos={termos}
+            onAbrirModalWhatsapp={(pontoId) => setShowModalWhatsapp(pontoId)}
           />
 
           <AdminTabEscala
@@ -243,6 +249,8 @@ export default function AdminView({
         onCloseIncluirPessoa={() => setModalIncluirPessoa(null)}
         modalEditarTurno={modalEditarTurno}
         onCloseEditarTurno={() => setModalEditarTurno(null)}
+        showModalNome={showModalNome}
+        onCloseNome={() => setShowModalNome(false)}
         showModalSenha={showModalSenha}
         onCloseSenha={() => setShowModalSenha(false)}
         showModalVocabulario={showModalVocabulario}

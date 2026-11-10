@@ -16,7 +16,7 @@ export function AuthProvider({ children }) {
     if (!userId) {
       setPerfil(null)
       setMinhasEmpresas([])
-      return
+      return []
     }
 
     try {
@@ -39,81 +39,93 @@ export function AuthProvider({ children }) {
       // 2. Busca empresas vinculadas usando a RPC get_minhas_empresas
       const { data: empresasData, error: empresasErr } = await supabase.rpc('get_minhas_empresas')
 
-      if (empresasErr) {
-        // Fallback: se a RPC ainda não tiver sido criada no banco, tenta buscar diretamente
-        console.warn('Aviso na RPC get_minhas_empresas, usando fallback direto:', empresasErr.message)
-        const { data: directMemberships } = await supabase
+      let formatadas = []
+
+      // Se a RPC respondeu com empresas válidas (> 0), utiliza
+      if (!empresasErr && Array.isArray(empresasData) && empresasData.length > 0) {
+        formatadas = empresasData
+      } else {
+        // Fallback resiliente: se a RPC retornou vazio ou deu erro (ex: transição de token auth.uid() no Supabase),
+        // consulta diretamente a tabela de vínculos usuarios_empresas filtrando pelo userId
+        const { data: directMemberships, error: directErr } = await supabase
           .from('usuarios_empresas')
           .select('empresa_id, role, empresas(id, nome, slug, status)')
           .eq('user_id', userId)
           .eq('ativo', true)
 
-        if (directMemberships) {
-          const formatadas = directMemberships.map((m) => ({
+        if (!directErr && directMemberships && directMemberships.length > 0) {
+          formatadas = directMemberships.map((m) => ({
             empresa_id: m.empresa_id,
             empresa_nome: m.empresas?.nome || '',
             empresa_slug: m.empresas?.slug || '',
             empresa_status: m.empresas?.status || 'ativo',
             role: m.role || 'gestor',
+            is_superadmin: false,
           }))
-          setMinhasEmpresas((prev) => {
-            if (JSON.stringify(prev) === JSON.stringify(formatadas)) return prev
-            return formatadas
-          })
+        } else if (!empresasErr && Array.isArray(empresasData)) {
+          formatadas = empresasData
         }
-      } else {
-        const formatadas = empresasData || []
-        setMinhasEmpresas((prev) => {
-          if (JSON.stringify(prev) === JSON.stringify(formatadas)) return prev
-          return formatadas
-        })
       }
+
+      setMinhasEmpresas((prev) => {
+        if (JSON.stringify(prev) === JSON.stringify(formatadas)) return prev
+        return formatadas
+      })
+
+      return formatadas
     } catch (err) {
       console.error('Erro ao buscar dados do usuário:', err)
+      return []
     }
   }, [])
 
   // ─── Inicialização da sessão e listener Supabase Auth ────────
   useEffect(() => {
     let mounted = true
+    let initialized = false
 
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      if (!mounted) return
-      setSession(initialSession)
-      setUser(initialSession?.user ?? null)
-      currentUserIdRef.current = initialSession?.user?.id || null
-
-      if (initialSession?.user) {
-        fetchUserData(initialSession.user.id).finally(() => {
-          if (mounted) setLoading(false)
-        })
-      } else {
-        setLoading(false)
-      }
-    })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    const handleSessionChange = async (event, newSession) => {
       if (!mounted) return
 
-      const newUserId = newSession?.user?.id || null
+      const newUser = newSession?.user ?? null
+      const newUserId = newUser?.id ?? null
       const userChanged = newUserId !== currentUserIdRef.current
+
       currentUserIdRef.current = newUserId
-
       setSession(newSession)
-      setUser(newSession?.user ?? null)
+      setUser(newUser)
 
-      // Evita recarregar tudo em background em eventos rotineiros de TOKEN_REFRESHED se o usuário não mudou
-      if (newSession?.user) {
-        if (userChanged || event === 'SIGNED_IN') {
-          await fetchUserData(newSession.user.id)
+      if (newUser) {
+        if (userChanged || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          try {
+            await fetchUserData(newUser.id)
+          } finally {
+            if (mounted) setLoading(false)
+          }
+        } else {
+          if (mounted) setLoading(false)
         }
       } else {
         setPerfil(null)
         setMinhasEmpresas([])
+        if (mounted) setLoading(false)
       }
-      setLoading(false)
+    }
+
+    // 1. Listener oficial do Supabase Auth para eventos de sessão
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      initialized = true
+      await handleSessionChange(event, newSession)
+    })
+
+    // 2. Garantia de inicialização imediata via getSession
+    supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
+      if (!mounted) return
+      if (!initialized) {
+        await handleSessionChange('INITIAL_SESSION', initialSession)
+      }
     })
 
     return () => {
@@ -123,14 +135,30 @@ export function AuthProvider({ children }) {
   }, [fetchUserData])
 
   // ─── Métodos de Autenticação ─────────────────────────────────
-  const signIn = useCallback(async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
-    if (error) throw error
-    return data
-  }, [])
+  const signIn = useCallback(
+    async (email, password) => {
+      setLoading(true)
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        })
+        if (error) throw error
+
+        if (data?.user) {
+          currentUserIdRef.current = data.user.id
+          setSession(data.session)
+          setUser(data.user)
+          const empresas = await fetchUserData(data.user.id)
+          return { ...data, empresas }
+        }
+        return { ...data, empresas: [] }
+      } finally {
+        setLoading(false)
+      }
+    },
+    [fetchUserData]
+  )
 
   const signUp = useCallback(async (email, password, nome) => {
     const { data, error } = await supabase.auth.signUp({
@@ -145,15 +173,21 @@ export function AuthProvider({ children }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    setLoading(true)
     try {
       await supabase.auth.signOut()
     } catch (err) {
       console.error('Erro ao deslogar:', err)
     } finally {
+      currentUserIdRef.current = null
       setSession(null)
       setUser(null)
       setPerfil(null)
       setMinhasEmpresas([])
+      try {
+        localStorage.removeItem('escala_gestor_empresa_id')
+      } catch {}
+      setLoading(false)
     }
   }, [])
 

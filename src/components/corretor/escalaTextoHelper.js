@@ -50,7 +50,11 @@ export function gerarTextoEscala({
     ? pontos.find((p) => p.id === selectedPontoId)
     : null
 
-  const cabecalhoPontoCustom = pontoUnico?.cabecalho_whatsapp?.trim()
+  const cabecalhoPontoCustom = (
+    pontoUnico?.cabecalho_whatsapp ||
+    empresa?.termos?.whatsappPontos?.[pontoUnico?.id]?.cabecalho ||
+    ''
+  ).trim()
   const cabecalhoEmpresaCustom = (empresa?.msg_whatsapp_geral || empresa?.termos?.msgWhatsappGeral || '').trim()
 
   let texto = ''
@@ -123,7 +127,11 @@ export function gerarTextoEscala({
   }
 
   // ─── 3. RODAPÉ PERSONALIZADO (SE HOUVER) ──────────────────────
-  const rodapePontoCustom = pontoUnico?.rodape_whatsapp?.trim()
+  const rodapePontoCustom = (
+    pontoUnico?.rodape_whatsapp ||
+    empresa?.termos?.whatsappPontos?.[pontoUnico?.id]?.rodape ||
+    ''
+  ).trim()
   const rodapeEmpresaCustom = (empresa?.rodape_whatsapp_geral || empresa?.termos?.rodapeWhatsappGeral || '').trim()
 
   if (pontoUnico && rodapePontoCustom) {

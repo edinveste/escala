@@ -40,6 +40,7 @@ export default function App() {
   const {
     user,
     minhasEmpresas,
+    loading: authLoading,
     canManageEmpresa,
     getEmpresaRole,
     signOut,
@@ -112,7 +113,19 @@ export default function App() {
 
   // ─── Gateways de Acesso & Roteamento Especiais ───────────────
 
-  // 1. Portal do Gestor (app.escalafacil.online) Desconectado
+  // 1. Carregamento Global Inicial (Autenticação ou Resolução de Tenant)
+  // Enquanto o Supabase restaura a sessão ou resolve a imobiliária, exibe o spinner elegante,
+  // impedindo qualquer piscada indesejada de telas de erro ou de "sem empresa".
+  if ((authLoading || tenantLoading) && !empresa && !isPinAuth) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-surface-900 text-gray-100">
+        <div className="w-9 h-9 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-sm text-gray-400 font-medium">Carregando...</p>
+      </div>
+    )
+  }
+
+  // 2. Portal do Gestor (app.escalafacil.online) Desconectado
   if (isPortalDomain && !user && !isPinAuth) {
     return (
       <>
@@ -120,7 +133,7 @@ export default function App() {
           onSuccess={(tipo, emp) => {
             if (tipo === 'pin') setIsPinAuth(true)
             setView('admin')
-            if (emp) switchTenant(emp.id)
+            if (emp) switchTenant(emp.empresa_id || emp.id)
             refreshEmpresa()
           }}
           showToast={showToast}
@@ -134,19 +147,11 @@ export default function App() {
     )
   }
 
-  // 2. Portal do Gestor Conectado mas sem Empresa Vinculada
-  if (isPortalDomain && user && !empresa && minhasEmpresas.length === 0 && !tenantLoading) {
+  // 3. Portal do Gestor Conectado mas sem Nenhuma Empresa Vinculada
+  // Só é exibido se o carregamento global concluiu (authLoading=false e tenantLoading=false)
+  // e o usuário realmente não possui vínculos com nenhuma empresa no sistema
+  if (isPortalDomain && user && !empresa && minhasEmpresas.length === 0) {
     return <PortalSemEmpresaView userEmail={user.email} onSignOut={() => signOut()} />
-  }
-
-  // 3. Carregando Tenant Inicial
-  if (tenantLoading && !empresa) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-surface-900 text-gray-100">
-        <div className="w-9 h-9 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />
-        <p className="text-sm text-gray-400">Carregando...</p>
-      </div>
-    )
   }
 
   // 4. Landing Page Oficial (escalafacil.online/)
