@@ -19,8 +19,16 @@ import TenantNotFound from './components/TenantNotFound'
 import TenantErrorView from './components/TenantErrorView'
 import TenantBlockedView from './components/TenantBlockedView'
 import LandingPage from './components/LandingPage'
+import EmConstrucao from './components/EmConstrucao'
 import DemoEscalaView from './components/DemoEscalaView'
 import Toast from './components/Toast'
+
+// ─── Controle de Manutenção da Landing Page ─────────────────
+// Mude para `false` quando quiser colocar a Landing Page oficial de volta no ar.
+// Também pode ser controlado via .env: VITE_EM_CONSTRUCAO=true|false
+const EM_CONSTRUCAO = import.meta.env.VITE_EM_CONSTRUCAO !== undefined
+  ? import.meta.env.VITE_EM_CONSTRUCAO === 'true'
+  : true
 
 export default function App() {
   const confirm = useConfirm()
@@ -156,18 +164,24 @@ export default function App() {
 
   // 4. Landing Page Oficial (escalafacil.online/)
   if (isLanding) {
+    const handleOpenLogin = () => {
+      if (isPortalDomain) {
+        setShowAdminLoginModal(true)
+      } else {
+        window.location.href = window.location.hostname.includes('localhost')
+          ? '/?portal=app'
+          : 'https://app.escalafacil.online'
+      }
+    }
+
+    if (EM_CONSTRUCAO) {
+      return <EmConstrucao onOpenLogin={handleOpenLogin} />
+    }
+
     return (
       <LandingPage
         onOpenDemo={() => switchTenant('demo')}
-        onOpenLogin={() => {
-          if (isPortalDomain) {
-            setShowAdminLoginModal(true)
-          } else {
-            window.location.href = window.location.hostname.includes('localhost')
-              ? '/?portal=app'
-              : 'https://app.escalafacil.online'
-          }
-        }}
+        onOpenLogin={handleOpenLogin}
       />
     )
   }

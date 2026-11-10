@@ -29,7 +29,7 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
 - **Multi-Tenancy**: `TenantContext` com resolução por subdomínio (`imobiliaria.meusaas.com`), rota/slug (`/imobiliaria`), query param (`?empresa=imobiliaria`) e persistência segura no `localStorage`.
 - **Backend / BaaS**: Supabase
   - PostgreSQL 15+ com Row Level Security (RLS)
-  - Supabase Auth com persistência de sessão JWT (`AuthContext`)
+  - Supabase Auth com persistência de sessão JWT (`AuthContext`) e refresh automático resiliente
   - Supabase Realtime via WebSockets escutando com filtro estrito de `empresa_id`
   - Postgres Functions / RPCs com transações e row-level locking (`FOR UPDATE`)
 - **Autenticação dos Corretores (Zero-Atrito)**: Sem login tradicional (identidade via `localStorage` com `device_id` UUID e `corretor_nome`).
@@ -190,8 +190,8 @@ e:\Escala\
     ├── index.css                # Tailwind + classes utilitárias (.card, .btn-*, scrollbar dark)
     ├── App.jsx                  # Estado raiz, roteamento por tenant/view, canal Realtime isolado
     ├── contexts/
-    │   ├── AuthContext.jsx      # Provedor de contexto do Supabase Auth, RBAC e sessões
-    │   └── TenantContext.jsx    # Provedor de contexto do tenant ativo, detecção e troca de empresa
+    │   ├── AuthContext.jsx      # Provedor de contexto do Supabase Auth, RBAC, sessões e refresh resiliente de JWT
+    │   └── TenantContext.jsx    # Provedor de contexto do tenant ativo, detecção, troca de empresa e query pública segura contra JWT expirado
     ├── hooks/
     │   ├── useEscalaData.js     # Hook de busca, cache e sincronização em tempo real (Supabase Realtime)
     │   ├── useColaborador.js    # Hook de identidade Zero-Atrito, localStorage e reservas do colaborador
@@ -206,6 +206,7 @@ e:\Escala\
     └── components/
         ├── AppHeader.jsx        # Barra superior com logo, badge do portal de gestão, tema e logout
         ├── LandingPage.jsx      # Página de vendas oficial de alta conversão (escalafacil.online/)
+        ├── EmConstrucao.jsx     # Página temporária de manutenção e lançamento (chave EM_CONSTRUCAO / VITE_EM_CONSTRUCAO)
         ├── DemoBanner.jsx       # Banner informativo superior da demonstração com ações de conversão
         ├── DemoEscalaView.jsx   # Visão da escala demonstrativa 100% sandbox e isolada do banco Supabase
         ├── VocabularioModal.jsx # Re-export para retrocompatibilidade do modal de vocabulário
@@ -462,7 +463,18 @@ e:\Escala\
    - Migrado para dentro de `admin/`, consumido por `AdminTabConfiguracoes.jsx` e exportado no barrel `src/components/admin/index.js`.
    - `src/components/LinkSeguroManager.jsx` preservado na raiz como re-export transparente para retrocompatibilidade.
 
-
+### 5.12. Resiliência de Sessão JWT e Refresh Automático (`AuthContext.jsx` & `TenantContext.jsx`)
+1. **Problema Resolvido**: JWT expirado causava cascata de erros 401 em loop infinito, deslogava gestores indevidamente mostrando "Nenhuma Empresa Vinculada", e bloqueava a área pública dos colaboradores com "Erro de Configuração".
+2. **`AuthContext.jsx` — Refresh Silencioso com 3 Camadas de Proteção**:
+   - `handleSessionChange` com detecção de `expires_at` expirado: em vez de destruir o `refresh_token` (via `signOut`), chama `supabase.auth.refreshSession()` e aguarda o `onAuthStateChange` com `TOKEN_REFRESHED`.
+   - Guard `refreshingRef` contra múltiplas chamadas simultâneas de refresh.
+   - `fetchUserData` reformulado para retornar `{ data, jwtExpired }` com *early return* ao primeiro erro PGRST303, evitando 3 requests 401 desnecessárias e tentando refresh + retry se JWT expirou durante o fetch.
+   - Helper `isJwtExpiredError()` centralizado para detecção de erros `PGRST303`, `JWT expired` e `401`.
+   - Sessão null (refresh falhou): apenas limpa estado React sem re-executar `signOut` (Supabase já limpou).
+3. **`TenantContext.jsx` — Query Pública Segura (`queryEmpresaSegura`)**:
+   - Wrapper factory-based para queries da área pública (Cenário C / visão do colaborador).
+   - Se a primeira tentativa retorna `PGRST303`, faz `signOut({ scope: 'local' })` silencioso e reconstrói a query do zero (query builders do Supabase são single-use) — que agora passa com role `anon` sem JWT.
+   - Garante que colaboradores nunca vejam "Erro de Configuração" por causa de sessão expirada de gestor no mesmo navegador.
 
 
 

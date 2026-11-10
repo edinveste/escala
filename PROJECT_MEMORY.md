@@ -29,7 +29,7 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
 - **Multi-Tenancy**: `TenantContext` com resolução por subdomínio (`imobiliaria.meusaas.com`), rota/slug (`/imobiliaria`), query param (`?empresa=imobiliaria`) e persistência segura no `localStorage`.
 - **Backend / BaaS**: Supabase
   - PostgreSQL 15+ com Row Level Security (RLS)
-  - Supabase Auth com gerenciamento de sessão persistente (`AuthContext`), e-mail/senha e tokens JWT
+  - Supabase Auth com gerenciamento de sessão persistente (`AuthContext`), e-mail/senha, tokens JWT e refresh automático resiliente
   - Supabase Realtime via WebSockets escutando com filtro estrito de `empresa_id`
   - Postgres Functions / RPCs com transações e row-level locking (`FOR UPDATE`)
 - **Autenticação dos Corretores (Zero-Atrito)**: Sem login ou senha (identidade via `localStorage` com `device_id` UUID e `corretor_nome`).
@@ -167,8 +167,8 @@ e:\Escala\
     ├── index.css                # Tailwind + classes utilitárias (.card, .btn-*, scrollbar dark)
     ├── App.jsx                  # Estado raiz, roteamento por tenant/view, canal Realtime isolado
     ├── contexts/
-    │   ├── AuthContext.jsx      # Provedor de contexto do Supabase Auth, RBAC, sessões e papéis
-    │   └── TenantContext.jsx    # Provedor de contexto do tenant ativo, detecção e troca de empresa
+    │   ├── AuthContext.jsx      # Provedor de contexto do Supabase Auth, RBAC, sessões, papéis e refresh resiliente de JWT
+    │   └── TenantContext.jsx    # Provedor de contexto do tenant ativo, detecção, troca de empresa e query pública segura contra JWT expirado
     ├── hooks/
     │   ├── useEscalaData.js     # Hook de busca, cache e sincronização em tempo real (Supabase Realtime)
     │   ├── useColaborador.js    # Hook de identidade Zero-Atrito, localStorage e reservas do colaborador
@@ -1188,5 +1188,46 @@ npm run build
      - Em vez de limpar os campos para strings vazias, o botão *"Restaurar Padrão"* agora repõe instantaneamente os templates padrão com tags dinâmicas no cabeçalho e rodapé do alvo selecionado.
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros (distribuído em 10.33s).
+
+## 33. Resiliência de Sessão JWT e Refresh Automático — Novembro/2026
+- **Problema Identificado (2 cenários distintos)**:
+  1. **Área Pública do Colaborador**: Quando um gestor tinha logado anteriormente no mesmo navegador e seu JWT expirava, o Supabase client enviava o token expirado no header `Authorization` nas queries públicas (`empresas.select('*').eq('codigo_escala', ...)`). O PostgREST rejeitava com `PGRST303 JWT expired` em vez de fazer fallback para role `anon`. Resultado: tela "Erro de Configuração" com loop infinito de 401.
+  2. **Portal do Gestor**: Após ~1h (expiração do access_token), o `onAuthStateChange` disparava com sessão expirada. A versão anterior do código fazia `signOut({ scope: 'local' })` ao detectar JWT expirado, **destruindo o `refresh_token`** do `localStorage` e impedindo a renovação automática da sessão. Resultado: gestor era deslogado e via "Nenhuma Empresa Vinculada" mesmo tendo empresa cadastrada.
+- **Correções Implementadas**:
+  1. **`AuthContext.jsx` — Refresh Silencioso com 3 Camadas de Proteção**:
+     - `handleSessionChange` com detecção de `expires_at` expirado: em vez de destruir o `refresh_token`, chama `supabase.auth.refreshSession()` e aguarda o `onAuthStateChange` com `TOKEN_REFRESHED` e sessão válida.
+     - Guard `refreshingRef` (useRef) contra múltiplas chamadas simultâneas de `refreshSession()` quando o SDK dispara vários eventos em sequência (ex: `_onVisibilityChanged`).
+     - `fetchUserData` reformulado para retornar `{ data, jwtExpired }` com *early return* ao primeiro erro PGRST303 — evita 3 requests 401 desnecessárias (perfis + get_minhas_empresas + usuarios_empresas). Se `jwtExpired = true`, o handler tenta refresh + retry automático.
+     - Helper `isJwtExpiredError()` centralizado para detecção de `PGRST303`, `JWT expired` e `401`.
+     - Sessão null (refresh falhou): apenas limpa estado React, **NÃO** re-executa `signOut` (Supabase já limpou internamente).
+     - `TOKEN_REFRESHED` adicionado à lista de eventos que disparam `fetchUserData` para recarregar dados após renovação bem-sucedida.
+  2. **`TenantContext.jsx` — Query Pública Segura (`queryEmpresaSegura`)**:
+     - Wrapper factory-based para queries da área pública (Cenário C / visão do colaborador).
+     - Se a primeira tentativa retorna `PGRST303`, faz `signOut({ scope: 'local' })` silencioso (neste caso é seguro pois a área pública não usa autenticação) e reconstrói a query do zero via factory function (query builders do Supabase são single-use / consumidos após execução).
+     - Na segunda execução, o client não envia mais o JWT expirado → query passa como role `anon` normalmente.
+     - Garante que colaboradores nunca vejam "Erro de Configuração" por causa de sessão expirada de gestor no mesmo navegador.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros (distribuído em 8.28s).
+
+---
+
+## 34. Manutenção Programada e Modo "Em Construção" na Landing Page — Novembro/2026
+- **Contexto e Necessidade**:
+  - Necessidade de suspender temporariamente a página de vendas principal (`escalafacil.online/`) para reformulações ou atualizações, exibindo um aviso de "Em Construção / Novidades em Breve".
+  - **Requisito Crítico**: o bloqueio NUNCA pode afetar os links seguros das escalas dos corretores (`escalafacil.online/[codigo12]`) nem o portal administrativo dos gestores (`app.escalafacil.online`).
+- **Implementações Realizadas**:
+  1. **Componente Modular `EmConstrucao.jsx`**:
+     - Design moderno, mobile-first e dark mode com iluminação sutil.
+     - Badge animado com efeito ping: `🚧 Página em Atualização • Novidades em Breve`.
+     - Título e mensagem amigável explicando a reformulação da página.
+     - Card contextual tranquilizando clientes e gestores já cadastrados (garantindo que suas escalas e links continuam 100% no ar).
+     - Botão de acesso direto ao **"Portal do Gestor"** e atalho para o **WhatsApp de Suporte** (`VITE_WHATSAPP_SUPORTE`).
+  2. **Controle Híbrido em `src/App.jsx`**:
+     - Flag `EM_CONSTRUCAO` configurável tanto diretamente no código quanto via variável de ambiente `.env` (`VITE_EM_CONSTRUCAO=true|false`).
+     - Integração isolada no bloco `if (isLanding)` — preserva 100% da integridade de corretores e gestores.
+  3. **Documentação e Build**:
+     - Atualizado `.env.example` com `VITE_EM_CONSTRUCAO`.
+     - `npm run build` executado com sucesso e zero erros.
+
 
 
