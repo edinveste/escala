@@ -54,6 +54,7 @@ export function useAdminView({
   const [modalEditarTurno, setModalEditarTurno] = useState(null)
   const [showModalSenha, setShowModalSenha] = useState(false)
   const [showModalVocabulario, setShowModalVocabulario] = useState(false)
+  const [showModalWhatsapp, setShowModalWhatsapp] = useState(false)
 
   const handleTrocarLayout = useCallback(
     (novoModo) => {
@@ -269,6 +270,8 @@ export function useAdminView({
     setShowModalSenha,
     showModalVocabulario,
     setShowModalVocabulario,
+    showModalWhatsapp,
+    setShowModalWhatsapp,
   }
 }
 

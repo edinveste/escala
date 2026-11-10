@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS public.empresas (
   email_cobranca         TEXT,
   telefone_cobranca      TEXT,
   termos                 JSONB NOT NULL DEFAULT '{}'::jsonb,
+  msg_whatsapp_geral     TEXT,
+  rodape_whatsapp_geral  TEXT,
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -96,9 +98,11 @@ CREATE TABLE IF NOT EXISTS public.pontos (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
   nome       TEXT NOT NULL,              -- ex: 'Mercado Extra', 'Padaria Di Cunto'
-  ordem      INT  NOT NULL DEFAULT 0,
-  ativo      BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  ordem              INT  NOT NULL DEFAULT 0,
+  ativo              BOOLEAN NOT NULL DEFAULT true,
+  cabecalho_whatsapp TEXT,
+  rodape_whatsapp    TEXT,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_pontos_empresa_id ON public.pontos(empresa_id);
@@ -1771,6 +1775,77 @@ BEGIN
         'mensagem', 'Termos atualizados com sucesso.',
         'termos', p_termos
     );
+END;
+$$;
+
+-- 4.20 RPC: atualizar_whatsapp_ponto (Fase 10 - Customização WhatsApp Ponto)
+CREATE OR REPLACE FUNCTION public.atualizar_whatsapp_ponto(
+  p_ponto_id   UUID,
+  p_empresa_id UUID,
+  p_cabecalho  TEXT DEFAULT NULL,
+  p_rodape     TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_ponto RECORD;
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
+      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
+    END IF;
+  END IF;
+
+  UPDATE public.pontos
+  SET
+    cabecalho_whatsapp = NULLIF(trim(p_cabecalho), ''),
+    rodape_whatsapp = NULLIF(trim(p_rodape), '')
+  WHERE id = p_ponto_id AND empresa_id = p_empresa_id
+  RETURNING * INTO v_ponto;
+
+  IF v_ponto.id IS NULL THEN
+    RAISE EXCEPTION 'Ponto de captação não encontrado.';
+  END IF;
+
+  RETURN to_jsonb(v_ponto);
+END;
+$$;
+
+-- 4.21 RPC: atualizar_whatsapp_empresa (Fase 10 - Customização WhatsApp Escala Completa)
+CREATE OR REPLACE FUNCTION public.atualizar_whatsapp_empresa(
+  p_empresa_id UUID,
+  p_cabecalho  TEXT DEFAULT NULL,
+  p_rodape     TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_empresa RECORD;
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
+      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
+    END IF;
+  END IF;
+
+  UPDATE public.empresas
+  SET
+    msg_whatsapp_geral = NULLIF(trim(p_cabecalho), ''),
+    rodape_whatsapp_geral = NULLIF(trim(p_rodape), '')
+  WHERE id = p_empresa_id
+  RETURNING * INTO v_empresa;
+
+  IF v_empresa.id IS NULL THEN
+    RAISE EXCEPTION 'Empresa não encontrada.';
+  END IF;
+
+  RETURN to_jsonb(v_empresa);
 END;
 $$;
 

@@ -17,6 +17,9 @@ export { default as LayoutPreferencesCard } from './LayoutPreferencesCard'
 export { default as LinkSeguroManager } from './LinkSeguroManager'
 export { default as VocabularioCard } from './VocabularioCard'
 export { default as AdminSenhaCard } from './AdminSenhaCard'
+export { default as WhatsappConfigCard } from './whatsapp/WhatsappConfigCard'
+export { default as WhatsappConfigModal } from './whatsapp/WhatsappConfigModal'
+export { default as WhatsappPreviewBubble } from './whatsapp/WhatsappPreviewBubble'
 
 // Seções e Agrupadores das Abas
 export { default as AdminTabEscala } from './AdminTabEscala'

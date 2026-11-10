@@ -22,6 +22,7 @@ export function usePontosManager({
   const [addingPonto, setAddingPonto] = useState(false)
   const [modalDuplicarPonto, setModalDuplicarPonto] = useState(null)
   const [duplicandoPonto, setDuplicandoPonto] = useState(false)
+  const [modalWhatsappPonto, setModalWhatsappPonto] = useState(null)
 
   // Sincroniza lista local quando a prop pontos mudar
   useEffect(() => {
@@ -244,6 +245,52 @@ export function usePontosManager({
     [modalDuplicarPonto, pontos, turnos, empresaId, onDataChanged, showToast]
   )
 
+  // ─── Modal e Salvamento de WhatsApp do Ponto ──────────────────
+  const abrirModalWhatsappPonto = useCallback((ponto) => {
+    setModalWhatsappPonto(ponto)
+  }, [])
+
+  const fecharModalWhatsappPonto = useCallback(() => {
+    setModalWhatsappPonto(null)
+  }, [])
+
+  const salvarWhatsappPonto = useCallback(
+    async (pontoId, cabecalho, rodape) => {
+      try {
+        const payload = {
+          cabecalho_whatsapp: cabecalho?.trim() ? cabecalho.trim() : null,
+          rodape_whatsapp: rodape?.trim() ? rodape.trim() : null,
+        }
+
+        // 1. Tenta atualizar direto na tabela pontos
+        const { error: updateErr } = await supabase
+          .from('pontos')
+          .update(payload)
+          .eq('id', pontoId)
+
+        if (updateErr) {
+          // Fallback: RPC segura atualizar_whatsapp_ponto
+          const { error: rpcErr } = await supabase.rpc('atualizar_whatsapp_ponto', {
+            p_ponto_id: pontoId,
+            p_empresa_id: empresaId,
+            p_cabecalho: payload.cabecalho_whatsapp,
+            p_rodape: payload.rodape_whatsapp,
+          })
+          if (rpcErr) throw rpcErr
+        }
+
+        showToast('Texto do WhatsApp deste ponto atualizado com sucesso! 💬', 'success')
+        onDataChanged?.()
+        return true
+      } catch (err) {
+        console.error('Erro ao salvar texto do WhatsApp do ponto:', err)
+        showToast('Erro ao salvar texto do WhatsApp.', 'error')
+        return false
+      }
+    },
+    [empresaId, onDataChanged, showToast]
+  )
+
   return {
     listaPontos,
     setListaPontos,
@@ -259,6 +306,10 @@ export function usePontosManager({
     fecharModalDuplicarPonto,
     duplicarPonto,
     duplicandoPonto,
+    modalWhatsappPonto,
+    abrirModalWhatsappPonto,
+    fecharModalWhatsappPonto,
+    salvarWhatsappPonto,
   }
 }
 

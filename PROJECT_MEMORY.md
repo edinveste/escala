@@ -829,3 +829,40 @@ npm run build
   - `src/components/LinkSeguroManager.jsx` preservado na raiz como re-export transparente para garantir 100% de retrocompatibilidade.
 - **Validação de Build**:
   - `npm run build` executado com sucesso gerando bundle de produção sem erros nem regressões.
+
+---
+
+## 25. Customização Completa de Mensagens do WhatsApp (Ponto Individual e Escala Geral) — Novembro/2026
+- **Contexto e Dor do Negócio**:
+  - Coordenadores e gestores de plantão costumam publicar no WhatsApp mensagens ricas com emojis de impacto, nome do empreendimento, equipe/regional, endereço do ponto, referências de localização e regras de conduta (ex: "não copie e cole, envie seu horário").
+  - O sistema anteriormente gerava um texto padronizado fixo que não permitia aos gestores adaptar a comunicação ao contexto real de cada plantão nem da escala geral da semana.
+- **Novas Capacidades Implementadas**:
+  1. **Customização por Ponto Individual (`pontos.cabecalho_whatsapp` e `pontos.rodape_whatsapp`)**:
+     - Cada ponto de captação (ex: *Supermercado Ipanema*) possui botão dedicado de configuração (em desktop e no menu mobile).
+     - Abre o `PontoWhatsappModal.jsx` permitindo ao gestor inserir o texto livre com emojis, referências do local e regras.
+     - Indicador visual (`💬 WhatsApp`) no item do ponto na lista para indicar pontos com texto personalizado configurado.
+     - Botão "Inserir Modelo Completo" com sugestão profissional baseada na prática real dos plantões.
+     - Suporte a tags inteligentes `{ponto}`, `{empresa}`, `{capacidade}`, `{link}`.
+  2. **Customização Centralizada com Seletor de Escopo (`WhatsappConfigModal.jsx`)**:
+     - Card `WhatsappConfigCard.jsx` integrado na aba **Configurações** do painel do gestor.
+     - Modal unificado com dropdown no topo permitindo alternar instantaneamente entre a **Escala Completa (Geral)** e qualquer um dos **Pontos de Captação Individuais** sem precisar fechar o modal.
+     - Indicador visual `✓ (Personalizado)` no menu suspenso para pontos que já possuem texto próprio salvo.
+     - Live preview em tempo real adaptado ao ponto ou à escala completa, tags rápidas, modelo sugerido específico para cada contexto e persistência via RPCs ou tabelas Supabase.
+  3. **Simulador Visual Realista (`WhatsappPreviewBubble.jsx`)**:
+     - Componente reutilizável com layout idêntico à bolha de mensagem enviada no WhatsApp (`#005c4b` no dark mode), interpretando marcações de formatação (`*negrito*`, `_itálico_`, `~tachado~`), quebras de linha e carimbo de hora com checkmarks duplos (`CheckCheck`).
+  4. **Motor de Cópia Inteligente (`src/components/corretor/escalaTextoHelper.js`)**:
+     - `gerarTextoEscala`: se o ponto selecionado possuir cabeçalho customizado, prioriza o texto do ponto e injeta os turnos e horários logo abaixo com divisórias elegantes. Se for a escala completa, utiliza a mensagem geral configurada pela empresa.
+     - Linha divisória `━━━━━━━━━━━━━━━━━━` antes do rodapé de avisos/observações para separá-lo visualmente dos turnos, mantendo a divisória antes do link.
+     - Chamada de ação do link padronizada em caixa alta e negrito: `🔗 *GARANTA SUA VAGA*: https://...`.
+- **Banco de Dados & RPCs**:
+  - Script de migração: `supabase_migration_fase10_whatsapp_customizado.sql`.
+  - RPCs criadas: `atualizar_whatsapp_ponto` e `atualizar_whatsapp_empresa` com verificação de permissões e `SECURITY DEFINER`.
+  - Schema mestre `supabase_schema.sql` atualizado com as novas colunas e funções.
+- **Arquitetura Modular Criada**:
+  - `src/components/admin/whatsapp/WhatsappPreviewBubble.jsx`
+  - `src/components/admin/whatsapp/useWhatsappConfig.js`
+  - `src/components/admin/whatsapp/WhatsappConfigModal.jsx`
+  - `src/components/admin/whatsapp/WhatsappConfigCard.jsx`
+  - `src/components/pontos/PontoWhatsappModal.jsx`
+- **Validação de Build**:
+  - `npm run build` executado com sucesso gerando bundle de produção limpo e sem warnings.

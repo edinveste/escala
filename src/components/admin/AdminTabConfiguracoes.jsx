@@ -1,16 +1,14 @@
-import LayoutPreferencesCard from './LayoutPreferencesCard'
 import LinkSeguroManager from './LinkSeguroManager'
 import VocabularioCard from './VocabularioCard'
 import AdminSenhaCard from './AdminSenhaCard'
+import WhatsappConfigCard from './whatsapp/WhatsappConfigCard'
 
 /**
  * Seção / Aba de Ajustes e Configurações da Empresa.
- * Reúne preferências de layout, link seguro anti-espionagem,
+ * Reúne link seguro anti-espionagem, mensagens customizadas de WhatsApp,
  * vocabulário personalizado de nicho e alteração de senha de contingência.
  */
 export default function AdminTabConfiguracoes({
-  layoutMode,
-  onTrocarLayout,
   empresa,
   onEmpresaUpdated,
   showToast,
@@ -18,22 +16,21 @@ export default function AdminTabConfiguracoes({
   termos,
   onAbrirModalVocabulario,
   onAbrirModalSenha,
-  hideLayoutPreferences = false,
+  onAbrirModalWhatsapp,
 }) {
   return (
     <div className="space-y-2.5 animate-fade-in">
-      {!hideLayoutPreferences && (
-        <LayoutPreferencesCard
-          layoutMode={layoutMode}
-          onTrocarLayout={onTrocarLayout}
-        />
-      )}
-
       <LinkSeguroManager
         empresa={empresa}
         onEmpresaUpdated={onEmpresaUpdated}
         showToast={showToast}
         isFullAdmin={isFullAdmin}
+      />
+
+      <WhatsappConfigCard
+        empresa={empresa}
+        isFullAdmin={isFullAdmin}
+        onAbrirModalWhatsapp={onAbrirModalWhatsapp}
       />
 
       <VocabularioCard

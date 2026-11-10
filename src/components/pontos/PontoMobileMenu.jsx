@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Pencil, Copy, AlertTriangle, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Copy, AlertTriangle, Trash2, MessageSquare } from 'lucide-react'
 
 export default function PontoMobileMenu({
   isOpen,
@@ -10,6 +10,7 @@ export default function PontoMobileMenu({
   onDuplicar,
   onLimparEscala,
   onDelete,
+  onConfigWhatsapp,
 }) {
   if (!isOpen) return null
 
@@ -40,6 +41,20 @@ export default function PontoMobileMenu({
             </>
           )}
         </button>
+
+        {onConfigWhatsapp && (
+          <button
+            type="button"
+            onClick={() => {
+              onClose()
+              onConfigWhatsapp()
+            }}
+            className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-gray-200 hover:bg-surface-700/80 active:bg-surface-700 flex items-center gap-2.5 transition-colors"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+            {ponto.cabecalho_whatsapp ? 'Editar WhatsApp' : 'Configurar WhatsApp'}
+          </button>
+        )}
 
         <button
           type="button"

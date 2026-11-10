@@ -57,6 +57,8 @@ export default function AdminView({
     setShowModalSenha,
     showModalVocabulario,
     setShowModalVocabulario,
+    showModalWhatsapp,
+    setShowModalWhatsapp,
   } = useAdminView({
     pontos,
     turnos,
@@ -143,6 +145,7 @@ export default function AdminView({
                 onDataChanged={onDataChanged}
                 showToast={showToast}
                 empresaId={empresaId}
+                empresa={empresa}
                 isFullAdmin={isFullAdmin}
                 termos={termos}
               />
@@ -152,8 +155,6 @@ export default function AdminView({
           {/* Aba 4: Ajustes & Configurações */}
           {activeTab === 'configuracoes' && (
             <AdminTabConfiguracoes
-              layoutMode={layoutMode}
-              onTrocarLayout={handleTrocarLayout}
               empresa={empresa}
               onEmpresaUpdated={onEmpresaUpdated}
               showToast={showToast}
@@ -161,6 +162,7 @@ export default function AdminView({
               termos={termos}
               onAbrirModalVocabulario={() => setShowModalVocabulario(true)}
               onAbrirModalSenha={() => setShowModalSenha(true)}
+              onAbrirModalWhatsapp={() => setShowModalWhatsapp(true)}
             />
           )}
         </div>
@@ -170,8 +172,6 @@ export default function AdminView({
       {layoutMode === 'continuo' && (
         <div className="space-y-3 animate-fade-in">
           <AdminTabConfiguracoes
-            layoutMode={layoutMode}
-            onTrocarLayout={handleTrocarLayout}
             empresa={empresa}
             onEmpresaUpdated={onEmpresaUpdated}
             showToast={showToast}
@@ -179,7 +179,7 @@ export default function AdminView({
             termos={termos}
             onAbrirModalVocabulario={() => setShowModalVocabulario(true)}
             onAbrirModalSenha={() => setShowModalSenha(true)}
-            hideLayoutPreferences
+            onAbrirModalWhatsapp={() => setShowModalWhatsapp(true)}
           />
 
           <AdminTabEquipe
@@ -202,6 +202,7 @@ export default function AdminView({
             onDataChanged={onDataChanged}
             showToast={showToast}
             empresaId={empresaId}
+            empresa={empresa}
             isFullAdmin={isFullAdmin}
             termos={termos}
           />
@@ -246,6 +247,9 @@ export default function AdminView({
         onCloseSenha={() => setShowModalSenha(false)}
         showModalVocabulario={showModalVocabulario}
         onCloseVocabulario={() => setShowModalVocabulario(false)}
+        showModalWhatsapp={showModalWhatsapp}
+        onCloseWhatsapp={() => setShowModalWhatsapp(false)}
+        pontos={pontos}
         empresaId={empresaId}
         empresa={empresa}
         termos={termos}

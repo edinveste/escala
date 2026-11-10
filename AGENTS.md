@@ -139,6 +139,10 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
   - Remove corretor da equipe autorizada da imobiliária.
 - **`redefinir_codigo_escala(p_empresa_id)`**:
   - Gera um novo código aleatório seguro de 12 caracteres para a empresa, invalidando o anterior imediatamente contra vazamentos e espionagem de concorrentes. Exclusivo para administradores.
+- **`atualizar_whatsapp_ponto(p_ponto_id, p_empresa_id, p_cabecalho, p_rodape)`**:
+  - Atualiza de forma segura o cabeçalho e rodapé customizados de WhatsApp de um ponto de captação.
+- **`atualizar_whatsapp_empresa(p_empresa_id, p_cabecalho, p_rodape)`**:
+  - Atualiza de forma segura o cabeçalho e rodapé customizados de WhatsApp da escala completa da empresa.
 
 ---
 
@@ -164,6 +168,7 @@ e:\Escala\
 ├── supabase_migration_fase7_validacao_email.sql # Script de migração Fase 7: Validação Flexível por E-mail Corporativo
 ├── supabase_migration_fase8_vinculo_aparelho.sql # Script de migração Fase 8: Trava Estrita de Aparelho (device_id_vinculado)
 ├── supabase_migration_fase9_editar_colaborador.sql # Script de migração Fase 9: Edição Segura de Colaboradores (RPC)
+├── supabase_migration_fase10_whatsapp_customizado.sql # Script de migração Fase 10: Customização do WhatsApp (Ponto e Geral)
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -263,6 +268,11 @@ e:\Escala\
         │   ├── LinkSeguroManager.jsx      # Gerenciador de link seguro anti-espionagem (12 chars) com redefinição
         │   ├── VocabularioCard.jsx        # Card de atalho para customização de vocabulário e nicho
         │   ├── AdminSenhaCard.jsx         # Card de alteração da senha de contingência/admin
+        │   ├── whatsapp/                  # Submódulos isolados de customização do WhatsApp
+        │   │   ├── useWhatsappConfig.js     # Hook de lógica, tags, preview e persistência da mensagem geral
+        │   │   ├── WhatsappConfigCard.jsx   # Card de atalho na aba Configurações com status
+        │   │   ├── WhatsappConfigModal.jsx  # Modal de configuração da mensagem geral da escala completa
+        │   │   └── WhatsappPreviewBubble.jsx# Simulador visual realista da bolha de mensagem do WhatsApp
         │   ├── AdminTabEscala.jsx         # Submódulo da aba/seção de escala e turnos (com QuickLink, Stats, Form, Lista e Zona de Perigo)
         │   ├── AdminTabEquipe.jsx         # Submódulo da aba/seção de equipe e gestores
         │   ├── AdminTabConfiguracoes.jsx  # Submódulo da aba/seção de preferências, link seguro, vocabulário e senha
@@ -277,7 +287,8 @@ e:\Escala\
         │   ├── PontosList.jsx             # Lista reordenável via SortableJS com touch delay e fluidez mobile
         │   ├── PontoItem.jsx              # Card de ponto com drag-handle, vagas, edição inline e ações
         │   ├── PontoMobileMenu.jsx        # Menu dropdown suspenso touch-friendly com backdrop invisível
-        │   └── DuplicarPontoModal.jsx     # Modal via Portal com trava de scroll para clonagem estrutural de turnos
+        │   ├── DuplicarPontoModal.jsx     # Modal via Portal com trava de scroll para clonagem estrutural de turnos
+        │   └── PontoWhatsappModal.jsx     # Modal de personalização do cabeçalho e avisos do WhatsApp deste ponto
         ├── GestoresManager.jsx  # Painel orquestrador modularizado e enxuto de gestão de coordenadores e gestores
         ├── gestores/            # Submódulos e componentes isolados de gestão de coordenadores e gestores
         │   ├── useGestores.js             # Hook customizado de dados, Realtime e mutações via RPCs do Supabase

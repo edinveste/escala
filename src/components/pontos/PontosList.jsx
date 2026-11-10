@@ -15,6 +15,7 @@ export default function PontosList({
   onDelete,
   onDuplicar,
   onLimparEscala,
+  onConfigWhatsapp,
 }) {
   const listRef = useRef(null)
   const sortableRef = useRef(null)
@@ -93,6 +94,7 @@ export default function PontosList({
               onDelete={() => onDelete(ponto.id, ponto.nome)}
               onDuplicar={() => onDuplicar(ponto, qtdTurnos)}
               onLimparEscala={() => onLimparEscala(ponto.id)}
+              onConfigWhatsapp={() => onConfigWhatsapp?.(ponto)}
             />
           )
         })}

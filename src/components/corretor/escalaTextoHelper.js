@@ -1,7 +1,21 @@
 import { formatarNomeDia, compararDias } from '../../lib/diasSemana'
 
 /**
+ * Substitui tags dinâmicas no template do WhatsApp.
+ * Suporta: {empresa}, {ponto}, {capacidade}, {link}
+ */
+export function processarTagsWhatsapp(template, { empresaNome = '', pontoNome = '', capacidade = '', shareUrl = '' } = {}) {
+  if (!template) return ''
+  return template
+    .replace(/\{empresa\}/gi, empresaNome)
+    .replace(/\{ponto\}/gi, pontoNome)
+    .replace(/\{capacidade\}/gi, capacidade)
+    .replace(/\{link\}/gi, shareUrl)
+}
+
+/**
  * Gera texto formatado da escala para compartilhamento em grupos de WhatsApp.
+ * Suporta cabeçalho e rodapé customizados tanto para pontos individuais quanto para a escala completa.
  */
 export function gerarTextoEscala({
   pontos = [],
@@ -31,9 +45,42 @@ export function gerarTextoEscala({
 
   const nomeEmpresaUpper = empresa?.nome ? ` — ${empresa.nome.toUpperCase()}` : ''
   const tituloZap = (termos.textoWhatsapp || 'ESCALA SEMANAL').replace('📋', '').trim()
-  let texto = `📋 *${tituloZap}${nomeEmpresaUpper} (${capTexto})*\n`
-  texto += '━━━━━━━━━━━━━━━━━━\n\n'
 
+  const pontoUnico = selectedPontoId
+    ? pontos.find((p) => p.id === selectedPontoId)
+    : null
+
+  const cabecalhoPontoCustom = pontoUnico?.cabecalho_whatsapp?.trim()
+  const cabecalhoEmpresaCustom = (empresa?.msg_whatsapp_geral || empresa?.termos?.msgWhatsappGeral || '').trim()
+
+  let texto = ''
+
+  // ─── 1. CABEÇALHO DA MENSAGEM ──────────────────────────────────
+  if (pontoUnico && cabecalhoPontoCustom) {
+    // Ponto individual com cabeçalho personalizado
+    const processado = processarTagsWhatsapp(cabecalhoPontoCustom, {
+      empresaNome: empresa?.nome || '',
+      pontoNome: pontoUnico.nome,
+      capacidade: capTexto,
+      shareUrl: empresaShareUrl,
+    })
+    texto = `${processado}\n\n━━━━━━━━━━━━━━━━━━\n\n`
+  } else if (!pontoUnico && cabecalhoEmpresaCustom) {
+    // Escala completa com cabeçalho geral personalizado
+    const processado = processarTagsWhatsapp(cabecalhoEmpresaCustom, {
+      empresaNome: empresa?.nome || '',
+      pontoNome: 'Todos os Pontos',
+      capacidade: capTexto,
+      shareUrl: empresaShareUrl,
+    })
+    texto = `${processado}\n\n━━━━━━━━━━━━━━━━━━\n\n`
+  } else {
+    // Cabeçalho padrão automático
+    texto = `📋 *${tituloZap}${nomeEmpresaUpper} (${capTexto})*\n`
+    texto += '━━━━━━━━━━━━━━━━━━\n\n'
+  }
+
+  // ─── 2. LISTAGEM DOS PONTOS E DIAS ────────────────────────────
   for (const ponto of pontosParaCopiar) {
     const turnosDoPonto = turnos
       .filter((t) => t.ponto_id === ponto.id)
@@ -41,7 +88,11 @@ export function gerarTextoEscala({
 
     if (turnosDoPonto.length === 0) continue
 
-    texto += `📍 *${ponto.nome.toUpperCase()}*\n\n`
+    // Só exibe o título do ponto caso não estejamos em ponto único já com cabeçalho personalizado que contenha o nome
+    const pularTituloPonto = pontoUnico && cabecalhoPontoCustom && cabecalhoPontoCustom.toLowerCase().includes(ponto.nome.toLowerCase())
+    if (!pularTituloPonto) {
+      texto += `📍 *${ponto.nome.toUpperCase()}*\n\n`
+    }
 
     const porDia = {}
     for (const t of turnosDoPonto) {
@@ -68,11 +119,35 @@ export function gerarTextoEscala({
     }
   }
 
+  // ─── 3. RODAPÉ PERSONALIZADO (SE HOUVER) ──────────────────────
+  const rodapePontoCustom = pontoUnico?.rodape_whatsapp?.trim()
+  const rodapeEmpresaCustom = (empresa?.rodape_whatsapp_geral || empresa?.termos?.rodapeWhatsappGeral || '').trim()
+
+  if (pontoUnico && rodapePontoCustom) {
+    const processado = processarTagsWhatsapp(rodapePontoCustom, {
+      empresaNome: empresa?.nome || '',
+      pontoNome: pontoUnico.nome,
+      capacidade: capTexto,
+      shareUrl: empresaShareUrl,
+    })
+    texto += `━━━━━━━━━━━━━━━━━━\n${processado}\n\n`
+  } else if (!pontoUnico && rodapeEmpresaCustom) {
+    const processado = processarTagsWhatsapp(rodapeEmpresaCustom, {
+      empresaNome: empresa?.nome || '',
+      pontoNome: 'Todos os Pontos',
+      capacidade: capTexto,
+      shareUrl: empresaShareUrl,
+    })
+    texto += `━━━━━━━━━━━━━━━━━━\n${processado}\n\n`
+  }
+
+  // ─── 4. LINK DE RESERVA E FINALIZAÇÃO ─────────────────────────
   texto += '━━━━━━━━━━━━━━━━━━\n'
+  const acaoTextoUpper = (termos.acaoVaga || 'GARANTA SUA VAGA').toUpperCase()
   if (empresaShareUrl) {
-    texto += `🔗 ${termos.acaoVaga || 'Garanta sua vaga'}: ${empresaShareUrl}`
+    texto += `🔗 *${acaoTextoUpper}*: ${empresaShareUrl}`
   } else {
-    texto += '🔗 Reservas em tempo real no app'
+    texto += `🔗 *${acaoTextoUpper}*`
   }
 
   return texto

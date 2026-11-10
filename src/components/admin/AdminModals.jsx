@@ -3,6 +3,7 @@ import IncluirPessoaModal from './IncluirPessoaModal'
 import EditarTurnoModal from './EditarTurnoModal'
 import AlterarSenhaModal from './AlterarSenhaModal'
 import VocabularioModal from '../VocabularioModal'
+import WhatsappConfigModal from './whatsapp/WhatsappConfigModal'
 
 /**
  * Agrupador dos modais específicos do painel de administração:
@@ -20,6 +21,9 @@ export default function AdminModals({
   onCloseSenha,
   showModalVocabulario,
   onCloseVocabulario,
+  showModalWhatsapp,
+  onCloseWhatsapp,
+  pontos = [],
   empresaId,
   empresa,
   termos,
@@ -65,6 +69,17 @@ export default function AdminModals({
         onClose={onCloseVocabulario}
         empresa={empresa}
         onUpdateEmpresa={onEmpresaUpdated}
+        showToast={showToast}
+      />
+
+      <WhatsappConfigModal
+        isOpen={Boolean(showModalWhatsapp)}
+        onClose={onCloseWhatsapp}
+        empresa={empresa}
+        pontos={pontos}
+        initialAlvoId={typeof showModalWhatsapp === 'string' ? showModalWhatsapp : 'geral'}
+        onEmpresaUpdated={onEmpresaUpdated}
+        onDataChanged={onDataChanged}
         showToast={showToast}
       />
     </>
