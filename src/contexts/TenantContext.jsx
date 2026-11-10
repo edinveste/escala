@@ -134,15 +134,30 @@ export function TenantProvider({ children }) {
           return
         }
 
+        // ── Helper: Busca empresa tratando JWT expirado ──────────────
+        // Se houver um JWT expirado "grudado" no browser, as queries públicas
+        // retornam 401/PGRST303. Nesse caso, fazemos signOut local (limpa o token
+        // do storage) e reconstruímos a query — que agora passa com role anon.
+        // Recebe uma factory function que constrói a query do zero (Supabase
+        // query builders são consumidos após a primeira execução).
+        const queryEmpresaSegura = async (buildQuery) => {
+          const { data, error: qErr } = await buildQuery()
+          if (qErr && (qErr.code === 'PGRST303' || qErr.message?.includes('JWT expired'))) {
+            // Limpa sessão corrompida
+            try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
+            // Retenta com query limpa (sem JWT no header)
+            return await buildQuery()
+          }
+          return { data, error: qErr }
+        }
+
         // 1. Tenta buscar primeiro pelo Código Seguro de 12 caracteres (exato / case-sensitive)
         let empresaEncontrada = null
 
         if (isToken12Chars(target)) {
-          const { data: dataCod, error: errCod } = await supabase
-            .from('empresas')
-            .select('*')
-            .eq('codigo_escala', target)
-            .maybeSingle()
+          const { data: dataCod, error: errCod } = await queryEmpresaSegura(
+            () => supabase.from('empresas').select('*').eq('codigo_escala', target).maybeSingle()
+          )
 
           if (errCod && !errCod.message?.includes('does not exist')) {
             throw errCod
@@ -155,11 +170,9 @@ export function TenantProvider({ children }) {
         // 2. Se não encontrou por código ou não tem 12 chars, tenta por slug (retrocompatibilidade)
         if (!empresaEncontrada) {
           const slugNormalizado = slugify(target)
-          const { data: dataSlug, error: errSlug } = await supabase
-            .from('empresas')
-            .select('*')
-            .ilike('slug', slugNormalizado)
-            .maybeSingle()
+          const { data: dataSlug, error: errSlug } = await queryEmpresaSegura(
+            () => supabase.from('empresas').select('*').ilike('slug', slugNormalizado).maybeSingle()
+          )
 
           if (errSlug && !errSlug.message?.includes('does not exist')) {
             throw errSlug

@@ -10,13 +10,23 @@ export function AuthProvider({ children }) {
   const [minhasEmpresas, setMinhasEmpresas] = useState([])
   const [loading, setLoading] = useState(true)
   const currentUserIdRef = useRef(null)
+  const refreshingRef = useRef(false) // Guard contra múltiplos refreshes simultâneos
+
+  // ─── Helper: verifica se um erro Supabase é JWT expirado ──────
+  const isJwtExpiredError = (err) => {
+    if (!err) return false
+    const msg = err.message || err.code || ''
+    return err.code === 'PGRST303' || msg.includes('JWT expired') || msg.includes('401')
+  }
 
   // ─── Carrega perfil e empresas do usuário autenticado ────────
+  // Retorna { data: [...], jwtExpired: boolean } para que o caller
+  // saiba se precisa tentar refresh
   const fetchUserData = useCallback(async (userId) => {
     if (!userId) {
       setPerfil(null)
       setMinhasEmpresas([])
-      return []
+      return { data: [], jwtExpired: false }
     }
 
     try {
@@ -26,6 +36,12 @@ export function AuthProvider({ children }) {
         .select('*')
         .eq('id', userId)
         .maybeSingle()
+
+      // Se JWT expirou, retorna sinal sem fazer mais queries desnecessárias
+      if (isJwtExpiredError(perfilErr)) {
+        console.warn('Aviso ao carregar perfil: JWT expired — aguardando refresh da sessão')
+        return { data: [], jwtExpired: true }
+      }
 
       if (perfilErr) {
         console.warn('Aviso ao carregar perfil:', perfilErr.message)
@@ -38,6 +54,12 @@ export function AuthProvider({ children }) {
 
       // 2. Busca empresas vinculadas usando a RPC get_minhas_empresas
       const { data: empresasData, error: empresasErr } = await supabase.rpc('get_minhas_empresas')
+
+      // JWT expirou no meio do fluxo
+      if (isJwtExpiredError(empresasErr)) {
+        console.warn('JWT expired ao buscar empresas — aguardando refresh da sessão')
+        return { data: [], jwtExpired: true }
+      }
 
       let formatadas = []
 
@@ -52,6 +74,10 @@ export function AuthProvider({ children }) {
           .select('empresa_id, role, empresas(id, nome, slug, status)')
           .eq('user_id', userId)
           .eq('ativo', true)
+
+        if (isJwtExpiredError(directErr)) {
+          return { data: [], jwtExpired: true }
+        }
 
         if (!directErr && directMemberships && directMemberships.length > 0) {
           formatadas = directMemberships.map((m) => ({
@@ -72,10 +98,10 @@ export function AuthProvider({ children }) {
         return formatadas
       })
 
-      return formatadas
+      return { data: formatadas, jwtExpired: false }
     } catch (err) {
       console.error('Erro ao buscar dados do usuário:', err)
-      return []
+      return { data: [], jwtExpired: isJwtExpiredError(err) }
     }
   }, [])
 
@@ -89,6 +115,48 @@ export function AuthProvider({ children }) {
 
       const newUser = newSession?.user ?? null
       const newUserId = newUser?.id ?? null
+
+      // ── Sessão null: Supabase removeu (refresh_token expirou ou logout) ──
+      // Apenas limpa o estado do React. NÃO faz signOut novamente (Supabase já limpou).
+      if (!newSession) {
+        if (currentUserIdRef.current) {
+          currentUserIdRef.current = null
+          setSession(null)
+          setUser(null)
+          setPerfil(null)
+          setMinhasEmpresas([])
+        }
+        if (mounted) setLoading(false)
+        return
+      }
+
+      // ── Access token expirado: tenta refresh silencioso ──
+      // NÃO faz signOut (que destruiria o refresh_token). Em vez disso,
+      // pede ao Supabase para renovar a sessão. Se funcionar, onAuthStateChange
+      // dispara novamente com TOKEN_REFRESHED e sessão válida. Se falhar,
+      // o Supabase emite sessão null e o bloco acima limpa o estado.
+      if (newSession.expires_at && Date.now() > newSession.expires_at * 1000) {
+        if (!refreshingRef.current) {
+          refreshingRef.current = true
+          supabase.auth.refreshSession()
+            .then(({ error }) => {
+              if (error && mounted) {
+                // Refresh falhou definitivamente — sessão irrecuperável
+                currentUserIdRef.current = null
+                setSession(null)
+                setUser(null)
+                setPerfil(null)
+                setMinhasEmpresas([])
+                setLoading(false)
+              }
+            })
+            .catch(() => {})
+            .finally(() => { refreshingRef.current = false })
+        }
+        // Retorna sem fazer fetchUserData — espera o refresh completar
+        return
+      }
+
       const userChanged = newUserId !== currentUserIdRef.current
 
       currentUserIdRef.current = newUserId
@@ -96,12 +164,35 @@ export function AuthProvider({ children }) {
       setUser(newUser)
 
       if (newUser) {
-        if (userChanged || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-          try {
-            await fetchUserData(newUser.id)
-          } finally {
-            if (mounted) setLoading(false)
+        if (userChanged || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+          const result = await fetchUserData(newUser.id)
+
+          // Se JWT expirou durante o fetch (race condition), tenta refresh
+          if (result.jwtExpired && !refreshingRef.current) {
+            refreshingRef.current = true
+            supabase.auth.refreshSession()
+              .then(async ({ data: refreshData, error: refreshErr }) => {
+                if (!refreshErr && refreshData?.session && mounted) {
+                  // Refresh funcionou — retenta o fetch com token renovado
+                  await fetchUserData(newUser.id)
+                } else if (mounted) {
+                  // Refresh falhou — sessão morta
+                  currentUserIdRef.current = null
+                  setSession(null)
+                  setUser(null)
+                  setPerfil(null)
+                  setMinhasEmpresas([])
+                }
+              })
+              .catch(() => {})
+              .finally(() => {
+                refreshingRef.current = false
+                if (mounted) setLoading(false)
+              })
+            return // Loading será definido no .finally acima
           }
+
+          if (mounted) setLoading(false)
         } else {
           if (mounted) setLoading(false)
         }
@@ -149,8 +240,8 @@ export function AuthProvider({ children }) {
           currentUserIdRef.current = data.user.id
           setSession(data.session)
           setUser(data.user)
-          const empresas = await fetchUserData(data.user.id)
-          return { ...data, empresas }
+          const result = await fetchUserData(data.user.id)
+          return { ...data, empresas: result.data || result }
         }
         return { ...data, empresas: [] }
       } finally {
@@ -180,8 +271,8 @@ export function AuthProvider({ children }) {
           currentUserIdRef.current = data.user.id
           setSession(data.session)
           setUser(data.user)
-          const empresas = await fetchUserData(data.user.id)
-          return { ...data, empresas }
+          const result = await fetchUserData(data.user.id)
+          return { ...data, empresas: result.data || result }
         }
         return data
       } finally {
@@ -240,7 +331,11 @@ export function AuthProvider({ children }) {
 
   const refreshAuth = useCallback(async () => {
     if (user?.id) {
-      await fetchUserData(user.id)
+      const result = await fetchUserData(user.id)
+      // Se JWT expirou durante o refresh manual, tenta renovar a sessão
+      if (result.jwtExpired) {
+        await supabase.auth.refreshSession()
+      }
     }
   }, [fetchUserData, user?.id])
 
