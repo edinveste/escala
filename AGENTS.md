@@ -127,10 +127,14 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
   - Cria um novo tenant isolado e associa o criador logado como admin.
 - **`alternar_protecao_equipe(p_empresa_id, p_exigir)`**:
   - Altera a chave exigir_cadastro_previo com suporte híbrido para Supabase Auth e PIN de contingência.
-- **`adicionar_corretor_equipe(p_empresa_id, p_nome, p_whatsapp)`**:
-  - Adiciona membro autorizado na equipe de corretores via RPC segura.
+- **`adicionar_corretor_equipe(p_empresa_id, p_nome, p_whatsapp DEFAULT NULL, p_email DEFAULT NULL)`**:
+  - Adiciona membro autorizado na equipe de corretores via RPC segura com suporte a WhatsApp e E-mail corporativo.
+- **`editar_corretor_equipe(p_corretor_id, p_empresa_id, p_nome, p_whatsapp DEFAULT NULL, p_email DEFAULT NULL)`**:
+  - Edita nome, WhatsApp ou e-mail de membro da equipe com validação anti-duplicidade em nível de tenant.
 - **`alternar_status_corretor(p_corretor_id, p_empresa_id, p_ativo)`**:
   - Ativa ou desativa corretor da equipe autorizada.
+- **`desvincular_aparelho_corretor(p_corretor_id, p_empresa_id)`**:
+  - Limpa o `device_id_vinculado` do colaborador na equipe autorizada, liberando-o para cadastrar um novo aparelho ou trocar de celular.
 - **`remover_corretor_equipe(p_corretor_id, p_empresa_id)`**:
   - Remove corretor da equipe autorizada da imobiliária.
 - **`redefinir_codigo_escala(p_empresa_id)`**:
@@ -156,6 +160,10 @@ e:\Escala\
 ├── supabase_migration_fase3_asaas.sql # Script de migração Fase 3: Piloto Automático Asaas & Bloqueio
 ├── supabase_migration_fase4_links_seguros.sql # Script de migração Fase 4: Links Seguros Anti-Espionagem (12 chars)
 ├── supabase_migration_fase5_vocabulario.sql # Script de migração Fase 5: Vocabulário & Nicho Dinâmico (termos JSONB)
+├── supabase_migration_fase6_telefone_unico.sql # Script de migração Fase 6: Telefone Único & Anti-Spoofing
+├── supabase_migration_fase7_validacao_email.sql # Script de migração Fase 7: Validação Flexível por E-mail Corporativo
+├── supabase_migration_fase8_vinculo_aparelho.sql # Script de migração Fase 8: Trava Estrita de Aparelho (device_id_vinculado)
+├── supabase_migration_fase9_editar_colaborador.sql # Script de migração Fase 9: Edição Segura de Colaboradores (RPC)
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -173,7 +181,8 @@ e:\Escala\
     ├── hooks/
     │   ├── useEscalaData.js     # Hook de busca, cache e sincronização em tempo real (Supabase Realtime)
     │   ├── useColaborador.js    # Hook de identidade Zero-Atrito, localStorage e reservas do colaborador
-    │   └── useVerificacaoIdentidade.js # Hook de checagem em tempo real contra equipe autorizada e anti-spoofing
+    │   ├── useVerificacaoIdentidade.js # Hook de checagem em tempo real contra equipe autorizada e anti-spoofing
+    │   └── useDemoEscala.js     # Hook de sandbox local, simulação de reservas e regras da demonstração (/demo)
     ├── lib/
     │   ├── supabaseClient.js    # Instância do createClient configurada
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
@@ -185,20 +194,114 @@ e:\Escala\
         ├── LandingPage.jsx      # Página de vendas oficial de alta conversão (escalafacil.online/)
         ├── DemoBanner.jsx       # Banner informativo superior da demonstração com ações de conversão
         ├── DemoEscalaView.jsx   # Visão da escala demonstrativa 100% sandbox e isolada do banco Supabase
-        ├── VocabularioModal.jsx # Modal para personalizar vocabulário e nicho da empresa (presets e manual)
-        ├── CorretorView.jsx     # Tela pública do corretor (seleção de ponto, turnos e link WhatsApp)
-        ├── TurnoCard.jsx        # Card de turno na visão do corretor (progresso, botões contextuais)
-        ├── NomeModal.jsx        # Modal para solicitar nome e WhatsApp do corretor
+        ├── VocabularioModal.jsx # Re-export para retrocompatibilidade do modal de vocabulário
+        ├── vocabulario/         # Submódulos e hook isolados de nicho e vocabulário dinâmico
+        │   ├── useVocabularioModal.js        # Hook de regras, estado e sincronização de termos no Supabase
+        │   ├── VocabularioPresetSelector.jsx # Seletor de segmento/preset com ícones e descrições
+        │   ├── VocabularioLivePreview.jsx    # Card de pré-visualização ao vivo no celular
+        │   ├── VocabularioCamposCustomizados.jsx # Formulário sanfona de ajuste fino dos 7 termos
+        │   └── VocabularioModal.jsx          # Modal orquestrador enxuto com backdrop e ações
+        ├── CorretorView.jsx     # Tela pública orquestradora do corretor (modularizada e enxuta)
+        ├── corretor/            # Submódulos e componentes isolados da visão do corretor
+        │   ├── CorretorIdentityHeader.jsx # Saudação, alerta de autorização e correção de dados
+        │   ├── CorretorCopyFooter.jsx     # Barra fixa inferior com botão de copiar escala (WhatsApp)
+        │   ├── PontoSelectorView.jsx      # Tela de seleção de ponto com contagem de turnos e vagas
+        │   ├── PontoTurnosView.jsx        # Tela de turnos do ponto com navegação, cabeçalho e dias
+        │   ├── DiaAcordeonItem.jsx        # Item de acordeon de dia com vagas e lista de TurnoCard
+        │   ├── TurnoCard.jsx              # Card de turno na visão do corretor (progresso, botões contextuais)
+        │   ├── useDiasAcordeon.js         # Hook de controle e persistência de acordeons de dias por tenant
+        │   └── escalaTextoHelper.js       # Formatação de texto para WhatsApp e cópia para clipboard
+        ├── TurnoCard.jsx        # Re-export para retrocompatibilidade do card de turno do colaborador
+        ├── NomeModal.jsx        # Modal orquestrador de identificação do colaborador (modularizado e enxuto)
+        ├── nome-modal/          # Submódulos e etapas isoladas do fluxo de identificação do colaborador
+        │   ├── IdentificacaoCampos.jsx    # Campos adaptáveis com máscaras e validação inline (WhatsApp/E-mail/Nome)
+        │   ├── IdentificacaoFormStep.jsx  # Etapa 1: cabeçalho, alerta de autorização e submissão
+        │   └── ConfirmacaoDuplaStep.jsx   # Etapa 2: resumo, alerta de fixação no aparelho e atalho Enter
+        ├── IdentificacaoCampos.jsx # Re-export para retrocompatibilidade dos campos de identificação
         ├── ConfirmModal.jsx     # Modal universal assíncrono de confirmação/exclusão (useConfirm)
-        ├── AdminLoginModal.jsx  # Modal estilizado para login do gestor (Email/Senha, Cadastro, Reset e PIN legado)
-        ├── PortalGestorLogin.jsx# Tela full-page de login exclusivo dos gestores (app.escalafacil.online)
+        ├── AdminLoginModal.jsx  # Modal orquestrador de login do gestor (modularizado e enxuto)
+        ├── admin-login/         # Submódulos e formulários isolados do fluxo de autenticação do gestor
+        │   ├── adminAuthHelper.js     # Helper de validação e auto-vinculação com PIN (RPCs Supabase)
+        │   ├── AuthFeedback.jsx       # Componente de feedback para erros e alertas
+        │   ├── AcessoRestritoView.jsx # Visão de usuário logado sem vínculo à empresa ativa
+        │   ├── LoginForm.jsx          # Formulário de login institucional (E-mail/Senha)
+        │   ├── CadastroForm.jsx       # Formulário de criação de conta de gestor
+        │   ├── RecuperarSenhaForm.jsx # Formulário de redefinição de senha
+        │   └── PinLegadoForm.jsx      # Formulário de contingência via PIN legado
+        ├── PortalGestorLogin.jsx# Tela full-page orquestradora modularizada de login dos gestores (app.escalafacil.online)
+        ├── portal-gestor/       # Submódulos e formulários isolados do Portal do Gestor
+        │   ├── usePortalAuth.js           # Hook com lógica de autenticação, estados e RPCs do portal
+        │   ├── PortalHeader.jsx           # Cabeçalho superior com logo, badge e ThemeToggle
+        │   ├── PortalCardHeader.jsx       # Cabeçalho interno do card com título e subtítulo contextuais
+        │   ├── PortalFeedback.jsx         # Mensagens de alerta de erro e sucesso com animação
+        │   ├── PortalLoginForm.jsx        # Formulário de login com e-mail/senha, visibilidade e links
+        │   ├── PortalCadastroForm.jsx     # Formulário de criação de conta de gestor
+        │   ├── PortalRecuperarSenhaForm.jsx # Formulário para solicitação de redefinição de senha
+        │   ├── PortalPinLegadoForm.jsx    # Formulário de contingência por PIN legado com máscara mono
+        │   └── PortalSecurityFooter.jsx   # Rodapé com selo de segurança RBAC e ambiente blindado
         ├── PortalSemEmpresaView.jsx # Tela de aviso amigável quando o gestor logado não tem empresa vinculada
-        ├── LinkSeguroManager.jsx# Gerenciador de link seguro anti-espionagem (12 chars) com redefinição no AdminView
-        ├── AlterarSenhaModal.jsx# Modal para alteração segura de PIN pelo gestor da empresa
-        ├── AdminView.jsx        # Painel do Administrador (banner de identidade, turnos, pontos e equipe)
-        ├── PontosManager.jsx    # Gestão de pontos com RBAC granular (bloqueio de ações destrutivas para coordenadores)
-        ├── GestoresManager.jsx  # Gestão de coordenadores e gestores da imobiliária (convite por e-mail e papéis)
-        ├── EquipeManager.jsx    # Gerenciador de equipe autorizada e chave de proteção contra invasores
+        ├── LinkSeguroManager.jsx# Re-export para retrocompatibilidade do gerenciador de link seguro
+        ├── AlterarSenhaModal.jsx# Re-export para retrocompatibilidade do modal de alteração de senha
+        ├── AdminView.jsx        # Painel orquestrador do Administrador (modularizado e enxuto)
+        ├── admin/               # Submódulos e formulários isolados do Painel do Administrador
+        │   ├── AdminHeaderBanner.jsx      # Banner de identidade do gestor e alerta de suspensão Asaas
+        │   ├── AdminTabBar.jsx            # Barra de navegação por abas com feedback visual e acessibilidade
+        │   ├── AdminQuickLinkBar.jsx      # Barra de compartilhamento rápido com link seguro e WhatsApp
+        │   ├── AdminStats.jsx             # Métricas agregadas em tempo real (Pontos, Turnos e Reservas)
+        │   ├── FormAddTurno.jsx           # Formulário de criação de turnos com persistência do último dia
+        │   ├── TurnosCadastradosList.jsx  # Acordeon por ponto com sanfona, status de vagas e agrupamento por dia
+        │   ├── PontoTurnosAcordeon.jsx    # Card sanfona do ponto com métricas e lista de turnos por dia
+        │   ├── TurnosDiaList.jsx          # Lista de turnos do dia com reordenação SortableJS e duplicação
+        │   ├── AdminTurnoCard.jsx         # Card individual de turno com tags de participantes e ações
+        │   ├── AdminZonaPerigo.jsx        # Bloco de zona de perigo para limpeza geral de reservas
+        │   ├── DuplicarDiaModal.jsx       # Modal de replicação de turnos para múltiplos dias com presets
+        │   ├── IncluirPessoaModal.jsx     # Modal para inclusão manual de colaborador no turno
+        │   ├── EditarTurnoModal.jsx       # Modal para edição de horário e capacidade com validações
+        │   ├── AlterarSenhaModal.jsx      # Modal para alteração segura de PIN pelo gestor da empresa
+        │   ├── InputSenhaPin.jsx          # Campo reutilizável para entrada de senha/PIN com botão Eye/EyeOff
+        │   ├── LayoutPreferencesCard.jsx  # Card para alternar modo de navegação (Abas vs Visão Contínua)
+        │   ├── LinkSeguroManager.jsx      # Gerenciador de link seguro anti-espionagem (12 chars) com redefinição
+        │   ├── VocabularioCard.jsx        # Card de atalho para customização de vocabulário e nicho
+        │   ├── AdminSenhaCard.jsx         # Card de alteração da senha de contingência/admin
+        │   ├── AdminTabEscala.jsx         # Submódulo da aba/seção de escala e turnos (com QuickLink, Stats, Form, Lista e Zona de Perigo)
+        │   ├── AdminTabEquipe.jsx         # Submódulo da aba/seção de equipe e gestores
+        │   ├── AdminTabConfiguracoes.jsx  # Submódulo da aba/seção de preferências, link seguro, vocabulário e senha
+        │   ├── AdminModals.jsx            # Agrupador isolado de todos os 5 modais de administração
+        │   ├── useAdminView.js            # Hook com estado, preferências, cálculos matemáticos, agrupamentos e mutações
+        │   └── index.js                   # Barrel export de componentes e hook do admin
+        ├── PontosManager.jsx    # Painel orquestrador modularizado e enxuto de gestão de pontos de captação
+        ├── pontos/              # Submódulos e componentes isolados de gestão de pontos
+        │   ├── usePontosManager.js        # Hook customizado para reordenação, CRUD de pontos, duplicação e Supabase
+        │   ├── PontosHeader.jsx           # Cabeçalho da seção com título e indicador de salvamento de ordem
+        │   ├── FormAddPonto.jsx           # Formulário de cadastro de novo ponto com feedback de loading
+        │   ├── PontosList.jsx             # Lista reordenável via SortableJS com touch delay e fluidez mobile
+        │   ├── PontoItem.jsx              # Card de ponto com drag-handle, vagas, edição inline e ações
+        │   ├── PontoMobileMenu.jsx        # Menu dropdown suspenso touch-friendly com backdrop invisível
+        │   └── DuplicarPontoModal.jsx     # Modal via Portal com trava de scroll para clonagem estrutural de turnos
+        ├── GestoresManager.jsx  # Painel orquestrador modularizado e enxuto de gestão de coordenadores e gestores
+        ├── gestores/            # Submódulos e componentes isolados de gestão de coordenadores e gestores
+        │   ├── useGestores.js             # Hook customizado de dados, Realtime e mutações via RPCs do Supabase
+        │   ├── GestoresHeader.jsx         # Cabeçalho com título, contador de membros e controle de sanfona
+        │   ├── GestoresInfoCard.jsx       # Card explicativo dos papéis RBAC adaptado ao nicho/vocabulário
+        │   ├── FormAddGestor.jsx          # Formulário de convite e vinculação de novo gestor ou coordenador
+        │   ├── GestoresList.jsx           # Listagem com loading, empty state e renderização de membros
+        │   └── GestorItem.jsx             # Card de membro com avatar, badge de papel/convite e remoção segura
+        ├── EquipeManager.jsx    # Gerenciador orquestrador de equipe autorizada e proteção contra invasores
+        ├── equipe/              # Submódulos e componentes isolados de gestão de equipe
+        │   ├── useEquipe.js               # Hook customizado de dados, mutations, RPCs e Supabase Realtime
+        │   ├── EquipeHeader.jsx           # Cabeçalho unificado com título, badges, switch e sanfona
+        │   ├── EquipeStatusBanner.jsx     # Banner contextual de status da proteção (acesso restrito vs livre)
+        │   ├── EquipeList.jsx             # Barra de busca, loading, empty state e lista de membros
+        │   ├── EquipeMembroItem.jsx       # Card individual de colaborador com avatar, badges e ações
+        │   ├── MembroDeviceVinculado.jsx  # Subcomponente para exibição e desvinculação do celular cadastrado
+        │   ├── AdicionarMembroForm.jsx    # Formulário modular de cadastro de novos membros na equipe
+        │   ├── EditarMembroModal.jsx      # Modal assíncrono para edição de dados do colaborador
+        │   ├── TipoValidacaoSelector.jsx  # Seletor da política de validação da empresa (WhatsApp, E-mail ou Ambos)
+        │   └── index.js                   # Barrel export de componentes e hook da equipe
+        ├── AdicionarMembroForm.jsx # Re-export para retrocompatibilidade do formulário de cadastro de membro
+        ├── EditarMembroModal.jsx # Re-export para retrocompatibilidade do modal de edição de membro
+        ├── IdentificacaoCampos.jsx # Re-export para retrocompatibilidade dos campos de identificação
+        ├── TipoValidacaoSelector.jsx # Re-export para retrocompatibilidade do seletor de política de validação
         ├── TurnosDiaList.jsx    # Lista de turnos por dia com drag-and-drop animado (SortableJS) e gestão de corretores
         ├── TenantNotFound.jsx   # Tela elegante de 404 quando o slug não existe com busca e demo
         ├── TenantErrorView.jsx  # Tela amigável para falhas críticas de configuração do tenant com retry
@@ -287,6 +390,56 @@ e:\Escala\
 3. **Banner Superior e UI/UX (`DemoBanner.jsx` e `DemoEscalaView.jsx`)**:
    - Banner discreto no topo: *"💡 Modo Demonstração Interativo — Experimente garantir uma vaga como se fosse um colaborador da equipe."*.
    - Botões de alta conversão: *"Voltar para o Site"* (navegação SPA para `/`) e *"Criar Escala da Minha Empresa"* (redireciona para o Portal do Gestor).
+
+### 5.8. Arquitetura Modular do Frontend e Orquestração do App.jsx
+1. **Orquestrador Enxuto (`App.jsx`)**:
+   - O componente raiz atua estritamente como orquestrador de gateways de acesso, layout e rotas (reduzido de 850 para ~300 linhas).
+2. **Hook de Dados e Realtime (`useEscalaData.js`)**:
+   - Centraliza consultas de `pontos`, `turnos` e `reservas`, cache silencioso na alternância de empresa, background migration de dias e canais do Supabase Realtime com filtro por `empresa_id`.
+3. **Hook de Identidade do Colaborador (`useColaborador.js`)**:
+   - Gerencia identidade Zero-Atrito (`device_id` UUID, `localStorage`), ciclo de vida do `NomeModal` e RPCs de reserva e cancelamento.
+4. **Subcomponentes Especializados de Layout e Estado**:
+   - `AppHeader.jsx`: Topbar com navegação, badges de gestão, tema e logout.
+   - `PortalSemEmpresaView.jsx`: Estado para gestor autenticado no portal sem empresa vinculada.
+   - `TenantErrorView.jsx`: Tela amigável com retry para falhas de configuração do tenant.
+
+### 5.9. Componentização e Modularidade dos Módulos Centrais (CorretorView, AdminView e AdminLoginModal)
+1. **Visão do Corretor / Colaborador (`CorretorView.jsx` & `src/components/corretor/`)**:
+   - `CorretorView.jsx` reduzido de 644 para ~150 linhas como orquestrador enxuto.
+   - `PontoSelectorView.jsx`: Lista interativa de locais com métricas de vagas e estado vazio.
+   - `PontoTurnosView.jsx`: Quadro de horários do ponto com cabeçalho de navegação e botão unificado de expandir/recolher todos os dias.
+   - `DiaAcordeonItem.jsx`: Item individual de acordeon por dia com badges de lotação, indicador "Sua vaga" e listagem de `TurnoCard`.
+   - `useDiasAcordeon.js`: Hook para controle reativo e persistência no `localStorage` por empresa.
+   - `CorretorIdentityHeader.jsx` & `CorretorCopyFooter.jsx`: Cabeçalho de saudação/alerta e rodapé fixo para cópia de escala no WhatsApp.
+   - `escalaTextoHelper.js`: Funções puras de formatação de texto e cópia segura para clipboard.
+2. **Painel do Administrador (`AdminView.jsx` & `src/components/admin/`)**:
+   - Componente orquestrador desacoplado em submódulos: `AdminHeaderBanner`, `AdminTabBar`, `AdminQuickLinkBar`, `AdminStats`, `FormAddTurno`, `TurnosCadastradosList`, `AdminZonaPerigo`, `DuplicarDiaModal`, `IncluirPessoaModal`, `EditarTurnoModal`, `LayoutPreferencesCard`, `VocabularioCard` e `AdminSenhaCard`.
+3. **Modal de Autenticação do Gestor (`AdminLoginModal.jsx` & `src/components/admin-login/`)**:
+   - Fluxo de login e contingência modularizado em submódulos: `adminAuthHelper`, `AuthFeedback`, `AcessoRestritoView`, `LoginForm`, `CadastroForm`, `RecuperarSenhaForm` e `PinLegadoForm`.
+
+### 5.10. Componentização e Modularidade da Equipe (`EquipeManager.jsx` & `src/components/equipe/`)
+1. **Orquestrador Enxuto (`EquipeManager.jsx`)**:
+   - Reduzido de 773 para ~140 linhas, operando estritamente como orquestrador visual declarativo.
+2. **Hook de Dados e Mutations (`useEquipe.js`)**:
+   - Centraliza consultas de `equipe_corretores`, canal Realtime WebSockets com filtro por `empresa_id`, alternância de proteção de acesso (`alternar_protecao_equipe`), cadastro (`adicionar_corretor_equipe`), edição (`editar_corretor_equipe`), ativação (`alternar_status_corretor`), remoção (`remover_corretor_equipe`) e desvinculação de celular (`desvincular_aparelho_corretor`) com diálogos `useConfirm`.
+3. **Subcomponentes Especializados de Interface**:
+   - `EquipeHeader.jsx`: Cabeçalho unificado com título, badges contextuais, switch toggle acessível e botão de sanfona (expandir/recolher com persistência por tenant).
+   - `EquipeStatusBanner.jsx`: Banner informativo contextual (Proteção Ativada vs Desativada) integrado ao vocabulário da empresa.
+   - `EquipeList.jsx`: Gerenciamento de busca, loading, empty state e listagem scrollável.
+   - `EquipeMembroItem.jsx`: Card de membro com avatar, badges informativas (Inativo, Celular vinculado e E-mail pendente), links para WhatsApp e e-mail corporativo, e botões de ação contextuais.
+
+### 5.11. Modularização da Demo (`useDemoEscala.js`) e Alinhamento de Domínios
+1. **Hook de Demonstração Sandbox (`src/hooks/useDemoEscala.js`)**:
+   - Encapsula 100% da lógica e estado da escala de demonstração (`/demo`): `deviceId`, `corretorNome`, `corretorWhatsapp`, `corretorEmail`, `reservas` em memória e `localStorage` (`salvarReservasDemo`), concorrência, lotação e modais de identificação/confirmação com toasts contextuais.
+   - Reduz `DemoEscalaView.jsx` para um componente puramente declarativo (< 80 linhas).
+2. **Alinhamento do Domínio Público/Corretor (`src/components/corretor/TurnoCard.jsx`)**:
+   - Migrado para dentro de `corretor/`, consumido diretamente por `DiaAcordeonItem.jsx`.
+   - `src/components/TurnoCard.jsx` preservado na raiz como re-export transparente para retrocompatibilidade.
+3. **Alinhamento do Domínio Administrativo (`src/components/admin/LinkSeguroManager.jsx`)**:
+   - Migrado para dentro de `admin/`, consumido por `AdminTabConfiguracoes.jsx` e exportado no barrel `src/components/admin/index.js`.
+   - `src/components/LinkSeguroManager.jsx` preservado na raiz como re-export transparente para retrocompatibilidade.
+
+
 
 
 

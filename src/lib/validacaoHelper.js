@@ -121,3 +121,30 @@ export function exigeEmail(tipo) {
   return tipo === TIPOS_VALIDACAO.EMAIL || tipo === TIPOS_VALIDACAO.AMBOS
 }
 
+/**
+ * Valida os requisitos de segurança da senha para cadastro de novos gestores:
+ * - Mínimo de 8 caracteres
+ * - Pelo menos uma letra maiúscula (A-Z)
+ * - Pelo menos uma letra minúscula (a-z)
+ * - Pelo menos um número (0-9)
+ *
+ * @param {string} senha
+ * @returns {string|null} Mensagem de erro ou null se a senha for válida
+ */
+export function validarSenhaForte(senha) {
+  if (!senha || senha.length < 8) {
+    return 'A senha deve conter no mínimo 8 caracteres.'
+  }
+  if (!/[A-Z]/.test(senha)) {
+    return 'A senha deve conter pelo menos uma letra maiúscula (A-Z).'
+  }
+  if (!/[a-z]/.test(senha)) {
+    return 'A senha deve conter pelo menos uma letra minúscula (a-z).'
+  }
+  if (!/[0-9]/.test(senha)) {
+    return 'A senha deve conter pelo menos um número (0-9).'
+  }
+  return null
+}
+
+

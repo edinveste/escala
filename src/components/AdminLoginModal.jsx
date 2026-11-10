@@ -1,27 +1,22 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { useTenant } from '../contexts/TenantContext'
-import { setTenantUrl } from '../lib/tenantHelper'
-import {
-  Shield,
-  Eye,
-  EyeOff,
-  Lock,
-  Mail,
-  User,
-  ArrowRight,
-  KeyRound,
-  X,
-  AlertCircle,
-  CheckCircle2,
-  Building2,
-  ChevronRight,
-  Sparkles,
-  LogOut,
-} from 'lucide-react'
+import { Shield, X } from 'lucide-react'
+import { validarSenhaForte } from '../lib/validacaoHelper'
 
+import AuthFeedback from './admin-login/AuthFeedback'
+import AcessoRestritoView from './admin-login/AcessoRestritoView'
+import LoginForm from './admin-login/LoginForm'
+import CadastroForm from './admin-login/CadastroForm'
+import RecuperarSenhaForm from './admin-login/RecuperarSenhaForm'
+import PinLegadoForm from './admin-login/PinLegadoForm'
+
+/**
+ * Modal central de autenticação e acesso do Gestor.
+ * Orquestra os fluxos de Login (Supabase Auth), Cadastro, Recuperação de Senha,
+ * Contingência via PIN Legado e Gestão de Acesso Restrito para usuários logados.
+ */
 export default function AdminLoginModal({
   isOpen,
   onClose,
@@ -46,37 +41,31 @@ export default function AdminLoginModal({
   const targetEmpresaId = empresaId || empresa?.id
   const targetEmpresaNome = empresaNome || empresa?.nome || 'Empresa'
 
-  // Modos: 'login' | 'cadastro' | 'recuperar' | 'pin_legado'
+  // Modos de exibição: 'login' | 'cadastro' | 'recuperar' | 'pin_legado'
   const [modo, setModo] = useState('login')
 
-  // Formulário de E-mail / Senha
+  // Estado compartilhado dos formulários
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [nome, setNome] = useState('')
-  const [showSenha, setShowSenha] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [erroMsg, setErroMsg] = useState('')
   const [sucessoMsg, setSucessoMsg] = useState('')
 
-  // Formulário de Auto-Vinculação com PIN quando o usuário já está logado
-  const [pinVinculo, setPinVinculo] = useState('')
-  const [vinculandoPin, setVinculandoPin] = useState(false)
+  // Alterna o modo limpando mensagens de feedback
+  const switchModo = useCallback((novoModo) => {
+    setModo(novoModo)
+    setErroMsg('')
+    setSucessoMsg('')
+  }, [])
 
-  // Formulário de PIN Legado (fallback de contingência)
-  const [pinLegado, setPinLegado] = useState('')
-  const [showPinLegado, setShowPinLegado] = useState(false)
-
-  const emailInputRef = useRef(null)
-  const pinInputRef = useRef(null)
-
-  // Reseta estados ao abrir/fechar
+  // Gerenciamento de ciclo de vida e atalhos do modal
   useEffect(() => {
     if (!isOpen) return
 
     setErroMsg('')
     setSucessoMsg('')
     setEnviando(false)
-    setPinLegado('')
 
     // Se já estiver autenticado e tiver permissão, aciona onSuccess imediatamente
     if (user && targetEmpresaId && canManageEmpresa(targetEmpresaId)) {
@@ -85,14 +74,6 @@ export default function AdminLoginModal({
       onClose()
       return
     }
-
-    const timer = setTimeout(() => {
-      if (modo === 'pin_legado') {
-        pinInputRef.current?.focus()
-      } else {
-        emailInputRef.current?.focus()
-      }
-    }, 150)
 
     const originalOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -105,15 +86,14 @@ export default function AdminLoginModal({
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      clearTimeout(timer)
       document.body.style.overflow = originalOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, modo, enviando, onClose, user, targetEmpresaId, canManageEmpresa, onSuccess, showToast, perfil?.nome])
+  }, [isOpen, enviando, onClose, user, targetEmpresaId, canManageEmpresa, onSuccess, showToast, perfil?.nome])
 
   if (!isOpen) return null
 
-  // ─── Submissão de Login (Supabase Auth) ───────────────────────
+  // ─── Submissão: Login com E-mail e Senha ─────────────────────
   const handleLogin = async (e) => {
     if (e) e.preventDefault()
     setErroMsg('')
@@ -145,7 +125,7 @@ export default function AdminLoginModal({
     }
   }
 
-  // ─── Submissão de Cadastro ────────────────────────────────────
+  // ─── Submissão: Cadastro de Gestor ───────────────────────────
   const handleCadastro = async (e) => {
     if (e) e.preventDefault()
     setErroMsg('')
@@ -156,15 +136,15 @@ export default function AdminLoginModal({
       return
     }
 
-    if (senha.length < 6) {
-      setErroMsg('A senha deve ter no mínimo 6 caracteres.')
+    const erroSenha = validarSenhaForte(senha)
+    if (erroSenha) {
+      setErroMsg(erroSenha)
       return
     }
 
     setEnviando(true)
     try {
       const data = await signUp(email, senha, nome)
-      // Se não necessitar de confirmação de e-mail e já logou
       if (data?.session) {
         showToast('Conta de gestor criada com sucesso! 🚀', 'success')
         onSuccess()
@@ -180,7 +160,7 @@ export default function AdminLoginModal({
     }
   }
 
-  // ─── Submissão de Recuperação de Senha ────────────────────────
+  // ─── Submissão: Recuperação de Senha ─────────────────────────
   const handleRecuperar = async (e) => {
     if (e) e.preventDefault()
     setErroMsg('')
@@ -203,157 +183,6 @@ export default function AdminLoginModal({
     }
   }
 
-  // ─── Desconectar conta atual (Logout explícito no modal) ─────
-  const handleDesconectar = async () => {
-    setEnviando(true)
-    try {
-      await signOut()
-      setErroMsg('')
-      setSucessoMsg('')
-      setPinVinculo('')
-      showToast('Você desconectou da conta.', 'info')
-    } catch (err) {
-      console.error('Erro ao deslogar:', err)
-      setErroMsg('Erro ao desconectar.')
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  // ─── Auto-Vinculação com PIN quando o usuário já tem conta ───
-  const handleVincularComPin = async (e) => {
-    if (e) e.preventDefault()
-    setErroMsg('')
-    const pinLimpo = pinVinculo.trim()
-    if (!pinLimpo) {
-      setErroMsg('Digite o PIN de administrador desta empresa.')
-      return
-    }
-
-    setVinculandoPin(true)
-    try {
-      // 1. Tenta vincular via RPC vincular_com_pin
-      const { data: vincOk, error: vincErr } = await supabase.rpc('vincular_com_pin', {
-        p_empresa_id: targetEmpresaId,
-        p_pin: pinLimpo,
-      })
-
-      if (!vincErr && vincOk === true) {
-        await refreshAuth()
-        onSuccess()
-        showToast('Conta vinculada como administradora com sucesso! 🛡️', 'success')
-        onClose()
-        return
-      }
-
-      // 2. Fallback: verificar_admin_pin legado
-      const { data: rpcValido, error: rpcError } = await supabase.rpc('verificar_admin_pin', {
-        p_empresa_id: targetEmpresaId,
-        p_pin: pinLimpo,
-      })
-
-      if (!rpcError && rpcValido === true) {
-        if (user) {
-          try {
-            await supabase.from('usuarios_empresas').upsert({
-              user_id: user.id,
-              empresa_id: targetEmpresaId,
-              role: 'admin',
-              ativo: true,
-            })
-            await refreshAuth()
-          } catch (e) {
-            console.warn('Aviso no upsert de usuarios_empresas:', e)
-          }
-        }
-        onSuccess()
-        showToast('Acesso de administrador concedido via PIN! 🛡️', 'success')
-        onClose()
-        return
-      }
-
-      setErroMsg('PIN incorreto para esta empresa.')
-      setPinVinculo('')
-    } catch (err) {
-      console.error('Erro ao verificar PIN para vinculação:', err)
-      setErroMsg('Erro ao verificar PIN.')
-    } finally {
-      setVinculandoPin(false)
-    }
-  }
-
-  // ─── Submissão via PIN Legado (Transição suave) ───────────────
-  const handlePinLegado = async (e) => {
-    if (e) e.preventDefault()
-    setErroMsg('')
-
-    const pinLimpo = pinLegado.trim()
-    if (!pinLimpo) {
-      setErroMsg('Digite o PIN de administrador.')
-      return
-    }
-
-    setEnviando(true)
-    try {
-      if (targetEmpresaId) {
-        // Se houver usuário logado, tenta vincular com o PIN
-        if (user) {
-          const { data: vincOk, error: vincErr } = await supabase.rpc('vincular_com_pin', {
-            p_empresa_id: targetEmpresaId,
-            p_pin: pinLimpo,
-          })
-          if (!vincErr && vincOk === true) {
-            await refreshAuth()
-            onSuccess()
-            showToast('Conta vinculada como administradora com sucesso! 🛡️', 'success')
-            onClose()
-            return
-          }
-        }
-
-        const { data: rpcValido, error: rpcError } = await supabase.rpc('verificar_admin_pin', {
-          p_empresa_id: targetEmpresaId,
-          p_pin: pinLimpo,
-        })
-
-        if (!rpcError && rpcValido === true) {
-          if (user) {
-            try {
-              await supabase.from('usuarios_empresas').upsert({
-                user_id: user.id,
-                empresa_id: targetEmpresaId,
-                role: 'admin',
-                ativo: true,
-              })
-              await refreshAuth()
-            } catch (e) {
-              console.warn('Aviso no upsert:', e)
-            }
-          }
-          onSuccess()
-          showToast('Acesso de administrador concedido via PIN! 🛡️', 'success')
-          onClose()
-          return
-        }
-      }
-
-      setErroMsg('PIN incorreto para esta empresa.')
-      setPinLegado('')
-      pinInputRef.current?.focus()
-    } catch (err) {
-      console.error('Erro ao verificar PIN legado:', err)
-      setErroMsg('Erro ao verificar PIN.')
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  // ─── Troca de empresa direta se o usuário pertencer a outra ──
-  const navegarParaEmpresa = (slug) => {
-    setTenantUrl(slug)
-    window.location.reload()
-  }
-
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in"
@@ -362,6 +191,7 @@ export default function AdminLoginModal({
       }}
       role="dialog"
       aria-modal="true"
+      aria-labelledby="modal-admin-title"
     >
       <div className="w-full max-w-md bg-surface-800 border border-surface-700/80 rounded-3xl shadow-2xl p-6 sm:p-7 relative space-y-5 animate-scale-up max-h-[92vh] overflow-y-auto">
         {/* Botão Fechar */}
@@ -380,465 +210,85 @@ export default function AdminLoginModal({
             <Shield className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-gray-100 leading-snug">Painel do Gestor</h2>
+            <h2 id="modal-admin-title" className="text-lg font-bold text-gray-100 leading-snug">
+              Painel do Gestor
+            </h2>
             <p className="text-xs text-gray-400 truncate max-w-[240px]">
               {targetEmpresaNome}
             </p>
           </div>
         </div>
 
-        {/* Alerta caso o usuário já esteja autenticado mas sem permissão nesta empresa */}
+        {/* Caso o usuário já esteja autenticado mas sem permissão nesta empresa */}
         {user && !canManageEmpresa(targetEmpresaId) ? (
-          <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-xs space-y-3">
-              <div className="flex items-start gap-2.5">
-                <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-bold text-sm text-gray-100">Acesso Restrito a Esta Empresa</p>
-                  <p className="text-gray-300 text-xs leading-relaxed">
-                    Você está conectado como <strong className="text-gray-100 font-semibold">{user.email}</strong>, mas esta conta ainda não foi vinculada à empresa{' '}
-                    <strong className="text-amber-300 font-semibold">{targetEmpresaNome}</strong>.
-                  </p>
-                </div>
-              </div>
-
-              {minhasEmpresas.length > 0 && (
-                <div className="pt-2 border-t border-amber-500/20 space-y-1.5">
-                  <p className="text-[11px] text-gray-300 font-medium">Suas empresas autorizadas:</p>
-                  {minhasEmpresas.map((emp) => (
-                    <button
-                      key={emp.empresa_id}
-                      type="button"
-                      onClick={() => navegarParaEmpresa(emp.empresa_slug)}
-                      className="w-full flex items-center justify-between p-2 rounded-xl bg-surface-900/60 hover:bg-surface-700 text-left transition-colors text-xs text-gray-200"
-                    >
-                      <span className="flex items-center gap-1.5 font-medium">
-                        <Building2 className="w-3.5 h-3.5 text-brand-400" />
-                        {emp.empresa_nome}
-                      </span>
-                      <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-                        Ir para escala <ChevronRight className="w-3 h-3" />
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Mensagens de Erro ou Sucesso */}
-            {erroMsg && (
-              <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2 animate-shake">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{erroMsg}</span>
-              </div>
-            )}
-
-            {sucessoMsg && (
-              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                <span>{sucessoMsg}</span>
-              </div>
-            )}
-
-            {/* Opção 1: Validar e Vincular com o PIN da Empresa */}
-            <form
-              onSubmit={handleVincularComPin}
-              className="p-4 rounded-2xl bg-surface-900/60 border border-surface-700/80 space-y-3"
-            >
-              <div>
-                <p className="text-xs font-bold text-gray-200 flex items-center gap-1.5 mb-1">
-                  <KeyRound className="w-4 h-4 text-brand-400" />
-                  Vincular Conta com PIN de Administrador
-                </p>
-                <p className="text-[11px] text-gray-400">
-                  Possui a senha/PIN desta empresa? Digite abaixo para vincular sua conta ({user.email}) como administradora:
-                </p>
-              </div>
-
-              <div className="relative">
-                <input
-                  type="password"
-                  value={pinVinculo}
-                  onChange={(e) => setPinVinculo(e.target.value)}
-                  placeholder="Digite o PIN da empresa"
-                  className="input-field text-center font-mono tracking-widest text-sm"
-                  maxLength={20}
-                  autoFocus
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={vinculandoPin || !pinVinculo.trim()}
-                className="btn-primary w-full py-2.5 text-xs font-semibold flex items-center justify-center gap-2"
-              >
-                {vinculandoPin ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Validando PIN...</span>
-                  </>
-                ) : (
-                  <>
-                    <KeyRound className="w-3.5 h-3.5" />
-                    <span>Validar PIN e Acessar Gestão</span>
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Opção 2: Desconectar desta conta */}
-            <div className="pt-1 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={handleDesconectar}
-                disabled={enviando}
-                className="w-full py-2.5 px-3 rounded-xl bg-surface-700 hover:bg-surface-650 hover:text-red-400 text-gray-300 text-xs font-semibold flex items-center justify-center gap-2 transition-all border border-surface-600"
-              >
-                <LogOut className="w-3.5 h-3.5 text-red-400" />
-                <span>Sair desta conta ({user.email})</span>
-              </button>
-            </div>
-          </div>
+          <AcessoRestritoView
+            user={user}
+            targetEmpresaId={targetEmpresaId}
+            targetEmpresaNome={targetEmpresaNome}
+            minhasEmpresas={minhasEmpresas}
+            signOut={signOut}
+            refreshAuth={refreshAuth}
+            onSuccess={onSuccess}
+            onClose={onClose}
+            showToast={showToast}
+          />
         ) : (
           <>
-            {/* Mensagens de Sucesso e Erro */}
-            {erroMsg && (
-              <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2 animate-shake">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{erroMsg}</span>
-              </div>
+            {/* Feedback de Mensagens */}
+            <AuthFeedback erroMsg={erroMsg} sucessoMsg={sucessoMsg} />
+
+            {/* Subformulários conforme o modo ativo */}
+            {modo === 'login' && (
+              <LoginForm
+                email={email}
+                setEmail={setEmail}
+                senha={senha}
+                setSenha={setSenha}
+                enviando={enviando}
+                onSubmit={handleLogin}
+                onForgotPassword={() => switchModo('recuperar')}
+                onGoToCadastro={() => switchModo('cadastro')}
+                onGoToPinLegado={() => switchModo('pin_legado')}
+              />
             )}
 
-            {sucessoMsg && (
-              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                <span>{sucessoMsg}</span>
-              </div>
+            {modo === 'cadastro' && (
+              <CadastroForm
+                nome={nome}
+                setNome={setNome}
+                email={email}
+                setEmail={setEmail}
+                senha={senha}
+                setSenha={setSenha}
+                enviando={enviando}
+                onSubmit={handleCadastro}
+                onVoltarLogin={() => switchModo('login')}
+              />
             )}
 
-            {/* ─── MODO: LOGIN (Supabase Auth) ───────────────────────── */}
-        {modo === 'login' && (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                  E-mail institucional
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    ref={emailInputRef}
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="gestor@suaempresa.com.br"
-                    disabled={enviando}
-                    className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-3.5 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
-                    required
-                  />
-                </div>
-              </div>
+            {modo === 'recuperar' && (
+              <RecuperarSenhaForm
+                email={email}
+                setEmail={setEmail}
+                enviando={enviando}
+                onSubmit={handleRecuperar}
+                onVoltarLogin={() => switchModo('login')}
+              />
+            )}
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-gray-300">Senha</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModo('recuperar')
-                      setErroMsg('')
-                      setSucessoMsg('')
-                    }}
-                    className="text-[11px] text-brand-400 hover:text-brand-300 transition-colors"
-                  >
-                    Esqueceu?
-                  </button>
-                </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type={showSenha ? 'text' : 'password'}
-                    value={senha}
-                    onChange={(e) => setSenha(e.target.value)}
-                    placeholder="Sua senha secreta"
-                    disabled={enviando}
-                    className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-11 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSenha(!showSenha)}
-                    tabIndex="-1"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-200 transition-colors"
-                  >
-                    {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={enviando}
-              className="w-full btn-primary py-3 px-4 text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 active:scale-[0.99] disabled:opacity-50 transition-all"
-            >
-              {enviando ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Acessando...</span>
-                </>
-              ) : (
-                <>
-                  <span>Entrar como Gestor</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-
-            {/* Alternadores e Links Secundários */}
-            <div className="pt-2 flex flex-col gap-2.5 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setModo('cadastro')
-                  setErroMsg('')
-                  setSucessoMsg('')
-                }}
-                className="text-xs text-gray-400 hover:text-brand-400 transition-colors"
-              >
-                Primeiro acesso? <strong className="text-brand-400 font-semibold">Cadastre-se</strong>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setModo('pin_legado')
-                  setErroMsg('')
-                  setSucessoMsg('')
-                }}
-                className="text-[11px] text-gray-500 hover:text-gray-400 flex items-center justify-center gap-1 transition-colors"
-              >
-                <KeyRound className="w-3 h-3" />
-                Acessar com PIN de Contingência (Legado)
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* ─── MODO: CADASTRO DE GESTOR ──────────────────────────── */}
-        {modo === 'cadastro' && (
-          <form onSubmit={handleCadastro} className="space-y-4">
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">Seu Nome</label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    placeholder="Ex: Carlos Silva"
-                    disabled={enviando}
-                    className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-3.5 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                  E-mail de Trabalho
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="carlos@suaempresa.com.br"
-                    disabled={enviando}
-                    className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-3.5 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                  Crie uma Senha (mínimo 6 dígitos)
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type={showSenha ? 'text' : 'password'}
-                    value={senha}
-                    onChange={(e) => setSenha(e.target.value)}
-                    placeholder="••••••••"
-                    disabled={enviando}
-                    className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-11 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSenha(!showSenha)}
-                    tabIndex="-1"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-200 transition-colors"
-                  >
-                    {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={enviando}
-              className="w-full btn-primary py-3 px-4 text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 active:scale-[0.99] disabled:opacity-50 transition-all"
-            >
-              {enviando ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Criando conta...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>Cadastrar e Acessar</span>
-                </>
-              )}
-            </button>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setModo('login')
-                  setErroMsg('')
-                  setSucessoMsg('')
-                }}
-                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                Já possui conta? <strong className="text-brand-400 font-semibold">Fazer login</strong>
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* ─── MODO: RECUPERAR SENHA ─────────────────────────────── */}
-        {modo === 'recuperar' && (
-          <form onSubmit={handleRecuperar} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                Digite seu e-mail cadastrado
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="gestor@suaempresa.com.br"
-                  disabled={enviando}
-                  className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-3.5 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
-                  required
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={enviando}
-              className="w-full btn-primary py-3 px-4 text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 active:scale-[0.99] disabled:opacity-50 transition-all"
-            >
-              {enviando ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Enviando link...</span>
-                </>
-              ) : (
-                <span>Enviar link de recuperação</span>
-              )}
-            </button>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setModo('login')
-                  setErroMsg('')
-                  setSucessoMsg('')
-                }}
-                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                Lembrou a senha? <strong className="text-brand-400 font-semibold">Voltar ao login</strong>
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* ─── MODO: PIN LEGADO ──────────────────────────────────── */}
-        {modo === 'pin_legado' && (
-          <form onSubmit={handlePinLegado} className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-gray-300">
-                  PIN de Acesso da Empresa
-                </label>
-                <span className="text-[10px] text-gray-500">Padrão inicial: 1234</span>
-              </div>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  ref={pinInputRef}
-                  type={showPinLegado ? 'text' : 'password'}
-                  value={pinLegado}
-                  onChange={(e) => setPinLegado(e.target.value)}
-                  placeholder="Digite o PIN"
-                  disabled={enviando}
-                  className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-11 py-3 text-sm text-gray-100 placeholder-gray-500 tracking-wider focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPinLegado(!showPinLegado)}
-                  tabIndex="-1"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-200 transition-colors"
-                >
-                  {showPinLegado ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={enviando}
-              className="w-full btn-primary py-3 px-4 text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 active:scale-[0.99] disabled:opacity-50 transition-all"
-            >
-              {enviando ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Validando PIN...</span>
-                </>
-              ) : (
-                <span>Validar PIN</span>
-              )}
-            </button>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setModo('login')
-                  setErroMsg('')
-                  setSucessoMsg('')
-                }}
-                className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                Voltar para <strong className="text-brand-400 font-semibold">Login com E-mail</strong>
-              </button>
-            </div>
-          </form>
-        )}
+            {modo === 'pin_legado' && (
+              <PinLegadoForm
+                targetEmpresaId={targetEmpresaId}
+                user={user}
+                refreshAuth={refreshAuth}
+                onSuccess={onSuccess}
+                onClose={onClose}
+                showToast={showToast}
+                setErroMsg={setErroMsg}
+                setSucessoMsg={setSucessoMsg}
+                onVoltarLogin={() => switchModo('login')}
+              />
+            )}
           </>
         )}
       </div>
