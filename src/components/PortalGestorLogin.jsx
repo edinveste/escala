@@ -15,7 +15,7 @@ import {
  * Orquestra de forma modular e limpa os fluxos de Login (Supabase Auth), Cadastro,
  * Recuperação de Senha e Acesso por PIN de Contingência Legado.
  */
-export default function PortalGestorLogin({ onSuccess, showToast, empresaId, empresaNome }) {
+export default function PortalGestorLogin({ onSuccess, showToast, empresaId, empresaNome: _empresaNomeProp }) {
   const {
     modo,
     switchModo,
@@ -25,6 +25,8 @@ export default function PortalGestorLogin({ onSuccess, showToast, empresaId, emp
     setSenha,
     nome,
     setNome,
+    empresaNome,
+    setEmpresaNome,
     showSenha,
     setShowSenha,
     pinLegado,
@@ -81,6 +83,8 @@ export default function PortalGestorLogin({ onSuccess, showToast, empresaId, emp
             <PortalCadastroForm
               nome={nome}
               setNome={setNome}
+              empresaNome={empresaNome}
+              setEmpresaNome={setEmpresaNome}
               email={email}
               setEmail={setEmail}
               senha={senha}

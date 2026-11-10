@@ -160,12 +160,15 @@ export function AuthProvider({ children }) {
     [fetchUserData]
   )
 
-  const signUp = useCallback(async (email, password, nome) => {
+  const signUp = useCallback(async (email, password, nome, empresaNome) => {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
-        data: { nome: nome?.trim() },
+        data: {
+          nome: nome?.trim(),
+          empresa_nome: empresaNome?.trim(),
+        },
       },
     })
     if (error) throw error
@@ -200,9 +203,6 @@ export function AuthProvider({ children }) {
   }, [])
 
   // ─── Helpers de Permissão (Gestão de Tenants) ────────────────
-  // Superadmin desativado no frontend: gestão de plataforma 100% direta via Supabase
-  const isSuperadmin = false
-
   const canManageEmpresa = useCallback(
     (empresaId) => {
       if (!empresaId || !user) return false
@@ -233,7 +233,6 @@ export function AuthProvider({ children }) {
       session,
       user,
       perfil,
-      isSuperadmin,
       minhasEmpresas,
       loading,
       signIn,
@@ -248,7 +247,6 @@ export function AuthProvider({ children }) {
       session,
       user,
       perfil,
-      isSuperadmin,
       minhasEmpresas,
       loading,
       signIn,

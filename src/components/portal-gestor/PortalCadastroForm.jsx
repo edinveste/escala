@@ -1,4 +1,4 @@
-import { User, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
+import { User, Building2, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 
 /**
  * Formulário de Cadastro de novo Gestor no Portal.
@@ -6,6 +6,8 @@ import { User, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 export default function PortalCadastroForm({
   nome,
   setNome,
+  empresaNome,
+  setEmpresaNome,
   email,
   setEmail,
   senha,
@@ -36,6 +38,29 @@ export default function PortalCadastroForm({
             disabled={enviando}
           />
         </div>
+      </div>
+
+      {/* Campo Nome da Imobiliária / Empresa */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-gray-300 block">
+          Nome da Imobiliária / Empresa
+        </label>
+        <div className="relative">
+          <Building2 className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={empresaNome}
+            onChange={(e) => setEmpresaNome(e.target.value)}
+            placeholder="Ex: Prime Imóveis, Direcional Imobiliária"
+            autoComplete="organization"
+            required
+            className="input-field pl-10 text-sm"
+            disabled={enviando}
+          />
+        </div>
+        <p className="text-[11px] text-gray-500">
+          Nome oficial que identificará sua empresa, link seguro e escalas.
+        </p>
       </div>
 
       {/* Campo E-mail */}

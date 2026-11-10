@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { User, Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react'
+import { User, Building2, Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react'
 
 /**
  * Formulário de cadastro de novo gestor via Supabase Auth.
@@ -7,6 +7,8 @@ import { User, Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react'
 export default function CadastroForm({
   nome,
   setNome,
+  empresaNome,
+  setEmpresaNome,
   email,
   setEmail,
   senha,
@@ -44,6 +46,28 @@ export default function CadastroForm({
               required
             />
           </div>
+        </div>
+
+        {/* Campo Nome da Imobiliária / Empresa */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+            Nome da Imobiliária / Empresa
+          </label>
+          <div className="relative">
+            <Building2 className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={empresaNome || ''}
+              onChange={(e) => setEmpresaNome?.(e.target.value)}
+              placeholder="Ex: Prime Imóveis, Direcional"
+              disabled={enviando}
+              className="w-full bg-surface-900 border border-surface-600 rounded-2xl pl-10 pr-3.5 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all disabled:opacity-50"
+              required
+            />
+          </div>
+          <p className="text-[11px] text-gray-500 mt-1">
+            Nome oficial para identificar suas escalas e relatórios.
+          </p>
         </div>
 
         {/* Campo E-mail */}

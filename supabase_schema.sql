@@ -263,40 +263,24 @@ SET search_path = public
 AS $$
 DECLARE
   v_user_id UUID := auth.uid();
-  v_is_super BOOLEAN;
 BEGIN
   IF v_user_id IS NULL THEN
     RETURN;
   END IF;
 
-  v_is_super := public.is_superadmin(v_user_id);
-
-  IF v_is_super THEN
-    RETURN QUERY
-    SELECT 
-      e.id AS empresa_id,
-      e.nome AS empresa_nome,
-      e.slug AS empresa_slug,
-      e.status AS empresa_status,
-      'admin'::TEXT AS role,
-      true AS is_superadmin
-    FROM public.empresas e
-    ORDER BY e.nome ASC;
-  ELSE
-    RETURN QUERY
-    SELECT 
-      e.id AS empresa_id,
-      e.nome AS empresa_nome,
-      e.slug AS empresa_slug,
-      e.status AS empresa_status,
-      ue.role AS role,
-      false AS is_superadmin
-    FROM public.usuarios_empresas ue
-    JOIN public.empresas e ON e.id = ue.empresa_id
-    WHERE ue.user_id = v_user_id
-      AND ue.ativo = true
-    ORDER BY e.nome ASC;
-  END IF;
+  RETURN QUERY
+  SELECT 
+    e.id AS empresa_id,
+    e.nome AS empresa_nome,
+    e.slug AS empresa_slug,
+    e.status AS empresa_status,
+    ue.role AS role,
+    false AS is_superadmin
+  FROM public.usuarios_empresas ue
+  JOIN public.empresas e ON e.id = ue.empresa_id
+  WHERE ue.user_id = v_user_id
+    AND ue.ativo = true
+  ORDER BY e.nome ASC;
 END;
 $$;
 
@@ -309,36 +293,100 @@ SET search_path = public
 AS $$
 DECLARE
   v_nome TEXT;
-  v_count_usuarios INT;
+  v_empresa_nome TEXT;
+  v_empresa_id UUID;
+  v_slug_base TEXT;
+  v_slug_final TEXT;
+  v_contador INT := 1;
+  v_codigo_seguro TEXT;
+  v_tem_convite BOOLEAN := false;
 BEGIN
   v_nome := COALESCE(
     NEW.raw_user_meta_data->>'nome',
     split_part(NEW.email, '@', 1)
   );
+  v_empresa_nome := trim(COALESCE(NEW.raw_user_meta_data->>'empresa_nome', ''));
 
-  SELECT COUNT(*) INTO v_count_usuarios FROM public.perfis;
-
+  -- 1. Cria ou atualiza o perfil pessoal (is_superadmin = false)
   INSERT INTO public.perfis (id, email, nome, is_superadmin)
   VALUES (
     NEW.id,
     NEW.email,
     v_nome,
-    (v_count_usuarios = 0) -- O primeiro usuário do banco torna-se Superadmin do SaaS
+    false
   )
   ON CONFLICT (id) DO UPDATE
   SET email = EXCLUDED.email,
-      nome = COALESCE(public.perfis.nome, EXCLUDED.nome);
+      nome = COALESCE(public.perfis.nome, EXCLUDED.nome),
+      is_superadmin = false;
 
-  -- Converte convites pendentes deste e-mail em vínculos reais de gestor
-  INSERT INTO public.usuarios_empresas (user_id, empresa_id, role, ativo)
-  SELECT NEW.id, cg.empresa_id, cg.role, true
-  FROM public.convites_gestores cg
-  WHERE lower(cg.email) = lower(trim(NEW.email))
-  ON CONFLICT (user_id, empresa_id) DO UPDATE
-  SET role = EXCLUDED.role, ativo = true;
+  -- 2. Converte convites pendentes deste e-mail em vínculos reais de gestor
+  IF EXISTS (SELECT 1 FROM public.convites_gestores WHERE lower(email) = lower(trim(NEW.email))) THEN
+    v_tem_convite := true;
+    INSERT INTO public.usuarios_empresas (user_id, empresa_id, role, ativo)
+    SELECT NEW.id, cg.empresa_id, cg.role, true
+    FROM public.convites_gestores cg
+    WHERE lower(cg.email) = lower(trim(NEW.email))
+    ON CONFLICT (user_id, empresa_id) DO UPDATE
+    SET role = EXCLUDED.role, ativo = true;
 
-  DELETE FROM public.convites_gestores
-  WHERE lower(email) = lower(trim(NEW.email));
+    DELETE FROM public.convites_gestores
+    WHERE lower(email) = lower(trim(NEW.email));
+  END IF;
+
+  -- 3. Se NÃO havia convite pendente e foi informado nome da empresa, provisiona o Tenant imediatamente
+  IF NOT v_tem_convite AND v_empresa_nome <> '' THEN
+    v_slug_base := lower(regexp_replace(
+      translate(v_empresa_nome, 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ', 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN'),
+      '[^a-zA-Z0-9_-]', '', 'g'
+    ));
+    IF v_slug_base = '' THEN
+      v_slug_base := 'imobiliaria';
+    END IF;
+
+    v_slug_final := v_slug_base;
+    WHILE EXISTS (SELECT 1 FROM public.empresas WHERE slug = v_slug_final) LOOP
+      v_contador := v_contador + 1;
+      v_slug_final := v_slug_base || '-' || v_contador::text;
+    END LOOP;
+
+    v_codigo_seguro := public.gerar_codigo_escala();
+
+    INSERT INTO public.empresas (
+      nome,
+      slug,
+      codigo_escala,
+      admin_pin,
+      status,
+      plano,
+      termos
+    )
+    VALUES (
+      v_empresa_nome,
+      v_slug_final,
+      v_codigo_seguro,
+      '1234',
+      'ativo',
+      'trial',
+      '{}'::jsonb
+    )
+    RETURNING id INTO v_empresa_id;
+
+    INSERT INTO public.usuarios_empresas (
+      user_id,
+      empresa_id,
+      role,
+      ativo
+    )
+    VALUES (
+      NEW.id,
+      v_empresa_id,
+      'admin',
+      true
+    )
+    ON CONFLICT (user_id, empresa_id) DO UPDATE
+    SET role = 'admin', ativo = true;
+  END IF;
 
   RETURN NEW;
 END;

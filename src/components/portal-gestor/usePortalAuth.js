@@ -17,6 +17,7 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [nome, setNome] = useState('')
+  const [empresaNome, setEmpresaNome] = useState('')
   const [showSenha, setShowSenha] = useState(false)
   const [pinLegado, setPinLegado] = useState('')
   const [showPinLegado, setShowPinLegado] = useState(false)
@@ -88,8 +89,13 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
     setErroMsg('')
     setSucessoMsg('')
 
-    if (!nome.trim() || !email.trim() || !senha) {
+    if (!nome.trim() || !empresaNome.trim() || !email.trim() || !senha) {
       setErroMsg('Preencha todos os campos obrigatórios.')
+      return
+    }
+
+    if (empresaNome.trim().length < 2) {
+      setErroMsg('O nome da empresa deve ter pelo menos 2 caracteres.')
       return
     }
 
@@ -101,11 +107,23 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
 
     setEnviando(true)
     try {
-      const { user: newUser, session } = await signUp(email, senha, nome)
+      const { user: newUser, session } = await signUp(email, senha, nome, empresaNome)
 
       if (session) {
+        let novaEmpresa = null
+        try {
+          const { data: empData, error: empErr } = await supabase.rpc('criar_nova_empresa', {
+            p_nome: empresaNome.trim(),
+          })
+          if (!empErr && empData) {
+            novaEmpresa = empData
+          }
+        } catch (errEmp) {
+          console.warn('Empresa já provisionada ou erro no RPC:', errEmp)
+        }
+
         if (showToast) showToast(`Conta criada com sucesso! Bem-vindo(a), ${nome}! 🎉`, 'success')
-        if (onSuccess) onSuccess()
+        if (onSuccess) onSuccess('auth', novaEmpresa)
       } else if (newUser) {
         setSucessoMsg(
           'Conta cadastrada com sucesso! Um e-mail de confirmação foi enviado para você ativar seu acesso.'
@@ -208,6 +226,8 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
     setSenha,
     nome,
     setNome,
+    empresaNome,
+    setEmpresaNome,
     showSenha,
     setShowSenha,
     pinLegado,

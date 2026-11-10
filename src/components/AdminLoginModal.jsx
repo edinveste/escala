@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { useTenant } from '../contexts/TenantContext'
 import { Shield, X } from 'lucide-react'
@@ -48,6 +49,7 @@ export default function AdminLoginModal({
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [nome, setNome] = useState('')
+  const [empresaNomeInput, setEmpresaNomeInput] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erroMsg, setErroMsg] = useState('')
   const [sucessoMsg, setSucessoMsg] = useState('')
@@ -131,8 +133,13 @@ export default function AdminLoginModal({
     setErroMsg('')
     setSucessoMsg('')
 
-    if (!email.trim() || !senha || !nome.trim()) {
+    if (!email.trim() || !senha || !nome.trim() || !empresaNomeInput.trim()) {
       setErroMsg('Preencha todos os campos para criar seu acesso.')
+      return
+    }
+
+    if (empresaNomeInput.trim().length < 2) {
+      setErroMsg('O nome da empresa deve ter pelo menos 2 caracteres.')
       return
     }
 
@@ -144,9 +151,17 @@ export default function AdminLoginModal({
 
     setEnviando(true)
     try {
-      const data = await signUp(email, senha, nome)
+      const data = await signUp(email, senha, nome, empresaNomeInput)
       if (data?.session) {
-        showToast('Conta de gestor criada com sucesso! 🚀', 'success')
+        try {
+          await supabase.rpc('criar_nova_empresa', {
+            p_nome: empresaNomeInput.trim(),
+          })
+        } catch (rpcErr) {
+          console.warn('Empresa já provisionada ou aviso RPC:', rpcErr)
+        }
+        await refreshAuth?.()
+        showToast('Conta e empresa criadas com sucesso! 🚀', 'success')
         onSuccess()
         onClose()
       } else {
@@ -256,6 +271,8 @@ export default function AdminLoginModal({
               <CadastroForm
                 nome={nome}
                 setNome={setNome}
+                empresaNome={empresaNomeInput}
+                setEmpresaNome={setEmpresaNomeInput}
                 email={email}
                 setEmail={setEmail}
                 senha={senha}

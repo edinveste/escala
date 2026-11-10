@@ -991,6 +991,30 @@ npm run build
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros.
 
+---
+
+## 31. Onboarding Multi-Tenant, Nome da Empresa no Cadastro & Erradicação de Superadmin (Fase 13) — Novembro/2026
+- **Contexto e Problema Identificado**:
+  - Contas criadas com e-mails distintos (ex: `edinvest.oliver@gmail.com` e `elias.oli2019@gmail.com`) estavam compartilhando a mesma empresa e os mesmos pontos de captação.
+  - O formulário de cadastro (`PortalCadastroForm.jsx` e `CadastroForm.jsx`) continha apenas Nome, E-mail e Senha, sem campo para o Nome da Empresa/Imobiliária. Consequentemente, o cadastro criava o usuário no Supabase Auth, mas nunca provisionava um novo Tenant (`empresas`).
+  - Além disso, a RPC legada `get_minhas_empresas()` mantinha um bypass de `is_superadmin`: se o usuário possuísse a flag, o banco retornava todas as empresas indistintamente.
+- **Implementações Realizadas**:
+  1. **Campo Obrigatório de Nome da Imobiliária / Empresa no Cadastro**:
+     - `PortalCadastroForm.jsx` e `CadastroForm.jsx` agora exigem o Nome da Imobiliária / Empresa (com ícone `Building2` e feedback).
+     - Integração no `usePortalAuth.js` e `AdminLoginModal.jsx`: validação prévia de tamanho mínimo e envio nos metadados do `signUp`.
+  2. **Provisionamento Automático de Tenant (`handle_new_auth_user` e `criar_nova_empresa`)**:
+     - O trigger `handle_new_auth_user` extrai `empresa_nome` dos metadados e provisiona o Tenant imediatamente com slug único (anti-colisão com sufixo numérico) e código seguro de 12 caracteres (`codigo_escala`).
+     - A RPC `criar_nova_empresa` foi atualizada tornando `p_slug` opcional (derivação automática e higienizada do nome).
+     - O usuário criador é vinculado automaticamente como Administrador Geral na tabela `usuarios_empresas`.
+  3. **Erradicação Completa de Superadmin**:
+     - Removida qualquer referência de superadmin do frontend (`AuthContext.jsx`).
+     - Atualizada a RPC `get_minhas_empresas()` para retornar **ESTRITAMENTE** as empresas onde o usuário autenticado possui vínculo ativo em `usuarios_empresas`. Nenhum usuário recebe acesso global ou dados de outros tenants.
+     - Script de migração (`supabase_migration_fase13_onboarding_empresa.sql`) redefine `is_superadmin = false` em `public.perfis` e desvincula contas sobrepostas.
+  4. **Self-Service Onboarding para Usuários Órfãos (`PortalSemEmpresaView.jsx`)**:
+     - Caso um usuário autenticado não possua nenhuma empresa vinculada (ex: contas criadas antes da Fase 13), a tela agora exibe o botão e formulário inline *"Criar Minha Empresa Agora"*, permitindo provisionar seu espaço de trabalho instantaneamente sem fricção.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros.
+
 
 ---
 
@@ -1113,6 +1137,30 @@ npm run build
      - Itens do menu suspenso (geral e cada ponto) exibem a tag verde `✓ Personalizado` em tempo real sempre que possuírem mensagem customizada gravada ou em rascunho na sessão.
   5. **Sincronização e Hidratação de Pontos (`useEscalaData.js`)**:
      - O hook hidrata silenciosamente na carga inicial e no canal Realtime cada ponto com sua respectiva mensagem individual vinda do JSONB `empresas.termos.whatsappPontos`, assegurando consistência em toda a interface (como as badges `💬 WhatsApp` em `PontoItem.jsx`) sem depender de migrações SQL.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros.
+
+---
+
+## 31. Onboarding Multi-Tenant, Nome da Empresa no Cadastro & Erradicação de Superadmin (Fase 13) — Novembro/2026
+- **Contexto e Problema Identificado**:
+  - Contas criadas com e-mails distintos (ex: `edinvest.oliver@gmail.com` e `elias.oli2019@gmail.com`) estavam compartilhando a mesma empresa e os mesmos pontos de captação.
+  - O formulário de cadastro (`PortalCadastroForm.jsx` e `CadastroForm.jsx`) continha apenas Nome, E-mail e Senha, sem campo para o Nome da Empresa/Imobiliária. Consequentemente, o cadastro criava o usuário no Supabase Auth, mas nunca provisionava um novo Tenant (`empresas`).
+  - Além disso, a RPC legada `get_minhas_empresas()` mantinha um bypass de `is_superadmin`: se o usuário possuísse a flag, o banco retornava todas as empresas indistintamente.
+- **Implementações Realizadas**:
+  1. **Campo Obrigatório de Nome da Imobiliária / Empresa no Cadastro**:
+     - `PortalCadastroForm.jsx` e `CadastroForm.jsx` agora exigem o Nome da Imobiliária / Empresa (com ícone `Building2` e feedback).
+     - Integração no `usePortalAuth.js` e `AdminLoginModal.jsx`: validação prévia de tamanho mínimo e envio nos metadados do `signUp`.
+  2. **Provisionamento Automático de Tenant (`handle_new_auth_user` e `criar_nova_empresa`)**:
+     - O trigger `handle_new_auth_user` extrai `empresa_nome` dos metadados e provisiona o Tenant imediatamente com slug único (anti-colisão com sufixo numérico) e código seguro de 12 caracteres (`codigo_escala`).
+     - A RPC `criar_nova_empresa` foi atualizada tornando `p_slug` opcional (derivação automática e higienizada do nome).
+     - O usuário criador é vinculado automaticamente como Administrador Geral na tabela `usuarios_empresas`.
+  3. **Erradicação Completa de Superadmin**:
+     - Removida qualquer referência de superadmin do frontend (`AuthContext.jsx`).
+     - Atualizada a RPC `get_minhas_empresas()` para retornar **ESTRITAMENTE** as empresas onde o usuário autenticado possui vínculo ativo em `usuarios_empresas`. Nenhum usuário recebe acesso global ou dados de outros tenants.
+     - Script de migração (`supabase_migration_fase13_onboarding_empresa.sql`) redefine `is_superadmin = false` em `public.perfis` e desvincula contas sobrepostas.
+  4. **Self-Service Onboarding para Usuários Órfãos (`PortalSemEmpresaView.jsx`)**:
+     - Caso um usuário autenticado não possua nenhuma empresa vinculada (ex: contas criadas antes da Fase 13), a tela agora exibe o botão e formulário inline *"Criar Minha Empresa Agora"*, permitindo provisionar seu espaço de trabalho instantaneamente sem fricção.
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros.
 
