@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Clock, Users, CheckCircle2, XCircle, User } from 'lucide-react'
+import { Clock, Users, CheckCircle2, XCircle, User, Lock } from 'lucide-react'
 
 export default function TurnoCard({
   turno,
@@ -12,6 +12,7 @@ export default function TurnoCard({
   onCancelar,
   acaoVaga,
   acaoCancelar,
+  ocultarNomes = false,
 }) {
   const vagasOcupadas = reservas.length
   const vagasTotal = turno.capacidade
@@ -80,6 +81,8 @@ export default function TurnoCard({
         <div className="mb-3 space-y-1.5">
           {reservas.map((reserva) => {
             const ehMinha = isMinhaReservaItem(reserva)
+            const deveOcultar = ocultarNomes && !ehMinha
+
             return (
               <div
                 key={reserva.id}
@@ -89,8 +92,18 @@ export default function TurnoCard({
                     : 'bg-surface-700/60 text-gray-400'
                 }`}
               >
-                <User className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate font-medium">{reserva.corretor_nome}</span>
+                {deveOcultar ? (
+                  <Lock className="w-3.5 h-3.5 flex-shrink-0 text-gray-500 dark:text-gray-400" />
+                ) : (
+                  <User className="w-3.5 h-3.5 flex-shrink-0" />
+                )}
+                <span
+                  className={`truncate font-medium ${
+                    deveOcultar ? 'italic text-gray-400 dark:text-gray-400 select-none' : ''
+                  }`}
+                >
+                  {deveOcultar ? 'Reservado' : reserva.corretor_nome}
+                </span>
                 {ehMinha && (
                   <span className="ml-auto text-[10px] bg-brand-500/20 text-brand-600 dark:text-brand-300 px-1.5 py-0.5 rounded font-bold">
                     VOCÊ

@@ -169,6 +169,8 @@ e:\Escala\
 ├── supabase_migration_fase8_vinculo_aparelho.sql # Script de migração Fase 8: Trava Estrita de Aparelho (device_id_vinculado)
 ├── supabase_migration_fase9_editar_colaborador.sql # Script de migração Fase 9: Edição Segura de Colaboradores (RPC)
 ├── supabase_migration_fase10_whatsapp_customizado.sql # Script de migração Fase 10: Customização do WhatsApp (Ponto e Geral)
+├── supabase_migration_fase11_copia_whatsapp.sql # Script de migração Fase 11: Controle de Visibilidade da Cópia da Escala (Eye/EyeOff)
+├── supabase_migration_fase12_ocultar_nomes.sql  # Script de migração Fase 12: Privacidade da Escala Pública (Modo Anônimo / Ocultar Nomes)
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -266,12 +268,14 @@ e:\Escala\
         │   ├── InputSenhaPin.jsx          # Campo reutilizável para entrada de senha/PIN com botão Eye/EyeOff
         │   ├── LayoutPreferencesCard.jsx  # Card para alternar modo de navegação (Abas vs Visão Contínua)
         │   ├── LinkSeguroManager.jsx      # Gerenciador de link seguro anti-espionagem (12 chars) com redefinição
+        │   ├── EscalaPrivacidadeCard.jsx  # Card de privacidade da escala pública (Modo Anônimo / Ocultar Nomes)
         │   ├── VocabularioCard.jsx        # Card de atalho para customização de vocabulário e nicho
         │   ├── AdminSenhaCard.jsx         # Card de alteração da senha de contingência/admin
         │   ├── whatsapp/                  # Submódulos isolados de customização do WhatsApp
         │   │   ├── useWhatsappConfig.js     # Hook de lógica, tags, preview e persistência da mensagem geral
         │   │   ├── WhatsappConfigCard.jsx   # Card de atalho na aba Configurações com status
         │   │   ├── WhatsappConfigModal.jsx  # Modal de configuração da mensagem geral da escala completa
+        │   │   ├── WhatsappEscopoDropdown.jsx # Menu dropdown suspenso com alternador do olho (Eye/EyeOff) para cópia
         │   │   └── WhatsappPreviewBubble.jsx# Simulador visual realista da bolha de mensagem do WhatsApp
         │   ├── AdminTabEscala.jsx         # Submódulo da aba/seção de escala e turnos (com QuickLink, Stats, Form, Lista e Zona de Perigo)
         │   ├── AdminTabEquipe.jsx         # Submódulo da aba/seção de equipe e gestores

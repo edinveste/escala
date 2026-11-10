@@ -1,5 +1,6 @@
 import { MessageSquare, Sparkles, RotateCcw, Save, X, MapPin } from 'lucide-react'
 import WhatsappPreviewBubble from './WhatsappPreviewBubble'
+import WhatsappEscopoDropdown from './WhatsappEscopoDropdown'
 import { useWhatsappConfig } from './useWhatsappConfig'
 
 export default function WhatsappConfigModal({
@@ -27,6 +28,10 @@ export default function WhatsappConfigModal({
     restaurarPadrao,
     salvarConfiguracao,
     textoPreview,
+    isCopiaGeralAtiva,
+    isCopiaPontoAtiva,
+    alternarCopiaGeral,
+    alternarCopiaPonto,
   } = useWhatsappConfig({
     empresa,
     pontos,
@@ -46,9 +51,9 @@ export default function WhatsappConfigModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-surface-800 border border-surface-700 rounded-2xl shadow-2xl overflow-hidden my-auto">
+      <div className="relative w-full max-w-2xl bg-surface-800 border border-surface-700 rounded-2xl shadow-2xl overflow-visible my-auto">
         {/* Cabeçalho do Modal */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-surface-700 bg-surface-800/90">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-surface-700 bg-surface-800/90 rounded-t-2xl">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex-shrink-0">
               <MessageSquare className="w-5 h-5" />
@@ -73,28 +78,22 @@ export default function WhatsappConfigModal({
           </button>
         </div>
 
-        {/* Barra de Seleção de Escopo (Geral vs Ponto Individual) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 sm:px-5 py-3 bg-surface-900/70 border-b border-surface-700/60">
+        {/* Barra de Seleção de Escopo com Dropdown Customizado e Botões de Visibilidade */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-4 sm:px-5 py-3 bg-surface-900/70 border-b border-surface-700/60 relative z-30">
           <label className="text-xs font-semibold text-gray-300 flex items-center gap-1.5 flex-shrink-0">
             <MapPin className="w-4 h-4 text-emerald-400" />
             <span>Editar mensagem de:</span>
           </label>
-          <select
-            value={alvoId}
-            onChange={(e) => mudarAlvo(e.target.value)}
-            className="input-field text-xs sm:text-sm py-1.5 px-3 font-semibold bg-surface-800 text-gray-100 border-surface-600 focus:border-emerald-500 rounded-xl max-w-full sm:max-w-xs cursor-pointer"
-          >
-            <option value="geral">🌐 Escala Completa (Todos os Pontos)</option>
-            {pontos.length > 0 && (
-              <optgroup label="📍 Pontos de Captação Individuais">
-                {pontos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    📍 {p.nome} {p.cabecalho_whatsapp ? '✓ (Personalizado)' : ''}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
+          <WhatsappEscopoDropdown
+            alvoId={alvoId}
+            pontoAtual={pontoAtual}
+            pontos={pontos}
+            onSelecionarAlvo={mudarAlvo}
+            isCopiaGeralAtiva={isCopiaGeralAtiva}
+            isCopiaPontoAtiva={isCopiaPontoAtiva}
+            onToggleCopiaGeral={alternarCopiaGeral}
+            onToggleCopiaPonto={alternarCopiaPonto}
+          />
         </div>
 
         {/* Corpo do Modal com Rolagem */}

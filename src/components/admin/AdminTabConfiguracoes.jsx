@@ -1,4 +1,5 @@
 import LinkSeguroManager from './LinkSeguroManager'
+import EscalaPrivacidadeCard from './EscalaPrivacidadeCard'
 import VocabularioCard from './VocabularioCard'
 import AdminSenhaCard from './AdminSenhaCard'
 import WhatsappConfigCard from './whatsapp/WhatsappConfigCard'
@@ -25,6 +26,14 @@ export default function AdminTabConfiguracoes({
         onEmpresaUpdated={onEmpresaUpdated}
         showToast={showToast}
         isFullAdmin={isFullAdmin}
+      />
+
+      <EscalaPrivacidadeCard
+        empresa={empresa}
+        onEmpresaUpdated={onEmpresaUpdated}
+        showToast={showToast}
+        isFullAdmin={isFullAdmin}
+        termos={termos}
       />
 
       <WhatsappConfigCard

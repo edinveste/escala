@@ -50,9 +50,11 @@ CREATE TABLE IF NOT EXISTS public.empresas (
   email_cobranca         TEXT,
   telefone_cobranca      TEXT,
   termos                 JSONB NOT NULL DEFAULT '{}'::jsonb,
-  msg_whatsapp_geral     TEXT,
-  rodape_whatsapp_geral  TEXT,
-  created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+  msg_whatsapp_geral         TEXT,
+  rodape_whatsapp_geral      TEXT,
+  copia_whatsapp_geral_ativa BOOLEAN NOT NULL DEFAULT true,
+  ocultar_nomes_escala       BOOLEAN NOT NULL DEFAULT false,
+  created_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_empresas_slug ON public.empresas(lower(slug));
@@ -100,9 +102,10 @@ CREATE TABLE IF NOT EXISTS public.pontos (
   nome       TEXT NOT NULL,              -- ex: 'Mercado Extra', 'Padaria Di Cunto'
   ordem              INT  NOT NULL DEFAULT 0,
   ativo              BOOLEAN NOT NULL DEFAULT true,
-  cabecalho_whatsapp TEXT,
-  rodape_whatsapp    TEXT,
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+  cabecalho_whatsapp    TEXT,
+  rodape_whatsapp       TEXT,
+  copia_whatsapp_ativa  BOOLEAN NOT NULL DEFAULT true,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_pontos_empresa_id ON public.pontos(empresa_id);

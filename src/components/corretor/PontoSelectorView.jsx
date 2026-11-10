@@ -18,6 +18,7 @@ export default function PontoSelectorView({
   onSelectPonto,
   onCopiar,
   copied = false,
+  podeCopiar = true,
 }) {
   if (pontos.length === 0) {
     return (
@@ -117,7 +118,9 @@ export default function PontoSelectorView({
         })}
       </div>
 
-      <CorretorCopyFooter onCopiar={onCopiar} copied={copied} />
+      {podeCopiar && (
+        <CorretorCopyFooter onCopiar={onCopiar} copied={copied} />
+      )}
     </>
   )
 }

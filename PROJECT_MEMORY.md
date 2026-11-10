@@ -866,3 +866,51 @@ npm run build
   - `src/components/pontos/PontoWhatsappModal.jsx`
 - **Validação de Build**:
   - `npm run build` executado com sucesso gerando bundle de produção limpo e sem warnings.
+
+---
+
+## 26. Menu Suspenso Customizado com Controle de Visibilidade de Cópia da Escala (`Eye`/`EyeOff`) — Novembro/2026
+- **Contexto e Necessidade**:
+  - No modal de personalização do WhatsApp (`WhatsappConfigModal.jsx`), a seleção de escopo utilizava um `<select>` HTML nativo que não suportava elementos interativos por item.
+  - O gestor necessitava de uma forma ágil de ocultar ou exibir o botão *"Copiar Escala"* no app dos corretores, tanto para a **Escala Geral** quanto para **Pontos Individuais**, diretamente no seletor de escopo.
+- **Implementação Realizada**:
+  1. **Componente Modularizado (`WhatsappEscopoDropdown.jsx`)**:
+     - Substituiu o `<select>` nativo por um dropdown moderno, acessível e mobile-first.
+     - Cada item (Escala Completa e cada um dos Pontos de Captação) conta com um botão dedicado com ícone de olho (`Eye` em verde quando liberado / `EyeOff` em âmbar quando oculto).
+     - Clique com `e.stopPropagation()` no botão do olho permitindo alternar a visibilidade de múltiplos itens em sequência sem fechar o menu.
+     - Fechamento inteligente por clique externo (`mousedown`) e tecla `Escape`.
+     - Rodapé com legenda explicativa clara: `👁️ = Botão Copiar visível | 🙈 = Oculto aos corretores`.
+  2. **Regra de Negócio e Ocultação do Botão no App**:
+     - `CorretorView.jsx` calcula `podeCopiarGeral` e `podeCopiarPonto`.
+     - `PontoSelectorView.jsx`: se a cópia geral estiver oculta, o botão fixo inferior `CorretorCopyFooter` não é renderizado.
+     - `PontoTurnosView.jsx`: se a cópia do ponto selecionado estiver oculta, o botão fixo inferior `CorretorCopyFooter` não é renderizado.
+  3. **Persistência Híbrida e Defensiva**:
+     - Script SQL de migração: `supabase_migration_fase11_copia_whatsapp.sql` adicionando `copia_whatsapp_ativa` em `pontos` e `copia_whatsapp_geral_ativa` em `empresas`.
+     - Fallback automático e transparente em `empresas.termos` (`copiaWhatsappGeralAtiva` e `copiaWhatsappPontos`), garantindo funcionamento instantâneo em qualquer ambiente.
+     - `supabase_schema.sql` atualizado com as novas colunas.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero regressões.
+
+---
+
+### Fase 12: Privacidade da Escala Pública (Modo Anônimo / Ocultar Nomes)
+- **Data**: 10/11/2026
+- **Contexto**:
+  - Solicitação de discrição/privacidade entre colaboradores: permitir que o gestor ative uma opção no painel administrativo para que colaboradores reservando horários na escala pública não vejam os nomes de quem está em cada horário, visualizando apenas a indicação "Reservado" (com ícone 🔒).
+  - O participante logado continua vendo seu próprio nome acompanhado da tag destacada `"VOCÊ"` (permitindo que acompanhe seus horários e efetue cancelamento se necessário).
+  - Administradores e gestores continuam visualizando todos os nomes reais normalmente no painel administrativo.
+- **Implementações Técnicas**:
+  1. **Card de Configuração no Painel do Gestor**:
+     - `src/components/admin/EscalaPrivacidadeCard.jsx`: componente moderno e modular com ícones `Eye`/`EyeOff`, badges contextuais (`Modo Anônimo Ativo 🙈` vs `Nomes Visíveis 👁️`), switch liga/desliga touch-friendly, feedback via toast e persistência com fallback defensivo.
+     - Integrado diretamente na aba **Configurações** (`AdminTabConfiguracoes.jsx`) e exportado no barrel `src/components/admin/index.js`.
+  2. **Exibição Inteligente na Visão do Colaborador**:
+     - `TurnoCard.jsx`: quando `ocultarNomes` está ativo, reservas de terceiros exibem o ícone de cadeado `Lock` e o texto itálico `"Reservado"`, enquanto a reserva do próprio colaborador exibe o ícone `User`, seu nome real e a tag `"VOCÊ"`.
+     - Fluxo de props propagado suavemente: `CorretorView` -> `PontoTurnosView` -> `DiaAcordeonItem` -> `TurnoCard`.
+  3. **Proteção Anti-Vazamento na Cópia de WhatsApp**:
+     - `src/components/corretor/escalaTextoHelper.js`: a função `gerarTextoEscala` verifica se `ocultarNomes` está ativo. Em caso positivo, substitui nomes reais por `RESERVADO` na mensagem gerada, prevenindo que colaboradores copiem a escala para obter os nomes que estavam ocultos na interface.
+  4. **Banco de Dados e Persistência**:
+     - Criada a migração `supabase_migration_fase12_ocultar_nomes.sql` adicionando a coluna `ocultar_nomes_escala BOOLEAN NOT NULL DEFAULT false` na tabela `empresas`.
+     - Atualizados `supabase_schema.sql` e `DEMO_EMPRESA` em `src/lib/demoData.js`.
+     - Implementado fallback automático para `empresa.termos.ocultarNomesEscala` (JSONB), assegurando funcionamento imediato mesmo antes da execução manual do script SQL no Supabase.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero regressões.

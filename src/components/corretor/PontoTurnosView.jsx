@@ -28,7 +28,9 @@ export default function PontoTurnosView({
   onCancelar,
   onCopiar,
   copied = false,
+  podeCopiar = true,
   termos = {},
+  ocultarNomes = false,
 }) {
   return (
     <>
@@ -122,17 +124,20 @@ export default function PontoTurnosView({
               onReservar={onReservar}
               onCancelar={onCancelar}
               termos={termos}
+              ocultarNomes={ocultarNomes}
             />
           ))}
         </div>
       )}
 
       {/* Footer com cópia direcionada ao ponto */}
-      <CorretorCopyFooter
-        onCopiar={onCopiar}
-        copied={copied}
-        pontoNome={selectedPonto?.nome}
-      />
+      {podeCopiar && (
+        <CorretorCopyFooter
+          onCopiar={onCopiar}
+          copied={copied}
+          pontoNome={selectedPonto?.nome}
+        />
+      )}
     </>
   )
 }

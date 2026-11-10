@@ -134,6 +134,15 @@ export default function CorretorView({
     showToast,
   ])
 
+  // Status de visibilidade do botão de copiar (WhatsApp)
+  const podeCopiarGeral =
+    empresa?.copia_whatsapp_geral_ativa !== false &&
+    empresa?.termos?.copiaWhatsappGeralAtiva !== false
+
+  const podeCopiarPonto =
+    selectedPonto?.copia_whatsapp_ativa !== false &&
+    empresa?.termos?.copiaWhatsappPontos?.[selectedPontoId] !== false
+
   // Se nenhum ponto foi selecionado, exibe a lista de pontos
   if (!selectedPontoId) {
     return (
@@ -150,6 +159,7 @@ export default function CorretorView({
         onSelectPonto={setSelectedPontoId}
         onCopiar={handleCopiar}
         copied={copied}
+        podeCopiar={podeCopiarGeral}
       />
     )
   }
@@ -177,7 +187,9 @@ export default function CorretorView({
       onCancelar={onCancelar}
       onCopiar={handleCopiar}
       copied={copied}
+      podeCopiar={podeCopiarPonto}
       termos={termos}
+      ocultarNomes={Boolean(empresa?.ocultar_nomes_escala || empresa?.termos?.ocultarNomesEscala)}
     />
   )
 }

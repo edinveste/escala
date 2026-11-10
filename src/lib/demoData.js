@@ -15,6 +15,7 @@ export const DEMO_EMPRESA = {
   status: 'ativo',
   exigir_cadastro_previo: false,
   tipo_validacao_equipe: 'whatsapp',
+  ocultar_nomes_escala: false,
   termos: {
     preset: 'imobiliaria',
   },

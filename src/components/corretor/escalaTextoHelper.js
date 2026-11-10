@@ -102,12 +102,15 @@ export function gerarTextoEscala({
     }
 
     const diasOrd = Object.keys(porDia).sort(compararDias)
+    const ocultarNomes = Boolean(empresa?.ocultar_nomes_escala || empresa?.termos?.ocultarNomesEscala)
 
     for (const dia of diasOrd) {
       texto += `📅 *${dia}*\n\n`
       for (const turno of porDia[dia]) {
         const reservasTurno = reservasPorTurno[turno.id] || []
-        const nomes = reservasTurno.map((r) => r.corretor_nome.toUpperCase()).join(' / ')
+        const nomes = reservasTurno
+          .map((r) => (ocultarNomes ? 'RESERVADO' : r.corretor_nome.toUpperCase()))
+          .join(' / ')
 
         if (nomes) {
           texto += `🕐 ${turno.horario}\n   → ${nomes}\n`

@@ -19,6 +19,7 @@ export default function DiaAcordeonItem({
   onReservar,
   onCancelar,
   termos = {},
+  ocultarNomes = false,
 }) {
   const totalCapacidadeDia = turnosDoDia.reduce((sum, t) => sum + t.capacidade, 0)
   const totalReservadosDia = turnosDoDia.reduce(
@@ -104,6 +105,7 @@ export default function DiaAcordeonItem({
               onCancelar={onCancelar}
               acaoVaga={termos.acaoVaga}
               acaoCancelar={termos.acaoCancelar}
+              ocultarNomes={ocultarNomes}
             />
           ))}
         </div>
