@@ -145,6 +145,10 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
   - Atualiza de forma segura o cabeçalho e rodapé customizados de WhatsApp de um ponto de captação.
 - **`atualizar_whatsapp_empresa(p_empresa_id, p_cabecalho, p_rodape)`**:
   - Atualiza de forma segura o cabeçalho e rodapé customizados de WhatsApp da escala completa da empresa.
+- **`criar_nova_empresa(p_nome, p_slug DEFAULT NULL, p_admin_pin DEFAULT '1234', p_termos DEFAULT '{}'::jsonb)`**:
+  - Provisiona novo Tenant isolado com slug automático anti-colisão, código seguro de 12 caracteres e vincula o usuário criador como Administrador Geral na tabela `usuarios_empresas`.
+- **`get_minhas_empresas()` (Fase 13 - Isolamento Estrito)**:
+  - Retorna estritamente as empresas às quais o usuário autenticado possui vínculo ativo em `usuarios_empresas`. Erradicado qualquer bypass global de superadmin.
 
 ---
 
@@ -173,6 +177,7 @@ e:\Escala\
 ├── supabase_migration_fase10_whatsapp_customizado.sql # Script de migração Fase 10: Customização do WhatsApp (Ponto e Geral)
 ├── supabase_migration_fase11_copia_whatsapp.sql # Script de migração Fase 11: Controle de Visibilidade da Cópia da Escala (Eye/EyeOff)
 ├── supabase_migration_fase12_ocultar_nomes.sql  # Script de migração Fase 12: Privacidade da Escala Pública (Modo Anônimo / Ocultar Nomes)
+├── supabase_migration_fase13_onboarding_empresa.sql # Script de migração Fase 13: Onboarding Multi-Tenant, Nome da Empresa no Cadastro & Erradicação de Superadmin
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas

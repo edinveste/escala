@@ -160,20 +160,36 @@ export function AuthProvider({ children }) {
     [fetchUserData]
   )
 
-  const signUp = useCallback(async (email, password, nome, empresaNome) => {
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: {
-          nome: nome?.trim(),
-          empresa_nome: empresaNome?.trim(),
-        },
-      },
-    })
-    if (error) throw error
-    return data
-  }, [])
+  const signUp = useCallback(
+    async (email, password, nome, empresaNome) => {
+      setLoading(true)
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: {
+              nome: nome?.trim(),
+              empresa_nome: empresaNome?.trim(),
+            },
+          },
+        })
+        if (error) throw error
+
+        if (data?.user && data?.session) {
+          currentUserIdRef.current = data.user.id
+          setSession(data.session)
+          setUser(data.user)
+          const empresas = await fetchUserData(data.user.id)
+          return { ...data, empresas }
+        }
+        return data
+      } finally {
+        setLoading(false)
+      }
+    },
+    [fetchUserData]
+  )
 
   const signOut = useCallback(async () => {
     setLoading(true)

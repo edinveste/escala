@@ -15,6 +15,7 @@ export default function WhatsappConfigModal({
   showToast,
 }) {
   const [showModalHelpEmojis, setShowModalHelpEmojis] = useState(false)
+  const [campoFoco, setCampoFoco] = useState('cabecalho')
 
   const {
     alvoId,
@@ -118,7 +119,7 @@ export default function WhatsappConfigModal({
               <span className="text-[10px] text-gray-400 font-semibold mr-0.5">Inserir Tag:</span>
               <button
                 type="button"
-                onClick={() => inserirTag('{ponto}', 'cabecalho')}
+                onClick={() => inserirTag('{ponto}', campoFoco)}
                 className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
                 title="Insere o nome do ponto"
               >
@@ -126,7 +127,7 @@ export default function WhatsappConfigModal({
               </button>
               <button
                 type="button"
-                onClick={() => inserirTag('{empresa}', 'cabecalho')}
+                onClick={() => inserirTag('{empresa}', campoFoco)}
                 className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
                 title="Insere o nome da empresa"
               >
@@ -134,7 +135,7 @@ export default function WhatsappConfigModal({
               </button>
               <button
                 type="button"
-                onClick={() => inserirTag('{capacidade}', 'cabecalho')}
+                onClick={() => inserirTag('{capacidade}', campoFoco)}
                 className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
                 title="Insere a quantidade de vagas por horário"
               >
@@ -142,7 +143,7 @@ export default function WhatsappConfigModal({
               </button>
               <button
                 type="button"
-                onClick={() => inserirTag('{link}', 'cabecalho')}
+                onClick={() => inserirTag('{link}', campoFoco)}
                 className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
                 title="Insere o link seguro do app"
               >
@@ -165,46 +166,51 @@ export default function WhatsappConfigModal({
                 type="button"
                 onClick={restaurarPadrao}
                 className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-medium text-gray-300 hover:text-gray-100 bg-surface-700/60 hover:bg-surface-700 rounded border border-surface-600 transition-all active:scale-95 ml-auto sm:ml-1"
-                title="Limpar campos e voltar ao formato padrão automático do sistema"
+                title="Restaurar campos para o modelo padrão do sistema"
               >
                 <RotateCcw className="w-3 h-3 text-gray-400" />
-                <span>Padrão</span>
+                <span>Restaurar Padrão</span>
               </button>
             </div>
 
             <textarea
               rows={5}
               value={cabecalho}
+              onFocus={() => setCampoFoco('cabecalho')}
               onChange={(e) => setCabecalho(e.target.value)}
               placeholder={
                 isGeral
-                  ? 'Ex: 🛑 ATENÇÃO EQUIPE: Escala da semana liberada! Garanta sua vaga pelo app...'
-                  : `Ex: Cole aqui o endereço, regras e referências específicas de ${pontoAtual?.nome || 'deste ponto'}...`
+                  ? 'Ex: 📋 *ESCALA DE CAPTAÇÃO — {empresa} ({capacidade})*\n━━━━━━━━━━━━━━━━━━'
+                  : `Ex: 📋 *ESCALA DE CAPTAÇÃO — {empresa} ({capacidade})*\n━━━━━━━━━━━━━━━━━━\n\n📍 *{ponto}*`
               }
               className="input-field text-xs sm:text-sm font-sans w-full py-2.5 px-3 leading-relaxed resize-y min-h-[100px]"
             />
-            <p className="text-[11px] text-gray-500">
-              Dica: Você pode usar quebras de linha normais e emojis à vontade. Se deixar em branco, usaremos o cabeçalho padrão.
+            <p className="text-[11px] text-gray-400">
+              💡 O cabeçalho já vem preenchido com o modelo padrão. Você pode editar os dizeres, adicionar o endereço ou regras do ponto à vontade.
             </p>
           </div>
 
-          {/* Campo: Rodapé / Avisos Extras */}
+          {/* Campo: Rodapé / Final da Mensagem */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
-                <span>2. Rodapé / Avisos Finais</span>
-                <span className="text-emerald-400 text-[11px] font-normal">(opcional)</span>
+                <span>2. Rodapé / Final da Mensagem</span>
+                <span className="text-emerald-400 text-[11px] font-normal">(com link de reserva)</span>
               </label>
               <span className="text-[11px] text-gray-500">{rodape.length} caracteres</span>
             </div>
 
             <textarea
-              rows={2}
+              rows={3}
               value={rodape}
+              onFocus={() => setCampoFoco('rodape')}
               onChange={(e) => setRodape(e.target.value)}
-              placeholder="Ex: ⚠️ Em caso de imprevisto, libere sua vaga com antecedência pelo app..."
-              className="input-field text-xs sm:text-sm font-sans w-full py-2.5 px-3 leading-relaxed resize-y min-h-[60px]"
+              placeholder="Ex: 🔗 *GARANTA SUA VAGA*: {link}"
+              className="input-field text-xs sm:text-sm font-sans w-full py-2.5 px-3 leading-relaxed resize-y min-h-[70px]"
             />
+            <p className="text-[11px] text-gray-400">
+              💡 O rodapé já inclui a tag <code className="text-emerald-400 font-mono font-semibold">{'{link}'}</code> com o link oficial da sua escala. Você pode escrever avisos adicionais acima ou abaixo dela.
+            </p>
           </div>
 
           {/* Live Preview no WhatsApp */}

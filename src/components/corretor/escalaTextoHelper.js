@@ -1,4 +1,31 @@
 import { formatarNomeDia, compararDias } from '../../lib/diasSemana'
+import { obterTermos } from '../../lib/vocabularioHelper'
+
+/**
+ * Retorna o modelo padrão do cabeçalho de WhatsApp com tags dinâmicas.
+ * Para Escala Geral: título + empresa + capacidade + linha separadora.
+ * Para Ponto específico: inclui também o nome do ponto com ícone de localização.
+ */
+export function obterCabecalhoPadrao({ alvoId = 'geral', ponto = null, empresa = null } = {}) {
+  const termos = obterTermos(empresa)
+  const tituloZap = (termos.textoWhatsapp || '📋 ESCALA DE CAPTAÇÃO').trim()
+  const tituloLimpo = tituloZap.replace(/^📋\s*/, '').trim()
+
+  if (alvoId === 'geral' || !ponto) {
+    return `📋 *${tituloLimpo} — {empresa} ({capacidade})*\n━━━━━━━━━━━━━━━━━━`
+  }
+
+  return `📋 *${tituloLimpo} — {empresa} ({capacidade})*\n━━━━━━━━━━━━━━━━━━\n\n📍 *{ponto}*`
+}
+
+/**
+ * Retorna o modelo padrão do rodapé de WhatsApp com tag dinâmica do link.
+ */
+export function obterRodapePadrao({ empresa = null } = {}) {
+  const termos = obterTermos(empresa)
+  const acaoTextoUpper = (termos.acaoVaga || 'GARANTA SUA VAGA').toUpperCase()
+  return `🔗 *${acaoTextoUpper}*: {link}`
+}
 
 /**
  * Substitui tags dinâmicas no template do WhatsApp.
@@ -43,9 +70,7 @@ export function gerarTextoEscala({
     capTexto = `${Math.min(...capacidades)} a ${Math.max(...capacidades)} por horário`
   }
 
-  const nomeEmpresaUpper = empresa?.nome ? ` — ${empresa.nome.toUpperCase()}` : ''
-  const tituloZap = (termos.textoWhatsapp || 'ESCALA SEMANAL').replace('📋', '').trim()
-
+  const empresaNomeFormatada = (empresa?.nome || '').toUpperCase()
   const pontoUnico = selectedPontoId
     ? pontos.find((p) => p.id === selectedPontoId)
     : null
@@ -61,27 +86,34 @@ export function gerarTextoEscala({
 
   // ─── 1. CABEÇALHO DA MENSAGEM ──────────────────────────────────
   if (pontoUnico && cabecalhoPontoCustom) {
-    // Ponto individual com cabeçalho personalizado
     const processado = processarTagsWhatsapp(cabecalhoPontoCustom, {
-      empresaNome: empresa?.nome || '',
-      pontoNome: pontoUnico.nome,
+      empresaNome: empresaNomeFormatada,
+      pontoNome: pontoUnico.nome.toUpperCase(),
       capacidade: capTexto,
       shareUrl: empresaShareUrl,
     })
-    texto = `${processado}\n\n━━━━━━━━━━━━━━━━━━\n\n`
+    texto = `${processado}\n\n`
   } else if (!pontoUnico && cabecalhoEmpresaCustom) {
-    // Escala completa com cabeçalho geral personalizado
     const processado = processarTagsWhatsapp(cabecalhoEmpresaCustom, {
-      empresaNome: empresa?.nome || '',
-      pontoNome: 'Todos os Pontos',
+      empresaNome: empresaNomeFormatada,
+      pontoNome: 'TODOS OS PONTOS',
       capacidade: capTexto,
       shareUrl: empresaShareUrl,
     })
-    texto = `${processado}\n\n━━━━━━━━━━━━━━━━━━\n\n`
+    texto = `${processado}\n\n`
   } else {
     // Cabeçalho padrão automático
-    texto = `📋 *${tituloZap}${nomeEmpresaUpper} (${capTexto})*\n`
-    texto += '━━━━━━━━━━━━━━━━━━\n\n'
+    const padrao = obterCabecalhoPadrao({
+      alvoId: pontoUnico ? pontoUnico.id : 'geral',
+      ponto: pontoUnico,
+      empresa,
+    })
+    texto = `${processarTagsWhatsapp(padrao, {
+      empresaNome: empresaNomeFormatada,
+      pontoNome: pontoUnico ? pontoUnico.nome.toUpperCase() : 'TODOS OS PONTOS',
+      capacidade: capTexto,
+      shareUrl: empresaShareUrl,
+    })}\n\n`
   }
 
   // ─── 2. LISTAGEM DOS PONTOS E DIAS ────────────────────────────
@@ -92,8 +124,12 @@ export function gerarTextoEscala({
 
     if (turnosDoPonto.length === 0) continue
 
-    // Só exibe o título do ponto caso não estejamos em ponto único já com cabeçalho personalizado que contenha o nome
-    const pularTituloPonto = pontoUnico && cabecalhoPontoCustom && cabecalhoPontoCustom.toLowerCase().includes(ponto.nome.toLowerCase())
+    // Só exibe o título do ponto caso não estejamos em ponto único já com cabeçalho que contenha o nome
+    const pularTituloPonto = pontoUnico && (
+      !cabecalhoPontoCustom ||
+      cabecalhoPontoCustom.toLowerCase().includes(ponto.nome.toLowerCase()) ||
+      cabecalhoPontoCustom.includes('{ponto}')
+    )
     if (!pularTituloPonto) {
       texto += `📍 *${ponto.nome.toUpperCase()}*\n\n`
     }
@@ -126,7 +162,9 @@ export function gerarTextoEscala({
     }
   }
 
-  // ─── 3. RODAPÉ PERSONALIZADO (SE HOUVER) ──────────────────────
+  // ─── 3. RODAPÉ (COM APENAS UMA LINHA SEPARADORA) ───────────────
+  texto += '━━━━━━━━━━━━━━━━━━\n'
+
   const rodapePontoCustom = (
     pontoUnico?.rodape_whatsapp ||
     empresa?.termos?.whatsappPontos?.[pontoUnico?.id]?.rodape ||
@@ -134,31 +172,39 @@ export function gerarTextoEscala({
   ).trim()
   const rodapeEmpresaCustom = (empresa?.rodape_whatsapp_geral || empresa?.termos?.rodapeWhatsappGeral || '').trim()
 
-  if (pontoUnico && rodapePontoCustom) {
-    const processado = processarTagsWhatsapp(rodapePontoCustom, {
-      empresaNome: empresa?.nome || '',
-      pontoNome: pontoUnico.nome,
-      capacidade: capTexto,
-      shareUrl: empresaShareUrl,
-    })
-    texto += `━━━━━━━━━━━━━━━━━━\n${processado}\n\n`
-  } else if (!pontoUnico && rodapeEmpresaCustom) {
-    const processado = processarTagsWhatsapp(rodapeEmpresaCustom, {
-      empresaNome: empresa?.nome || '',
-      pontoNome: 'Todos os Pontos',
-      capacidade: capTexto,
-      shareUrl: empresaShareUrl,
-    })
-    texto += `━━━━━━━━━━━━━━━━━━\n${processado}\n\n`
-  }
+  const rodapeTexto = pontoUnico
+    ? (rodapePontoCustom || rodapeEmpresaCustom)
+    : rodapeEmpresaCustom
 
-  // ─── 4. LINK DE RESERVA E FINALIZAÇÃO ─────────────────────────
-  texto += '━━━━━━━━━━━━━━━━━━\n'
   const acaoTextoUpper = (termos.acaoVaga || 'GARANTA SUA VAGA').toUpperCase()
-  if (empresaShareUrl) {
-    texto += `🔗 *${acaoTextoUpper}*: ${empresaShareUrl}`
+
+  if (rodapeTexto) {
+    const processado = processarTagsWhatsapp(rodapeTexto, {
+      empresaNome: empresaNomeFormatada,
+      pontoNome: pontoUnico ? pontoUnico.nome.toUpperCase() : 'TODOS OS PONTOS',
+      capacidade: capTexto,
+      shareUrl: empresaShareUrl,
+    })
+    texto += `${processado}`
+
+    // Retrocompatibilidade: caso algum rodapé salvo antigamente não tenha {link} nem a URL, anexa sem linha extra
+    const jaTemLink =
+      processado.toLowerCase().includes('http') ||
+      (empresaShareUrl && processado.toLowerCase().includes(empresaShareUrl.toLowerCase())) ||
+      rodapeTexto.includes('{link}')
+
+    if (!jaTemLink && empresaShareUrl) {
+      texto += `\n\n🔗 *${acaoTextoUpper}*: ${empresaShareUrl}`
+    }
   } else {
-    texto += `🔗 *${acaoTextoUpper}*`
+    // Rodapé padrão automático com o link oficial
+    const padrao = obterRodapePadrao({ empresa })
+    texto += `${processarTagsWhatsapp(padrao, {
+      empresaNome: empresaNomeFormatada,
+      pontoNome: pontoUnico ? pontoUnico.nome.toUpperCase() : 'TODOS OS PONTOS',
+      capacidade: capTexto,
+      shareUrl: empresaShareUrl,
+    })}`
   }
 
   return texto
@@ -188,4 +234,5 @@ export async function copiarTextoParaClipboard(texto) {
     return sucesso
   }
 }
+
 

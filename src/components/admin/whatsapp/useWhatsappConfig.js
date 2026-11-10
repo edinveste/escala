@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
-import { processarTagsWhatsapp } from '../../corretor/escalaTextoHelper'
+import {
+  processarTagsWhatsapp,
+  obterCabecalhoPadrao,
+  obterRodapePadrao,
+} from '../../corretor/escalaTextoHelper'
 
 const MODELO_SUGERIDO_GERAL = `🛑🛑🛑 ATENÇÃO EQUIPE 🛑🛑🛑
 📋 ESCALA DE CAPTAÇÃO — {empresa}
@@ -55,15 +59,20 @@ export function useWhatsappConfig({
     [empresa, pontos]
   )
 
-  // Ao montar ou mudar initialAlvoId, inicializa os campos
+  // Ao montar ou mudar initialAlvoId, inicializa os campos com valores salvos ou padrões
   useEffect(() => {
     const id = initialAlvoId || 'geral'
     setAlvoId(id)
     const inicial = getValorSalvo(id)
-    setCabecalho(inicial.cabecalho || '')
-    setRodape(inicial.rodape || '')
+    const pAtual = id !== 'geral' ? pontos.find((p) => p.id === id) : null
+
+    const cabPadrao = obterCabecalhoPadrao({ alvoId: id, ponto: pAtual, empresa })
+    const rodPadrao = obterRodapePadrao({ empresa })
+
+    setCabecalho(inicial.cabecalho?.trim() ? inicial.cabecalho : cabPadrao)
+    setRodape(inicial.rodape?.trim() ? inicial.rodape : rodPadrao)
     setDrafts({})
-  }, [initialAlvoId, getValorSalvo])
+  }, [initialAlvoId, getValorSalvo, pontos, empresa])
 
   // Troca de alvo com buffer de rascunho: preserva as edições do alvo anterior
   const mudarAlvo = useCallback(
@@ -72,10 +81,17 @@ export function useWhatsappConfig({
 
       setDrafts((prev) => {
         const valorOriginalAtual = getValorSalvo(alvoId)
+        const pAtual = alvoId !== 'geral' ? pontos.find((p) => p.id === alvoId) : null
+        const cabPadraoAtual = obterCabecalhoPadrao({ alvoId, ponto: pAtual, empresa })
+        const rodPadraoAtual = obterRodapePadrao({ empresa })
+
+        const valorBaseCab = valorOriginalAtual.cabecalho || cabPadraoAtual
+        const valorBaseRod = valorOriginalAtual.rodape || rodPadraoAtual
+
         const foiModificado =
           prev[alvoId]?.modificado ||
-          cabecalho !== valorOriginalAtual.cabecalho ||
-          rodape !== valorOriginalAtual.rodape
+          cabecalho !== valorBaseCab ||
+          rodape !== valorBaseRod
 
         const novosDrafts = {
           ...prev,
@@ -86,8 +102,17 @@ export function useWhatsappConfig({
           },
         }
 
-        // Recupera o rascunho do novo alvo ou o valor salvo original
-        const dadosNovo = novosDrafts[novoAlvoId] || getValorSalvo(novoAlvoId)
+        // Recupera o rascunho do novo alvo ou o valor salvo original ou o padrão inicial
+        const novoPonto = novoAlvoId !== 'geral' ? pontos.find((p) => p.id === novoAlvoId) : null
+        const dadosNovoSalvo = getValorSalvo(novoAlvoId)
+        const novoCabPadrao = obterCabecalhoPadrao({ alvoId: novoAlvoId, ponto: novoPonto, empresa })
+        const novoRodPadrao = obterRodapePadrao({ empresa })
+
+        const dadosNovo = novosDrafts[novoAlvoId] || {
+          cabecalho: dadosNovoSalvo.cabecalho?.trim() ? dadosNovoSalvo.cabecalho : novoCabPadrao,
+          rodape: dadosNovoSalvo.rodape?.trim() ? dadosNovoSalvo.rodape : novoRodPadrao,
+        }
+
         setCabecalho(dadosNovo.cabecalho || '')
         setRodape(dadosNovo.rodape || '')
 
@@ -96,7 +121,7 @@ export function useWhatsappConfig({
 
       setAlvoId(novoAlvoId)
     },
-    [alvoId, cabecalho, rodape, getValorSalvo]
+    [alvoId, cabecalho, rodape, getValorSalvo, pontos, empresa]
   )
 
   // Atualiza cabeçalho sincronizando o rascunho do alvo ativo
@@ -288,16 +313,18 @@ export function useWhatsappConfig({
 
   // Restaura para o padrão automático do sistema para o alvo atual
   const restaurarPadrao = useCallback(() => {
-    handleSetCabecalho('')
-    handleSetRodape('')
-    showToast?.('Campos limpos. O formato padrão do sistema será utilizado.', 'info')
-  }, [handleSetCabecalho, handleSetRodape, showToast])
+    const cabPadrao = obterCabecalhoPadrao({ alvoId, ponto: pontoAtual, empresa })
+    const rodPadrao = obterRodapePadrao({ empresa })
+    handleSetCabecalho(cabPadrao)
+    handleSetRodape(rodPadrao)
+    showToast?.('Campos restaurados com o modelo padrão do sistema! ✨', 'info')
+  }, [alvoId, pontoAtual, empresa, handleSetCabecalho, handleSetRodape, showToast])
 
   // Gera texto de exemplo para a prévia ao vivo
   const textoPreview = useMemo(() => {
-    const nomeEmp = empresa?.nome || 'Minha Imobiliária'
+    const nomeEmp = (empresa?.nome || 'Minha Imobiliária').toUpperCase()
     const linkExemplo = window.location.origin
-    const nomePonto = pontoAtual ? pontoAtual.nome : 'Todos os Pontos'
+    const nomePonto = pontoAtual ? pontoAtual.nome.toUpperCase() : 'TODOS OS PONTOS'
 
     let txt = ''
     if (cabecalho.trim()) {
@@ -307,16 +334,19 @@ export function useWhatsappConfig({
         capacidade: '2 por horário',
         shareUrl: linkExemplo,
       })
-      txt += '\n\n━━━━━━━━━━━━━━━━━━\n\n'
+      txt += '\n\n'
     } else {
-      txt += `📋 *ESCALA DE CAPTAÇÃO — ${nomeEmp.toUpperCase()} (2 por horário)*\n`
-      txt += '━━━━━━━━━━━━━━━━━━\n\n'
-      if (pontoAtual) {
-        txt += `📍 *${pontoAtual.nome.toUpperCase()}*\n\n`
-      }
+      const padrao = obterCabecalhoPadrao({ alvoId, ponto: pontoAtual, empresa })
+      txt += processarTagsWhatsapp(padrao, {
+        empresaNome: nomeEmp,
+        pontoNome: nomePonto,
+        capacidade: '2 por horário',
+        shareUrl: linkExemplo,
+      })
+      txt += '\n\n'
     }
 
-    if (!pontoAtual) {
+    if (!pontoAtual && !cabecalho.toLowerCase().includes('plantão principal') && !cabecalho.toLowerCase().includes('ponto')) {
       txt += `📍 *PLANTÃO PRINCIPAL*\n\n`
     }
 
@@ -324,21 +354,28 @@ export function useWhatsappConfig({
     txt += `🕐 08:00 às 10:00\n   → CARLOS SILVA / MARIANA SOUZA\n`
     txt += `🕐 10:00 às 12:00\n   → _vago_\n\n`
 
+    // Linha separadora única antes do rodapé (sem segunda linha separando)
+    txt += `━━━━━━━━━━━━━━━━━━\n`
+
     if (rodape.trim()) {
-      txt += `━━━━━━━━━━━━━━━━━━\n`
-      txt += `${processarTagsWhatsapp(rodape, {
+      txt += processarTagsWhatsapp(rodape, {
         empresaNome: nomeEmp,
         pontoNome: nomePonto,
         capacidade: '2 por horário',
         shareUrl: linkExemplo,
-      })}\n\n`
+      })
+    } else {
+      const padraoRod = obterRodapePadrao({ empresa })
+      txt += processarTagsWhatsapp(padraoRod, {
+        empresaNome: nomeEmp,
+        pontoNome: nomePonto,
+        capacidade: '2 por horário',
+        shareUrl: linkExemplo,
+      })
     }
 
-    txt += `━━━━━━━━━━━━━━━━━━\n`
-    txt += `🔗 *GARANTA SUA VAGA*: ${linkExemplo}`
-
     return txt
-  }, [cabecalho, rodape, empresa, pontoAtual])
+  }, [cabecalho, rodape, empresa, pontoAtual, alvoId])
 
   // Salvar no Supabase — persiste de forma individual cada opção que foi editada
   const salvarConfiguracao = useCallback(async () => {

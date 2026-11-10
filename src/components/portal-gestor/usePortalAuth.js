@@ -8,7 +8,7 @@ import { validarSenhaForte } from '../../lib/validacaoHelper'
  * Isola toda a lógica de submissão, validação, tratamento de erros e gerenciamento de foco.
  */
 export function usePortalAuth({ onSuccess, showToast, empresaId }) {
-  const { signIn, signUp, resetPassword } = useAuth()
+  const { signIn, signUp, resetPassword, refreshAuth } = useAuth()
 
   // Modos de autenticação: 'login' | 'cadastro' | 'recuperar' | 'pin_legado'
   const [modo, setModo] = useState('login')
@@ -120,6 +120,10 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
           }
         } catch (errEmp) {
           console.warn('Empresa já provisionada ou erro no RPC:', errEmp)
+        }
+
+        if (refreshAuth) {
+          await refreshAuth()
         }
 
         if (showToast) showToast(`Conta criada com sucesso! Bem-vindo(a), ${nome}! 🎉`, 'success')

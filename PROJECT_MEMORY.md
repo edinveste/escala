@@ -1015,7 +1015,6 @@ npm run build
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros.
 
-
 ---
 
 ### Fase 12: Privacidade da Escala Pública (Modo Anônimo / Ocultar Nomes)
@@ -1163,4 +1162,31 @@ npm run build
      - Caso um usuário autenticado não possua nenhuma empresa vinculada (ex: contas criadas antes da Fase 13), a tela agora exibe o botão e formulário inline *"Criar Minha Empresa Agora"*, permitindo provisionar seu espaço de trabalho instantaneamente sem fricção.
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros.
+
+---
+
+## 32. WhatsApp Pré-Preenchido com Padrão WYSIWYG & Rodapé Único (Fase 14) — Novembro/2026
+- **Contexto e Problema de UX Identificado**:
+  - No modal de personalização do WhatsApp (`WhatsappConfigModal.jsx`), os campos de Cabeçalho e Rodapé iniciavam vazios (`""`). O usuário via o texto padrão apenas na prévia inferior do WhatsApp, sem saber onde o que ele digitasse seria inserido na mensagem final.
+  - Além disso, no rodapé, o sistema inseria uma linha separadora antes do rodapé customizado e **outra linha separadora** antes do link fixo *"GARANTA SUA VAGA"*, gerando uma quebra dupla desnecessária e desconexa na mensagem.
+- **Implementações Realizadas (Engenharia Preventiva & UX de Alta Fidelidade)**:
+  1. **Textareas Pré-Preenchidos com os Modelos Padrão (`obterCabecalhoPadrao` & `obterRodapePadrao`)**:
+     - Criadas as funções centralizadas `obterCabecalhoPadrao` e `obterRodapePadrao` em `src/components/corretor/escalaTextoHelper.js`.
+     - Ao abrir o modal ou alternar entre alvos (Escala Geral ou Ponto de Captação), caso o alvo não possua mensagem customizada salva, as caixas de texto já vêm **preenchidas com os textos padrão**:
+       - **Cabeçalho (Ponto)**: `📋 *ESCALA DE CAPTAÇÃO — {empresa} ({capacidade})*\n━━━━━━━━━━━━━━━━━━\n\n📍 *{ponto}*`
+       - **Cabeçalho (Geral)**: `📋 *ESCALA DE CAPTAÇÃO — {empresa} ({capacidade})*\n━━━━━━━━━━━━━━━━━━`
+       - **Rodapé**: `🔗 *GARANTA SUA VAGA*: {link}`
+     - Agora, o gestor enxerga dentro das caixas exatamente o mesmo conteúdo e formato que aparece na prévia do WhatsApp, facilitando a edição de regras, referências e orientações específicas.
+  2. **Eliminação da Segunda Linha Separadora no Rodapé**:
+     - Removida a linha separadora duplicada tanto em `escalaTextoHelper.js` quanto na prévia ao vivo (`useWhatsappConfig.js`).
+     - Agora existe apenas **uma única linha separadora** (`━━━━━━━━━━━━━━━━━━`) após os turnos, seguida imediatamente pelo rodapé (que já contém a tag `{link}` e a chamada *"GARANTA SUA VAGA"*).
+     - Se o gestor desejar adicionar avisos finais (ex: tolerância de atraso), ele escreve diretamente na caixa de Rodapé, acima ou abaixo do link.
+  3. **Foco Contextual para Inserção de Tags (`campoFoco`)**:
+     - No `WhatsappConfigModal.jsx`, adicionado o estado `campoFoco` que monitora qual campo recebeu foco por último (`cabecalho` ou `rodape`).
+     - O clique nos botões de tags (`{ponto}`, `{empresa}`, `{capacidade}`, `{link}`) insere o valor diretamente no campo ativo.
+  4. **Ação Inteligente do Botão "Restaurar Padrão"**:
+     - Em vez de limpar os campos para strings vazias, o botão *"Restaurar Padrão"* agora repõe instantaneamente os templates padrão com tags dinâmicas no cabeçalho e rodapé do alvo selecionado.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros (distribuído em 10.33s).
+
 
