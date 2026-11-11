@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MessageSquare, RotateCcw, Save, X, MapPin } from 'lucide-react'
 import WhatsappPreviewBubble from './WhatsappPreviewBubble'
 import WhatsappEscopoDropdown from './WhatsappEscopoDropdown'
 import { useWhatsappConfig } from './useWhatsappConfig'
+import { TAGS_WHATSAPP } from './whatsappTextHelper'
 
 export default function WhatsappConfigModal({
   isOpen,
@@ -18,6 +19,9 @@ export default function WhatsappConfigModal({
   const [campoFoco, setCampoFoco] = useState('cabecalho')
 
   const {
+    cabecalhoRef,
+    rodapeRef,
+    registrarSelecao,
     alvoId,
     pontoAtual,
     mudarAlvo,
@@ -28,7 +32,6 @@ export default function WhatsappConfigModal({
     setRodape,
     saving,
     inserirTag,
-    inserirEmoji,
     restaurarPadrao,
     salvarConfiguracao,
     textoPreview,
@@ -37,6 +40,7 @@ export default function WhatsappConfigModal({
     alternarCopiaGeral,
     alternarCopiaPonto,
   } = useWhatsappConfig({
+    isOpen,
     empresa,
     pontos,
     initialAlvoId,
@@ -46,7 +50,30 @@ export default function WhatsappConfigModal({
     onClose,
   })
 
+  useEffect(() => {
+    if (isOpen) {
+      setCampoFoco('cabecalho')
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
+
+  const getTextareaBinding = (campo, ref, value, onChangeValue) => ({
+    ref,
+    value,
+    onFocus: (e) => {
+      setCampoFoco(campo)
+      registrarSelecao(campo, e.target)
+    },
+    onClick: (e) => registrarSelecao(campo, e.target),
+    onKeyUp: (e) => registrarSelecao(campo, e.target),
+    onSelect: (e) => registrarSelecao(campo, e.target),
+    onBlur: (e) => registrarSelecao(campo, e.target),
+    onChange: (e) => {
+      onChangeValue(e.target.value)
+      registrarSelecao(campo, e.target)
+    },
+  })
 
   const isGeral = alvoId === 'geral'
   const tituloEscopo = isGeral
@@ -117,38 +144,18 @@ export default function WhatsappConfigModal({
             {/* Tags Clicáveis, Botão de Emojis para PC & Botão Restaurar Padrão */}
             <div className="flex flex-wrap items-center gap-1.5 pb-1">
               <span className="text-[10px] text-gray-400 font-semibold mr-0.5">Inserir Tag:</span>
-              <button
-                type="button"
-                onClick={() => inserirTag('{ponto}', campoFoco)}
-                className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
-                title="Insere o nome do ponto"
-              >
-                {'{ponto}'}
-              </button>
-              <button
-                type="button"
-                onClick={() => inserirTag('{empresa}', campoFoco)}
-                className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
-                title="Insere o nome da empresa"
-              >
-                {'{empresa}'}
-              </button>
-              <button
-                type="button"
-                onClick={() => inserirTag('{capacidade}', campoFoco)}
-                className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
-                title="Insere a quantidade de vagas por horário"
-              >
-                {'{capacidade}'}
-              </button>
-              <button
-                type="button"
-                onClick={() => inserirTag('{link}', campoFoco)}
-                className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
-                title="Insere o link seguro do app"
-              >
-                {'{link}'}
-              </button>
+              {TAGS_WHATSAPP.map(({ tag, title }) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => inserirTag(tag, campoFoco)}
+                  className="px-2 py-0.5 text-[11px] font-mono bg-surface-700 hover:bg-brand-500/20 hover:text-brand-300 text-gray-300 rounded border border-surface-600 transition-colors"
+                  title={title}
+                >
+                  {tag}
+                </button>
+              ))}
 
               {/* Botão de Emojis exclusivo para PC (oculto no celular) */}
               <button
@@ -175,9 +182,7 @@ export default function WhatsappConfigModal({
 
             <textarea
               rows={5}
-              value={cabecalho}
-              onFocus={() => setCampoFoco('cabecalho')}
-              onChange={(e) => setCabecalho(e.target.value)}
+              {...getTextareaBinding('cabecalho', cabecalhoRef, cabecalho, setCabecalho)}
               placeholder={
                 isGeral
                   ? 'Ex: 📋 *ESCALA DE CAPTAÇÃO — {empresa} ({capacidade})*\n━━━━━━━━━━━━━━━━━━'
@@ -202,9 +207,7 @@ export default function WhatsappConfigModal({
 
             <textarea
               rows={3}
-              value={rodape}
-              onFocus={() => setCampoFoco('rodape')}
-              onChange={(e) => setRodape(e.target.value)}
+              {...getTextareaBinding('rodape', rodapeRef, rodape, setRodape)}
               placeholder="Ex: 🔗 *GARANTA SUA VAGA*: {link}"
               className="input-field text-xs sm:text-sm font-sans w-full py-2.5 px-3 leading-relaxed resize-y min-h-[70px]"
             />

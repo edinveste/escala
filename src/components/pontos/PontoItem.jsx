@@ -124,14 +124,6 @@ export default function PontoItem({
               <span className="text-[11px] font-semibold text-gray-400 bg-surface-800/80 px-1.5 py-0.5 rounded border border-surface-600/40">
                 #{index + 1}
               </span>
-              {Boolean(ponto.cabecalho_whatsapp) && (
-                <span
-                  className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-1"
-                  title="Possui cabeçalho de WhatsApp personalizado"
-                >
-                  💬 WhatsApp
-                </span>
-              )}
             </div>
           </div>
 
@@ -162,16 +154,8 @@ export default function PontoItem({
                   <button
                     type="button"
                     onClick={onConfigWhatsapp}
-                    className={`p-2 rounded-lg transition-colors ${
-                      ponto.cabecalho_whatsapp
-                        ? 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'
-                        : 'text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10'
-                    }`}
-                    title={
-                      ponto.cabecalho_whatsapp
-                        ? 'Texto do WhatsApp personalizado (clique para editar)'
-                        : 'Personalizar texto do WhatsApp para este ponto'
-                    }
+                    className="p-2 rounded-lg hover:bg-emerald-500/10 text-gray-400 hover:text-emerald-400 transition-colors"
+                    title="Personalizar texto do WhatsApp para este ponto"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
                   </button>

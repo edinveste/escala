@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 import {
   processarTagsWhatsapp,
   obterCabecalhoPadrao,
   obterRodapePadrao,
 } from '../../corretor/escalaTextoHelper'
+import { inserirTextoNoCursor } from './whatsappTextHelper'
 
 const MODELO_SUGERIDO_GERAL = `🛑🛑🛑 ATENÇÃO EQUIPE 🛑🛑🛑
 📋 ESCALA DE CAPTAÇÃO — {empresa}
@@ -18,6 +19,7 @@ const MODELO_RODAPE_GERAL = `⚠️ IMPORTANTE:
 • Pontualidade e respeito à escala são fundamentais. Boa captação a todos! 🚀`
 
 export function useWhatsappConfig({
+  isOpen = true,
   empresa,
   pontos = [],
   initialAlvoId = 'geral',
@@ -30,6 +32,18 @@ export function useWhatsappConfig({
   const [cabecalho, setCabecalho] = useState('')
   const [rodape, setRodape] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const cabecalhoRef = useRef(null)
+  const rodapeRef = useRef(null)
+  const selectionsRef = useRef({ cabecalho: null, rodape: null })
+  const pendingSelectionRef = useRef({ cabecalho: null, rodape: null })
+  const scrollRestoreRef = useRef({ cabecalho: null, rodape: null })
+
+  const limparSelecoes = useCallback(() => {
+    selectionsRef.current = { cabecalho: null, rodape: null }
+    pendingSelectionRef.current = { cabecalho: null, rodape: null }
+    scrollRestoreRef.current = { cabecalho: null, rodape: null }
+  }, [])
 
   // Dicionário de rascunhos em memória para cada alvo (geral ou ponto individual)
   // Estrutura: { [id]: { cabecalho: string, rodape: string, modificado: boolean } }
@@ -59,8 +73,9 @@ export function useWhatsappConfig({
     [empresa, pontos]
   )
 
-  // Ao montar ou mudar initialAlvoId, inicializa os campos com valores salvos ou padrões
+  // Ao montar, abrir o modal ou mudar initialAlvoId, inicializa os campos com valores salvos ou padrões
   useEffect(() => {
+    if (!isOpen) return
     const id = initialAlvoId || 'geral'
     setAlvoId(id)
     const inicial = getValorSalvo(id)
@@ -72,12 +87,15 @@ export function useWhatsappConfig({
     setCabecalho(inicial.cabecalho?.trim() ? inicial.cabecalho : cabPadrao)
     setRodape(inicial.rodape?.trim() ? inicial.rodape : rodPadrao)
     setDrafts({})
-  }, [initialAlvoId, getValorSalvo, pontos, empresa])
+    limparSelecoes()
+  }, [isOpen, initialAlvoId, getValorSalvo, pontos, empresa, limparSelecoes])
 
   // Troca de alvo com buffer de rascunho: preserva as edições do alvo anterior
   const mudarAlvo = useCallback(
     (novoAlvoId) => {
       if (novoAlvoId === alvoId) return
+
+      limparSelecoes()
 
       setDrafts((prev) => {
         const valorOriginalAtual = getValorSalvo(alvoId)
@@ -121,7 +139,7 @@ export function useWhatsappConfig({
 
       setAlvoId(novoAlvoId)
     },
-    [alvoId, cabecalho, rodape, getValorSalvo, pontos, empresa]
+    [alvoId, cabecalho, rodape, getValorSalvo, pontos, empresa, limparSelecoes]
   )
 
   // Atualiza cabeçalho sincronizando o rascunho do alvo ativo
@@ -287,38 +305,122 @@ export function useWhatsappConfig({
     [pontos, isCopiaPontoAtiva, empresa, onEmpresaUpdated, onDataChanged, showToast]
   )
 
+  // Registra a posição atual do cursor/seleção de um campo para sobreviver à perda de foco
+  const registrarSelecao = useCallback((campo, target) => {
+    if (!target) return
+    selectionsRef.current[campo] = {
+      start: target.selectionStart ?? 0,
+      end: target.selectionEnd ?? 0,
+    }
+  }, [])
+
+  // Obtém a seleção viva do elemento focado ou o último cursor registrado do campo
+  const obterSelecaoAtual = useCallback((campo) => {
+    const ref = campo === 'cabecalho' ? cabecalhoRef.current : rodapeRef.current
+    if (ref && document.activeElement === ref) {
+      return {
+        start: ref.selectionStart ?? 0,
+        end: ref.selectionEnd ?? 0,
+      }
+    }
+    return selectionsRef.current[campo]
+  }, [])
+
+  // Restaura foco, scroll e posição do cursor após o React atualizar o valor controlado
+  const aplicarCursorPendente = useCallback((campo) => {
+    const pos = pendingSelectionRef.current[campo]
+    const el = campo === 'cabecalho' ? cabecalhoRef.current : rodapeRef.current
+    if (pos === null || !el) return
+
+    pendingSelectionRef.current[campo] = null
+    const savedScroll = scrollRestoreRef.current[campo]
+    scrollRestoreRef.current[campo] = null
+
+    if (document.activeElement !== el) {
+      el.focus()
+    }
+    if (savedScroll !== null) {
+      el.scrollTop = savedScroll
+    }
+    el.setSelectionRange(pos, pos)
+  }, [])
+
+  useLayoutEffect(() => {
+    aplicarCursorPendente('cabecalho')
+  }, [cabecalho, aplicarCursorPendente])
+
+  useLayoutEffect(() => {
+    aplicarCursorPendente('rodape')
+  }, [rodape, aplicarCursorPendente])
+
+  // Insere texto (tag ou emoji) na posição exata do cursor do campo selecionado
+  const inserirNoCampo = useCallback(
+    (textoParaInserir, campo = 'cabecalho', { espacamentoInteligente = false } = {}) => {
+      const isCabecalho = campo === 'cabecalho'
+      const textoAtual = isCabecalho ? cabecalho : rodape
+      const el = isCabecalho ? cabecalhoRef.current : rodapeRef.current
+      const selecao = obterSelecaoAtual(campo)
+
+      if (el) {
+        scrollRestoreRef.current[campo] = el.scrollTop
+      }
+
+      const { novoTexto, novaPosicaoCursor } = inserirTextoNoCursor(
+        textoAtual,
+        textoParaInserir,
+        selecao,
+        { espacamentoInteligente }
+      )
+
+      selectionsRef.current[campo] = {
+        start: novaPosicaoCursor,
+        end: novaPosicaoCursor,
+      }
+
+      if (novoTexto === textoAtual) {
+        if (el) {
+          if (document.activeElement !== el) el.focus()
+          el.setSelectionRange(novaPosicaoCursor, novaPosicaoCursor)
+        }
+        return
+      }
+
+      pendingSelectionRef.current[campo] = novaPosicaoCursor
+
+      if (isCabecalho) {
+        handleSetCabecalho(novoTexto)
+      } else {
+        handleSetRodape(novoTexto)
+      }
+    },
+    [cabecalho, rodape, obterSelecaoAtual, handleSetCabecalho, handleSetRodape]
+  )
+
   // Inserir tag no cursor ou ao final do campo
   const inserirTag = useCallback(
     (tag, campo = 'cabecalho') => {
-      if (campo === 'cabecalho') {
-        handleSetCabecalho((prev) => (prev ? `${prev} ${tag}` : tag))
-      } else {
-        handleSetRodape((prev) => (prev ? `${prev} ${tag}` : tag))
-      }
+      inserirNoCampo(tag, campo, { espacamentoInteligente: true })
     },
-    [handleSetCabecalho, handleSetRodape]
+    [inserirNoCampo]
   )
 
   // Inserir emoji diretamente no campo selecionado
   const inserirEmoji = useCallback(
     (emoji, campo = 'cabecalho') => {
-      if (campo === 'cabecalho') {
-        handleSetCabecalho((prev) => `${prev || ''}${emoji}`)
-      } else {
-        handleSetRodape((prev) => `${prev || ''}${emoji}`)
-      }
+      inserirNoCampo(emoji, campo, { espacamentoInteligente: false })
     },
-    [handleSetCabecalho, handleSetRodape]
+    [inserirNoCampo]
   )
 
   // Restaura para o padrão automático do sistema para o alvo atual
   const restaurarPadrao = useCallback(() => {
     const cabPadrao = obterCabecalhoPadrao({ alvoId, ponto: pontoAtual, empresa })
     const rodPadrao = obterRodapePadrao({ empresa })
+    limparSelecoes()
     handleSetCabecalho(cabPadrao)
     handleSetRodape(rodPadrao)
     showToast?.('Campos restaurados com o modelo padrão do sistema! ✨', 'info')
-  }, [alvoId, pontoAtual, empresa, handleSetCabecalho, handleSetRodape, showToast])
+  }, [alvoId, pontoAtual, empresa, limparSelecoes, handleSetCabecalho, handleSetRodape, showToast])
 
   // Gera texto de exemplo para a prévia ao vivo
   const textoPreview = useMemo(() => {
@@ -537,6 +639,9 @@ export function useWhatsappConfig({
   ])
 
   return {
+    cabecalhoRef,
+    rodapeRef,
+    registrarSelecao,
     alvoId,
     pontoAtual,
     mudarAlvo,
