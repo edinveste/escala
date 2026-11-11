@@ -6,14 +6,13 @@ import {
   PortalLoginForm,
   PortalCadastroForm,
   PortalRecuperarSenhaForm,
-  PortalPinLegadoForm,
   PortalSecurityFooter,
 } from './portal-gestor'
 
 /**
  * Tela institucional de Autenticação do Portal do Gestor (app.escalafacil.online).
- * Orquestra de forma modular e limpa os fluxos de Login (Supabase Auth), Cadastro,
- * Recuperação de Senha e Acesso por PIN de Contingência Legado.
+ * Orquestra de forma modular e limpa os fluxos de Login (Supabase Auth), Cadastro
+ * e Recuperação de Senha.
  */
 export default function PortalGestorLogin({ onSuccess, showToast, empresaId, empresaNome: _empresaNomeProp }) {
   const {
@@ -29,19 +28,13 @@ export default function PortalGestorLogin({ onSuccess, showToast, empresaId, emp
     setEmpresaNome,
     showSenha,
     setShowSenha,
-    pinLegado,
-    setPinLegado,
-    showPinLegado,
-    setShowPinLegado,
     enviando,
     erroMsg,
     sucessoMsg,
     emailInputRef,
-    pinInputRef,
     handleLogin,
     handleCadastro,
     handleRecuperarSenha,
-    handlePinLegado,
   } = usePortalAuth({ onSuccess, showToast, empresaId })
 
   return (
@@ -75,7 +68,6 @@ export default function PortalGestorLogin({ onSuccess, showToast, empresaId, emp
               onSubmit={handleLogin}
               onEsqueceuSenha={() => switchModo('recuperar')}
               onCadastrar={() => switchModo('cadastro')}
-              onPinLegado={() => switchModo('pin_legado')}
             />
           )}
 
@@ -103,19 +95,6 @@ export default function PortalGestorLogin({ onSuccess, showToast, empresaId, emp
               setEmail={setEmail}
               enviando={enviando}
               onSubmit={handleRecuperarSenha}
-              onVoltarLogin={() => switchModo('login')}
-            />
-          )}
-
-          {modo === 'pin_legado' && (
-            <PortalPinLegadoForm
-              pinLegado={pinLegado}
-              setPinLegado={setPinLegado}
-              showPinLegado={showPinLegado}
-              setShowPinLegado={setShowPinLegado}
-              pinInputRef={pinInputRef}
-              enviando={enviando}
-              onSubmit={handlePinLegado}
               onVoltarLogin={() => switchModo('login')}
             />
           )}

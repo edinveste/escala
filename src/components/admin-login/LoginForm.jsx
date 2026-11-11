@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Mail, Lock, Eye, EyeOff, ArrowRight, KeyRound } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 
 /**
  * Formulário de autenticação de Gestores via Supabase Auth (E-mail e Senha).
@@ -13,7 +13,6 @@ export default function LoginForm({
   onSubmit,
   onForgotPassword,
   onGoToCadastro,
-  onGoToPinLegado,
 }) {
   const [showSenha, setShowSenha] = useState(false)
   const emailInputRef = useRef(null)
@@ -111,15 +110,6 @@ export default function LoginForm({
           className="text-xs text-gray-400 hover:text-brand-400 transition-colors"
         >
           Primeiro acesso? <strong className="text-brand-400 font-semibold">Cadastre-se</strong>
-        </button>
-
-        <button
-          type="button"
-          onClick={onGoToPinLegado}
-          className="text-[11px] text-gray-500 hover:text-gray-400 flex items-center justify-center gap-1 transition-colors"
-        >
-          <KeyRound className="w-3 h-3" />
-          Acessar com PIN de Contingência (Legado)
         </button>
       </div>
     </form>

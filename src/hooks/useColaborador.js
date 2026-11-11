@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { executarPublicoSeguro } from '../lib/supabasePublicHelper'
 
-// Gera um UUID v4 simples para rastreamento de aparelho (Zero-Atrito)
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0
@@ -10,45 +10,41 @@ function generateUUID() {
   })
 }
 
+function getOrCreateDeviceId() {
+  try {
+    let stored = localStorage.getItem('escala_device_id')
+    if (!stored) {
+      stored = generateUUID()
+      localStorage.setItem('escala_device_id', stored)
+    }
+    return stored
+  } catch {
+    return generateUUID()
+  }
+}
+
+function readStorage(key) {
+  try {
+    return localStorage.getItem(key) || ''
+  } catch {
+    return ''
+  }
+}
+
 /**
  * useColaborador — Hook responsável pela identidade Zero-Atrito do colaborador,
  * persistência em localStorage, controle do modal de identificação e ações de reserva e cancelamento.
  */
 export function useColaborador({ empresa, showToast, confirm }) {
-  // Estado de identidade do Colaborador (Zero-Atrito)
-  const [deviceId, setDeviceId] = useState('')
-  const [corretorNome, setCorretorNome] = useState('')
-  const [corretorWhatsapp, setCorretorWhatsapp] = useState('')
-  const [corretorEmail, setCorretorEmail] = useState('')
+  // Inicialização síncrona garante deviceId disponível já na 1ª query pública
+  const [deviceId] = useState(() => getOrCreateDeviceId())
+  const [corretorNome, setCorretorNome] = useState(() => readStorage('escala_corretor_nome'))
+  const [corretorWhatsapp, setCorretorWhatsapp] = useState(() => readStorage('escala_corretor_whatsapp'))
+  const [corretorEmail, setCorretorEmail] = useState(() => readStorage('escala_corretor_email'))
   const [showNomeModal, setShowNomeModal] = useState(false)
   const [nomeModalError, setNomeModalError] = useState('')
   const [cadastroNaoAutorizado, setCadastroNaoAutorizado] = useState(false)
   const [pendingTurnoId, setPendingTurnoId] = useState(null)
-
-  // ─── Inicialização do device_id, corretor_nome, whatsapp e email ──
-  useEffect(() => {
-    let storedDeviceId = localStorage.getItem('escala_device_id')
-    if (!storedDeviceId) {
-      storedDeviceId = generateUUID()
-      localStorage.setItem('escala_device_id', storedDeviceId)
-    }
-    setDeviceId(storedDeviceId)
-
-    const storedNome = localStorage.getItem('escala_corretor_nome')
-    if (storedNome) {
-      setCorretorNome(storedNome)
-    }
-
-    const storedZap = localStorage.getItem('escala_corretor_whatsapp')
-    if (storedZap) {
-      setCorretorWhatsapp(storedZap)
-    }
-
-    const storedEmail = localStorage.getItem('escala_corretor_email')
-    if (storedEmail) {
-      setCorretorEmail(storedEmail)
-    }
-  }, [])
 
   // Reseta erros e autorização ao alternar de empresa
   useEffect(() => {
@@ -64,38 +60,62 @@ export function useColaborador({ empresa, showToast, confirm }) {
     }
   }, [empresa?.exigir_cadastro_previo])
 
+  // Tratamento centralizado de erros de validação da RPC `reservar_vaga`
+  const tratarErroReserva = useCallback(
+    (error, turnoId) => {
+      const msg = error?.message || ''
+      if (msg.includes('já possui')) {
+        showToast?.('Você já tem uma vaga reservada neste horário!', 'warning')
+        return
+      }
+
+      if (
+        msg.includes('Acesso restrito') ||
+        msg.includes('cadastro prévio') ||
+        msg.includes('Acesso bloqueado') ||
+        msg.includes('associado a') ||
+        msg.includes('obrigatório')
+      ) {
+        const isRestrito = msg.includes('Acesso restrito') || msg.includes('cadastro prévio')
+        setCadastroNaoAutorizado(isRestrito)
+        setNomeModalError(msg)
+        setPendingTurnoId(turnoId)
+        setShowNomeModal(true)
+        showToast?.(msg, 'error')
+        return
+      }
+
+      if (
+        msg.includes('Acesso temporariamente suspenso') ||
+        msg.includes('inativa') ||
+        msg.includes('pausado')
+      ) {
+        showToast?.(msg, 'error')
+        return
+      }
+
+      console.error('Erro ao reservar:', error)
+      showToast?.('Erro ao reservar vaga. Tente novamente.', 'error')
+    },
+    [showToast]
+  )
+
   // ─── Ação: Reservar Vaga com dados explícitos ─────────────────
   const handleReservarComDados = useCallback(
     async (turnoId, nome, whatsapp, email) => {
       try {
-        const { data, error } = await supabase.rpc('reservar_vaga', {
-          p_turno_id: turnoId,
-          p_corretor_nome: nome,
-          p_device_id: deviceId,
-          p_corretor_whatsapp: empresa?.exigir_cadastro_previo ? (whatsapp || null) : null,
-          p_corretor_email: empresa?.exigir_cadastro_previo ? (email || null) : null,
-        })
+        const { data, error } = await executarPublicoSeguro(() =>
+          supabase.rpc('reservar_vaga', {
+            p_turno_id: turnoId,
+            p_corretor_nome: nome,
+            p_device_id: deviceId,
+            p_corretor_whatsapp: empresa?.exigir_cadastro_previo ? whatsapp || null : null,
+            p_corretor_email: empresa?.exigir_cadastro_previo ? email || null : null,
+          })
+        )
 
         if (error) {
-          if (error.message.includes('já possui')) {
-            showToast?.('Você já tem uma vaga reservada neste horário!', 'warning')
-          } else if (
-            error.message.includes('Acesso restrito') ||
-            error.message.includes('cadastro prévio')
-          ) {
-            setCadastroNaoAutorizado(true)
-            setNomeModalError(
-              'Acesso restrito: Seu cadastro não foi encontrado na equipe desta empresa.'
-            )
-            setPendingTurnoId(turnoId)
-            setShowNomeModal(true)
-            showToast?.(
-              'Acesso restrito: Cadastro não encontrado na equipe. Corrija seus dados abaixo.',
-              'error'
-            )
-          } else {
-            throw error
-          }
+          tratarErroReserva(error, turnoId)
           return
         }
 
@@ -112,7 +132,7 @@ export function useColaborador({ empresa, showToast, confirm }) {
         showToast?.('Erro ao reservar vaga. Tente novamente.', 'error')
       }
     },
-    [deviceId, empresa?.exigir_cadastro_previo, showToast]
+    [deviceId, empresa?.exigir_cadastro_previo, showToast, tratarErroReserva]
   )
 
   // ─── Ação: Reservar Vaga pelo botão principal ─────────────────
@@ -139,34 +159,18 @@ export function useColaborador({ empresa, showToast, confirm }) {
       }
 
       try {
-        const { data, error } = await supabase.rpc('reservar_vaga', {
-          p_turno_id: turnoId,
-          p_corretor_nome: corretorNome,
-          p_device_id: deviceId,
-          p_corretor_whatsapp: empresa?.exigir_cadastro_previo ? (corretorWhatsapp || null) : null,
-          p_corretor_email: empresa?.exigir_cadastro_previo ? (corretorEmail || null) : null,
-        })
+        const { data, error } = await executarPublicoSeguro(() =>
+          supabase.rpc('reservar_vaga', {
+            p_turno_id: turnoId,
+            p_corretor_nome: corretorNome,
+            p_device_id: deviceId,
+            p_corretor_whatsapp: empresa?.exigir_cadastro_previo ? corretorWhatsapp || null : null,
+            p_corretor_email: empresa?.exigir_cadastro_previo ? corretorEmail || null : null,
+          })
+        )
 
         if (error) {
-          if (error.message.includes('já possui')) {
-            showToast?.('Você já tem uma vaga reservada neste horário!', 'warning')
-          } else if (
-            error.message.includes('Acesso restrito') ||
-            error.message.includes('cadastro prévio')
-          ) {
-            setCadastroNaoAutorizado(true)
-            setNomeModalError(
-              'Acesso restrito: Seu cadastro não foi encontrado na equipe desta empresa.'
-            )
-            setPendingTurnoId(turnoId)
-            setShowNomeModal(true)
-            showToast?.(
-              'Acesso restrito: Cadastro não encontrado na equipe. Corrija seus dados abaixo.',
-              'error'
-            )
-          } else {
-            throw error
-          }
+          tratarErroReserva(error, turnoId)
           return
         }
 
@@ -191,6 +195,7 @@ export function useColaborador({ empresa, showToast, confirm }) {
       empresa?.tipo_validacao_equipe,
       cadastroNaoAutorizado,
       showToast,
+      tratarErroReserva,
     ]
   )
 
@@ -208,12 +213,14 @@ export function useColaborador({ empresa, showToast, confirm }) {
       if (!ok) return
 
       try {
-        const { data, error } = await supabase.rpc('cancelar_vaga', {
-          p_reserva_id: reservaId,
-          p_device_id: deviceId,
-          p_corretor_whatsapp: corretorWhatsapp || null,
-          p_corretor_email: corretorEmail || null,
-        })
+        const { data, error } = await executarPublicoSeguro(() =>
+          supabase.rpc('cancelar_vaga', {
+            p_reserva_id: reservaId,
+            p_device_id: deviceId,
+            p_corretor_whatsapp: corretorWhatsapp || null,
+            p_corretor_email: corretorEmail || null,
+          })
+        )
 
         if (error) throw error
 
@@ -293,4 +300,3 @@ export function useColaborador({ empresa, showToast, confirm }) {
     fecharNomeModal,
   }
 }
-

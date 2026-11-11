@@ -60,16 +60,6 @@ export default function App() {
     setToast({ message, type })
   }, [])
 
-  // Hook de Dados e Realtime da Escala
-  const {
-    pontos,
-    turnos,
-    reservas,
-    loading: escalaLoading,
-    fetchData,
-    handleLimparEscala,
-  } = useEscalaData({ empresa, isDemo, showToast, confirm })
-
   // Hook de Identidade e Ações do Colaborador (Zero-Atrito)
   const {
     deviceId,
@@ -87,20 +77,35 @@ export default function App() {
     fecharNomeModal,
   } = useColaborador({ empresa, showToast, confirm })
 
-  // Navegação e Acesso Administrativo
+  // Navegação e Acesso Administrativo (exclusivamente Supabase Auth)
   const [view, setView] = useState(() => (isPortalDomain ? 'admin' : 'corretor'))
-  const [isPinAuth, setIsPinAuth] = useState(false)
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false)
 
   const termos = useMemo(() => obterTermos(empresa), [empresa])
   const isAuthorizedGestor = Boolean(user && empresa?.id && canManageEmpresa(empresa.id))
-  const isAdminSession = isAuthorizedGestor || isPinAuth
+  const isAdminSession = isAuthorizedGestor
   const userEmpresaRole = empresa?.id ? getEmpresaRole(empresa.id) : null
-  const isFullAdmin = userEmpresaRole === 'admin' || isPinAuth
+  const isFullAdmin = userEmpresaRole === 'admin'
 
-  // Ajusta visão e contingência de PIN ao alternar de empresa
+  // Hook de Dados e Realtime da Escala
+  const {
+    pontos,
+    turnos,
+    reservas,
+    loading: escalaLoading,
+    fetchData,
+    handleLimparEscala,
+  } = useEscalaData({
+    empresa,
+    isDemo,
+    isGestor: isAuthorizedGestor,
+    deviceId,
+    showToast,
+    confirm,
+  })
+
+  // Ajusta visão ao alternar de empresa ou status de autorização
   useEffect(() => {
-    setIsPinAuth(false)
     if (isPortalDomain) {
       setView('admin')
     } else if (!isAuthorizedGestor) {
@@ -109,7 +114,6 @@ export default function App() {
   }, [empresa?.id, isAuthorizedGestor, isPortalDomain])
 
   const handleAdminLogout = useCallback(async () => {
-    setIsPinAuth(false)
     if (user) {
       await signOut()
     }
@@ -124,7 +128,7 @@ export default function App() {
   // 1. Carregamento Global Inicial (Autenticação ou Resolução de Tenant)
   // Enquanto o Supabase restaura a sessão ou resolve a imobiliária, exibe o spinner elegante,
   // impedindo qualquer piscada indesejada de telas de erro ou de "sem empresa".
-  if ((authLoading || tenantLoading) && !empresa && !isPinAuth) {
+  if ((authLoading || tenantLoading) && !empresa) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-surface-900 text-gray-100">
         <div className="w-9 h-9 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />
@@ -134,12 +138,11 @@ export default function App() {
   }
 
   // 2. Portal do Gestor (app.escalafacil.online) Desconectado
-  if (isPortalDomain && !user && !isPinAuth) {
+  if (isPortalDomain && !user) {
     return (
       <>
         <PortalGestorLogin
-          onSuccess={(tipo, emp) => {
-            if (tipo === 'pin') setIsPinAuth(true)
+          onSuccess={(_tipo, emp) => {
             setView('admin')
             if (emp) switchTenant(emp.empresa_id || emp.id)
             refreshEmpresa()
@@ -230,7 +233,6 @@ export default function App() {
           isOpen={showAdminLoginModal}
           onClose={() => setShowAdminLoginModal(false)}
           onSuccess={() => {
-            setIsPinAuth(true)
             setView('admin')
           }}
           showToast={showToast}
@@ -319,7 +321,6 @@ export default function App() {
         isOpen={showAdminLoginModal}
         onClose={() => setShowAdminLoginModal(false)}
         onSuccess={() => {
-          setIsPinAuth(true)
           setView('admin')
         }}
         showToast={showToast}

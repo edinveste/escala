@@ -1,4 +1,4 @@
-import { Mail, Lock, Eye, EyeOff, ArrowRight, KeyRound } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 
 /**
  * Formulário de Login (E-mail e Senha) do Portal do Gestor.
@@ -15,7 +15,6 @@ export default function PortalLoginForm({
   onSubmit,
   onEsqueceuSenha,
   onCadastrar,
-  onPinLegado,
 }) {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -109,16 +108,6 @@ export default function PortalLoginForm({
         >
           Não tem uma conta de gestor?{' '}
           <span className="text-brand-400 font-semibold hover:underline">Cadastre-se</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onPinLegado}
-          disabled={enviando}
-          className="text-gray-500 hover:text-gray-300 text-[11px] flex items-center gap-1 transition-colors mt-1 disabled:opacity-50"
-        >
-          <KeyRound className="w-3 h-3 text-gray-400" />
-          <span>Acessar via PIN de contingência</span>
         </button>
       </div>
     </form>

@@ -24,11 +24,12 @@ export default function TurnoCard({
   const nomeLower = (corretorNome || '').trim().toLowerCase()
 
   // Trava Estrita de Dispositivo: apenas quem reservou por ESTE aparelho físico pode cancelá-la
-  const isMinhaReservaItem = (r) => Boolean(deviceId && r.device_id === deviceId)
+  // Suporta tanto `eh_minha` (vindo da RPC pública sanitizada) quanto `device_id` (gestor / demo)
+  const isMinhaReservaItem = (r) => Boolean(r.eh_minha || (deviceId && r.device_id === deviceId))
 
   // Verifica se o usuário atual tem reserva neste turno
   const minhaReserva = useMemo(
-    () => reservas.find(isMinhaReservaItem),
+    () => reservas.find((r) => Boolean(r.eh_minha || (deviceId && r.device_id === deviceId))),
     [reservas, deviceId]
   )
 

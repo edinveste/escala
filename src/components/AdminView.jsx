@@ -55,8 +55,6 @@ export default function AdminView({
     handleAbrirEditarTurno,
     showModalNome,
     setShowModalNome,
-    showModalSenha,
-    setShowModalSenha,
     showModalVocabulario,
     setShowModalVocabulario,
     showModalWhatsapp,
@@ -165,7 +163,6 @@ export default function AdminView({
               termos={termos}
               onAbrirModalNome={() => setShowModalNome(true)}
               onAbrirModalVocabulario={() => setShowModalVocabulario(true)}
-              onAbrirModalSenha={() => setShowModalSenha(true)}
               onAbrirModalWhatsapp={() => setShowModalWhatsapp(true)}
             />
           )}
@@ -183,7 +180,6 @@ export default function AdminView({
             termos={termos}
             onAbrirModalNome={() => setShowModalNome(true)}
             onAbrirModalVocabulario={() => setShowModalVocabulario(true)}
-            onAbrirModalSenha={() => setShowModalSenha(true)}
             onAbrirModalWhatsapp={() => setShowModalWhatsapp(true)}
           />
 
@@ -251,8 +247,6 @@ export default function AdminView({
         onCloseEditarTurno={() => setModalEditarTurno(null)}
         showModalNome={showModalNome}
         onCloseNome={() => setShowModalNome(false)}
-        showModalSenha={showModalSenha}
-        onCloseSenha={() => setShowModalSenha(false)}
         showModalVocabulario={showModalVocabulario}
         onCloseVocabulario={() => setShowModalVocabulario(false)}
         showModalWhatsapp={showModalWhatsapp}

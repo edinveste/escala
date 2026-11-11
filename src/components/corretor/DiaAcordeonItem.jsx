@@ -30,7 +30,7 @@ export default function DiaAcordeonItem({
   const temVagas = vagasLivresDia > 0
 
   // Trava Estrita de Dispositivo: exibe "Sua vaga" apenas para quem reservou por este aparelho
-  const isMinhaReservaGeral = (r) => Boolean(deviceId && r.device_id === deviceId)
+  const isMinhaReservaGeral = (r) => Boolean(r.eh_minha || (deviceId && r.device_id === deviceId))
   const usuarioTemVaga = turnosDoDia.some((t) =>
     (reservasPorTurno[t.id] || []).some(isMinhaReservaGeral)
   )

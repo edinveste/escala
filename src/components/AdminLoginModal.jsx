@@ -11,12 +11,11 @@ import AcessoRestritoView from './admin-login/AcessoRestritoView'
 import LoginForm from './admin-login/LoginForm'
 import CadastroForm from './admin-login/CadastroForm'
 import RecuperarSenhaForm from './admin-login/RecuperarSenhaForm'
-import PinLegadoForm from './admin-login/PinLegadoForm'
 
 /**
  * Modal central de autenticação e acesso do Gestor.
- * Orquestra os fluxos de Login (Supabase Auth), Cadastro, Recuperação de Senha,
- * Contingência via PIN Legado e Gestão de Acesso Restrito para usuários logados.
+ * Orquestra os fluxos de Login (Supabase Auth), Cadastro, Recuperação de Senha
+ * e Gestão de Acesso Restrito para usuários logados.
  */
 export default function AdminLoginModal({
   isOpen,
@@ -42,7 +41,7 @@ export default function AdminLoginModal({
   const targetEmpresaId = empresaId || empresa?.id
   const targetEmpresaNome = empresaNome || empresa?.nome || 'Empresa'
 
-  // Modos de exibição: 'login' | 'cadastro' | 'recuperar' | 'pin_legado'
+  // Modos de exibição: 'login' | 'cadastro' | 'recuperar'
   const [modo, setModo] = useState('login')
 
   // Estado compartilhado dos formulários
@@ -238,13 +237,9 @@ export default function AdminLoginModal({
         {user && !canManageEmpresa(targetEmpresaId) ? (
           <AcessoRestritoView
             user={user}
-            targetEmpresaId={targetEmpresaId}
             targetEmpresaNome={targetEmpresaNome}
             minhasEmpresas={minhasEmpresas}
             signOut={signOut}
-            refreshAuth={refreshAuth}
-            onSuccess={onSuccess}
-            onClose={onClose}
             showToast={showToast}
           />
         ) : (
@@ -263,7 +258,6 @@ export default function AdminLoginModal({
                 onSubmit={handleLogin}
                 onForgotPassword={() => switchModo('recuperar')}
                 onGoToCadastro={() => switchModo('cadastro')}
-                onGoToPinLegado={() => switchModo('pin_legado')}
               />
             )}
 
@@ -289,20 +283,6 @@ export default function AdminLoginModal({
                 setEmail={setEmail}
                 enviando={enviando}
                 onSubmit={handleRecuperar}
-                onVoltarLogin={() => switchModo('login')}
-              />
-            )}
-
-            {modo === 'pin_legado' && (
-              <PinLegadoForm
-                targetEmpresaId={targetEmpresaId}
-                user={user}
-                refreshAuth={refreshAuth}
-                onSuccess={onSuccess}
-                onClose={onClose}
-                showToast={showToast}
-                setErroMsg={setErroMsg}
-                setSucessoMsg={setSucessoMsg}
                 onVoltarLogin={() => switchModo('login')}
               />
             )}

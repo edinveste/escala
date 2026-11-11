@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { executarPublicoSeguro, isRpcAusenteError } from '../lib/supabasePublicHelper'
 import { useAuth } from './AuthContext'
 import {
   extractTenantIdentifier,
@@ -11,6 +12,9 @@ import {
   isDemoRoute,
 } from '../lib/tenantHelper'
 import { DEMO_EMPRESA } from '../lib/demoData'
+
+const PUBLIC_EMPRESA_COLUMNS =
+  'id, nome, slug, codigo_escala, logo_url, cor_primaria, plano, status, exigir_cadastro_previo, tipo_validacao_equipe, termos, msg_whatsapp_geral, rodape_whatsapp_geral, copia_whatsapp_geral_ativa, ocultar_nomes_escala, created_at'
 
 const TenantContext = createContext(null)
 
@@ -24,6 +28,7 @@ export function TenantProvider({ children }) {
 
   const isApp = isAppPortal()
   const empresaRef = useRef(empresa)
+  const usandoRpcEmpresaRef = useRef(false)
   useEffect(() => {
     empresaRef.current = empresa
   }, [empresa])
@@ -73,7 +78,7 @@ export function TenantProvider({ children }) {
             if (savedId && minhasEmpresas.some((m) => m.empresa_id === savedId)) {
               targetId = savedId
             }
-          } catch {}
+          } catch { }
 
           // 2. Se foi passado um ID ou slug específico no alvo
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawTarget)
@@ -134,52 +139,44 @@ export function TenantProvider({ children }) {
           return
         }
 
-        // ── Helper: Busca empresa tratando JWT expirado ──────────────
-        // Se houver um JWT expirado "grudado" no browser, as queries públicas
-        // retornam 401/PGRST303. Nesse caso, fazemos signOut local (limpa o token
-        // do storage) e reconstruímos a query — que agora passa com role anon.
-        // Recebe uma factory function que constrói a query do zero (Supabase
-        // query builders são consumidos após a primeira execução).
-        const queryEmpresaSegura = async (buildQuery) => {
-          const { data, error: qErr } = await buildQuery()
-          if (qErr && (qErr.code === 'PGRST303' || qErr.message?.includes('JWT expired'))) {
-            // Limpa sessão corrompida
-            try { await supabase.auth.signOut({ scope: 'local' }) } catch {}
-            // Retenta com query limpa (sem JWT no header)
-            return await buildQuery()
-          }
-          return { data, error: qErr }
-        }
-
-        // 1. Tenta buscar primeiro pelo Código Seguro de 12 caracteres (exato / case-sensitive)
+        // Busca prioritária via RPC pública sanitizada (não expõe lista de empresas nem dados financeiros)
         let empresaEncontrada = null
+        const { data: rpcEmpresa, error: rpcErr } = await executarPublicoSeguro(() =>
+          supabase.rpc('get_empresa_publica', { p_identificador: target })
+        )
 
-        if (isToken12Chars(target)) {
-          const { data: dataCod, error: errCod } = await queryEmpresaSegura(
-            () => supabase.from('empresas').select('*').eq('codigo_escala', target).maybeSingle()
-          )
+        if (!rpcErr) {
+          usandoRpcEmpresaRef.current = true
+          empresaEncontrada = rpcEmpresa || null
+        } else if (isRpcAusenteError(rpcErr)) {
+          // Fallback transitório enquanto a migração SQL da Fase 14 não for aplicada
+          usandoRpcEmpresaRef.current = false
+          if (isToken12Chars(target)) {
+            const { data: dataCod, error: errCod } = await executarPublicoSeguro(() =>
+              supabase
+                .from('empresas')
+                .select(PUBLIC_EMPRESA_COLUMNS)
+                .eq('codigo_escala', target)
+                .maybeSingle()
+            )
+            if (errCod && !errCod.message?.includes('does not exist')) throw errCod
+            if (dataCod) empresaEncontrada = dataCod
+          }
 
-          if (errCod && !errCod.message?.includes('does not exist')) {
-            throw errCod
+          if (!empresaEncontrada) {
+            const slugNormalizado = slugify(target)
+            const { data: dataSlug, error: errSlug } = await executarPublicoSeguro(() =>
+              supabase
+                .from('empresas')
+                .select(PUBLIC_EMPRESA_COLUMNS)
+                .ilike('slug', slugNormalizado)
+                .maybeSingle()
+            )
+            if (errSlug && !errSlug.message?.includes('does not exist')) throw errSlug
+            if (dataSlug) empresaEncontrada = dataSlug
           }
-          if (dataCod) {
-            empresaEncontrada = dataCod
-          }
-        }
-
-        // 2. Se não encontrou por código ou não tem 12 chars, tenta por slug (retrocompatibilidade)
-        if (!empresaEncontrada) {
-          const slugNormalizado = slugify(target)
-          const { data: dataSlug, error: errSlug } = await queryEmpresaSegura(
-            () => supabase.from('empresas').select('*').ilike('slug', slugNormalizado).maybeSingle()
-          )
-
-          if (errSlug && !errSlug.message?.includes('does not exist')) {
-            throw errSlug
-          }
-          if (dataSlug) {
-            empresaEncontrada = dataSlug
-          }
+        } else {
+          throw rpcErr
         }
 
         if (empresaEncontrada) {
@@ -239,6 +236,43 @@ export function TenantProvider({ children }) {
   useEffect(() => {
     if (!empresa?.id || empresa.id === DEMO_EMPRESA.id) return
 
+    // Em modo público protegido (RPC), escuta sinalização sem PII em `escala_sync`
+    if (!isApp && usandoRpcEmpresaRef.current) {
+      let debounceTimer = null
+      const identificadorAtual = empresa.codigo_escala || empresa.slug
+      const channel = supabase
+        .channel(`realtime-empresa-sync-${empresa.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'escala_sync',
+            filter: `empresa_id=eq.${empresa.id}`,
+          },
+          () => {
+            clearTimeout(debounceTimer)
+            debounceTimer = setTimeout(async () => {
+              const { data } = await executarPublicoSeguro(() =>
+                supabase.rpc('get_empresa_publica', { p_identificador: identificadorAtual })
+              )
+              if (data) {
+                setEmpresa((prev) => ({ ...prev, ...data }))
+                if (data.nome) {
+                  document.title = `${data.nome} — EscalaFácil`
+                }
+              }
+            }, 120)
+          }
+        )
+        .subscribe()
+
+      return () => {
+        clearTimeout(debounceTimer)
+        supabase.removeChannel(channel)
+      }
+    }
+
     const channel = supabase
       .channel(`realtime-empresa-${empresa.id}`)
       .on(
@@ -252,7 +286,7 @@ export function TenantProvider({ children }) {
         (payload) => {
           setEmpresa((prev) => ({ ...prev, ...payload.new }))
           if (payload.new.nome) {
-            document.title = `${payload.new.nome} — EscalaFácil`
+            document.title = `${payload.new.nome} ${isApp ? '[Gestão] ' : ''}— EscalaFácil`
           }
         }
       )
@@ -261,7 +295,7 @@ export function TenantProvider({ children }) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [empresa?.id])
+  }, [empresa?.id, empresa?.codigo_escala, empresa?.slug, isApp])
 
   // Troca para outra empresa (aceita UUID de empresa, código de 12 chars ou slug)
   const switchTenant = useCallback(

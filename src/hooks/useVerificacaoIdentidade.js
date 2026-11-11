@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { executarPublicoSeguro, isRpcAusenteError } from '../lib/supabasePublicHelper'
 import {
   TIPOS_VALIDACAO,
   limparWhatsApp,
@@ -10,8 +11,8 @@ import {
 } from '../lib/validacaoHelper'
 
 /**
- * useVerificacaoIdentidade — Hook customizado para validação em tempo real de colaboradores
- * Consulta a equipe autorizada e a tabela de reservas para garantir integridade e anti-spoofing.
+ * useVerificacaoIdentidade — Hook customizado para validação pontual em tempo real
+ * via RPC segura `verificar_identidade_colaborador` (sem baixar listas de equipe ou reservas).
  */
 export function useVerificacaoIdentidade({
   empresaId,
@@ -19,7 +20,6 @@ export function useVerificacaoIdentidade({
   exigirCadastro = false,
   whatsapp = '',
   email = '',
-  nome = '',
   deviceId = '',
 }) {
   const [membroAutorizado, setMembroAutorizado] = useState(null)
@@ -29,7 +29,6 @@ export function useVerificacaoIdentidade({
   const [nomeExistenteReservas, setNomeExistenteReservas] = useState(null)
 
   useEffect(() => {
-    // Quando a proteção contra invasores estiver desativada, não exige checagem de equipe
     if (!empresaId || !exigirCadastro) {
       setMembroAutorizado(null)
       setNaoEncontrado(false)
@@ -41,11 +40,9 @@ export function useVerificacaoIdentidade({
 
     const cleanZap = limparWhatsApp(whatsapp)
     const cleanEmail = normalizarEmail(email)
-
     const precisaZap = exigeWhatsApp(tipoValidacao)
     const precisaEmail = exigeEmail(tipoValidacao)
 
-    // Avalia se os dados mínimos foram digitados para iniciar a consulta
     const zapPronto = !precisaZap || cleanZap.length >= 10
     const emailPronto = !precisaEmail || isEmailValido(cleanEmail)
 
@@ -64,7 +61,31 @@ export function useVerificacaoIdentidade({
       setMensagemErro(null)
 
       try {
-        // 1. Consulta membros ativos da equipe_corretores
+        // 1. Verificação pontual via RPC blindada (não expõe lista de equipe nem device_id)
+        const { data: rpcRes, error: rpcErr } = await executarPublicoSeguro(() =>
+          supabase.rpc('verificar_identidade_colaborador', {
+            p_empresa_id: empresaId,
+            p_whatsapp: cleanZap || null,
+            p_email: cleanEmail || null,
+            p_device_id: deviceId || null,
+          })
+        )
+
+        if (cancel) return
+
+        if (!rpcErr && rpcRes) {
+          setMembroAutorizado(rpcRes.autorizado ? rpcRes.nome_oficial || null : null)
+          setNaoEncontrado(Boolean(rpcRes.nao_encontrado))
+          setMensagemErro(rpcRes.mensagem_erro || null)
+          setNomeExistenteReservas(rpcRes.nome_existente_reservas || null)
+          return
+        }
+
+        if (!isRpcAusenteError(rpcErr)) {
+          throw rpcErr
+        }
+
+        // 2. Fallback transitório caso a migração SQL da Fase 14 ainda não tenha sido aplicada
         const { data: equipeData, error: equipeError } = await supabase
           .from('equipe_corretores')
           .select('nome, whatsapp, email, device_id')
@@ -93,82 +114,43 @@ export function useVerificacaoIdentidade({
           }
 
           if (membro) {
-            // Trava de Aparelho: se o membro já tem celular vinculado e não é este
             if (membro.device_id && deviceId && membro.device_id !== deviceId) {
               setMembroAutorizado(null)
               setNaoEncontrado(true)
               setMensagemErro(
                 'Acesso bloqueado: Este cadastro já está vinculado a outro aparelho celular. Por segurança contra uso indevido, cada colaborador deve acessar exclusivamente pelo seu próprio aparelho.'
               )
-              setVerificando(false)
               return
             }
 
             setMembroAutorizado(membro.nome)
             setNaoEncontrado(false)
             setMensagemErro(null)
-            setVerificando(false)
-            return
-          } else if (exigirCadastro) {
-            setMembroAutorizado(null)
-            setNaoEncontrado(true)
-
-            if (tipoValidacao === TIPOS_VALIDACAO.EMAIL) {
-              setMensagemErro('Este e-mail corporativo não consta na equipe autorizada.')
-            } else if (tipoValidacao === TIPOS_VALIDACAO.AMBOS) {
-              // Verifica se um dos dois bate para mensagem mais precisa
-              const temZap = equipeData.some((m) => limparWhatsApp(m.whatsapp) === cleanZap)
-              const temEmail = equipeData.some((m) => normalizarEmail(m.email) === cleanEmail)
-              if (temZap || temEmail) {
-                setMensagemErro('WhatsApp e E-mail não coincidem com o cadastro oficial da equipe.')
-              } else {
-                setMensagemErro('Dados não encontrados na equipe autorizada.')
-              }
-            } else {
-              setMensagemErro('Este número de WhatsApp não consta na equipe autorizada.')
-            }
-
-            setVerificando(false)
             return
           }
-        } else if (exigirCadastro) {
+
           setMembroAutorizado(null)
           setNaoEncontrado(true)
-          setMensagemErro('Nenhum colaborador autorizado foi cadastrado na coordenação ainda.')
-          setVerificando(false)
+
+          if (tipoValidacao === TIPOS_VALIDACAO.EMAIL) {
+            setMensagemErro('Este e-mail corporativo não consta na equipe autorizada.')
+          } else if (tipoValidacao === TIPOS_VALIDACAO.AMBOS) {
+            const temZap = equipeData.some((m) => limparWhatsApp(m.whatsapp) === cleanZap)
+            const temEmail = equipeData.some((m) => normalizarEmail(m.email) === cleanEmail)
+            setMensagemErro(
+              temZap || temEmail
+                ? 'WhatsApp e E-mail não coincidem com o cadastro oficial da equipe.'
+                : 'Dados não encontrados na equipe autorizada.'
+            )
+          } else {
+            setMensagemErro('Este número de WhatsApp não consta na equipe autorizada.')
+          }
           return
         }
 
-        // 2. Se a empresa não exigir cadastro prévio, checa conflito de nomes em reservas (Anti-Spoofing)
-        const { data: reservasData } = await supabase
-          .from('reservas')
-          .select('corretor_nome, corretor_whatsapp, corretor_email')
-          .eq('empresa_id', empresaId)
-          .limit(200)
-
-        if (cancel) return
-
-        if (reservasData && reservasData.length > 0) {
-          let reservaConflito = null
-
-          if (cleanZap) {
-            reservaConflito = reservasData.find(
-              (r) => limparWhatsApp(r.corretor_whatsapp) === cleanZap
-            )
-          }
-
-          if (!reservaConflito && cleanEmail) {
-            reservaConflito = reservasData.find(
-              (r) => normalizarEmail(r.corretor_email) === cleanEmail
-            )
-          }
-
-          if (reservaConflito && reservaConflito.corretor_nome) {
-            setNomeExistenteReservas(reservaConflito.corretor_nome)
-          } else {
-            setNomeExistenteReservas(null)
-          }
-        }
+        setMembroAutorizado(null)
+        setNaoEncontrado(true)
+        setMensagemErro('Nenhum colaborador autorizado foi cadastrado na coordenação ainda.')
       } catch (err) {
         console.warn('Erro ao verificar identidade do colaborador:', err)
       } finally {
@@ -191,4 +173,3 @@ export function useVerificacaoIdentidade({
     nomeExistenteReservas,
   }
 }
-

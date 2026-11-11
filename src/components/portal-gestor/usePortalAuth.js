@@ -10,7 +10,7 @@ import { validarSenhaForte } from '../../lib/validacaoHelper'
 export function usePortalAuth({ onSuccess, showToast, empresaId }) {
   const { signIn, signUp, resetPassword, refreshAuth } = useAuth()
 
-  // Modos de autenticação: 'login' | 'cadastro' | 'recuperar' | 'pin_legado'
+  // Modos de autenticação: 'login' | 'cadastro' | 'recuperar'
   const [modo, setModo] = useState('login')
 
   // Campos do formulário
@@ -19,17 +19,14 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
   const [nome, setNome] = useState('')
   const [empresaNome, setEmpresaNome] = useState('')
   const [showSenha, setShowSenha] = useState(false)
-  const [pinLegado, setPinLegado] = useState('')
-  const [showPinLegado, setShowPinLegado] = useState(false)
 
   // Estados de controle e feedback
   const [enviando, setEnviando] = useState(false)
   const [erroMsg, setErroMsg] = useState('')
   const [sucessoMsg, setSucessoMsg] = useState('')
 
-  // Referências para foco automático
+  // Referência para foco automático
   const emailInputRef = useRef(null)
-  const pinInputRef = useRef(null)
 
   // Alterna o modo limpando mensagens anteriores
   const switchModo = useCallback((novoModo) => {
@@ -43,11 +40,7 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
     setErroMsg('')
     setSucessoMsg('')
     const timer = setTimeout(() => {
-      if (modo === 'pin_legado') {
-        pinInputRef.current?.focus()
-      } else {
-        emailInputRef.current?.focus()
-      }
+      emailInputRef.current?.focus()
     }, 50)
     return () => clearTimeout(timer)
   }, [modo])
@@ -171,55 +164,6 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
     }
   }
 
-  // Submissão: Validação de PIN de contingência legado
-  const handlePinLegado = async (e) => {
-    if (e) e.preventDefault()
-    setErroMsg('')
-    setSucessoMsg('')
-
-    if (!pinLegado.trim()) {
-      setErroMsg('Digite o PIN de acesso da empresa.')
-      return
-    }
-
-    setEnviando(true)
-    try {
-      // 1. Tenta RPC segura verificar_admin_pin se houver empresaId
-      if (empresaId) {
-        const { data: pinValido, error: errRpc } = await supabase.rpc('verificar_admin_pin', {
-          p_empresa_id: empresaId,
-          p_pin_informado: pinLegado.trim(),
-        })
-
-        if (!errRpc && pinValido) {
-          if (showToast) showToast('Acesso de contingência autorizado via PIN! 🛡️', 'success')
-          if (onSuccess) onSuccess('pin')
-          return
-        }
-      }
-
-      // 2. Busca direta da empresa pelo PIN (modo genérico para portal)
-      const { data: emp, error: errEmp } = await supabase
-        .from('empresas')
-        .select('id, nome, slug, admin_pin')
-        .eq('admin_pin', pinLegado.trim())
-        .maybeSingle()
-
-      if (!errEmp && emp) {
-        if (showToast) showToast(`Acesso autorizado para "${emp.nome}" via PIN! 🛡️`, 'success')
-        if (onSuccess) onSuccess('pin', emp)
-        return
-      }
-
-      setErroMsg('PIN de administrador incorreto ou não localizado.')
-    } catch (err) {
-      console.error('Erro ao verificar PIN legado:', err)
-      setErroMsg('Erro ao validar PIN. Tente novamente.')
-    } finally {
-      setEnviando(false)
-    }
-  }
-
   return {
     modo,
     setModo,
@@ -234,21 +178,15 @@ export function usePortalAuth({ onSuccess, showToast, empresaId }) {
     setEmpresaNome,
     showSenha,
     setShowSenha,
-    pinLegado,
-    setPinLegado,
-    showPinLegado,
-    setShowPinLegado,
     enviando,
     erroMsg,
     setErroMsg,
     sucessoMsg,
     setSucessoMsg,
     emailInputRef,
-    pinInputRef,
     handleLogin,
     handleCadastro,
     handleRecuperarSenha,
-    handlePinLegado,
   }
 }
 

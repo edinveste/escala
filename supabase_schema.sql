@@ -33,23 +33,22 @@ $$;
 
 -- 1.1 Tabela de empresas (Tenants)
 CREATE TABLE IF NOT EXISTS public.empresas (
-  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome                   TEXT NOT NULL,
-  slug                   TEXT NOT NULL UNIQUE,
-  codigo_escala          TEXT NOT NULL UNIQUE DEFAULT public.gerar_codigo_escala(),
-  logo_url               TEXT,
-  cor_primaria           TEXT NOT NULL DEFAULT '#3b82f6',
-  admin_pin              TEXT NOT NULL DEFAULT '1234',
-  plano                  TEXT NOT NULL DEFAULT 'trial',
-  status                 TEXT NOT NULL DEFAULT 'ativo', -- 'ativo', 'inativo', 'bloqueado'
-  exigir_cadastro_previo BOOLEAN NOT NULL DEFAULT false,
-  tipo_validacao_equipe  TEXT NOT NULL DEFAULT 'whatsapp' CHECK (tipo_validacao_equipe IN ('whatsapp', 'email', 'ambos')),
-  asaas_customer_id      TEXT,
-  asaas_subscription_id  TEXT,
-  asaas_payment_id       TEXT,
-  email_cobranca         TEXT,
-  telefone_cobranca      TEXT,
-  termos                 JSONB NOT NULL DEFAULT '{}'::jsonb,
+  id                         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome                       TEXT NOT NULL,
+  slug                       TEXT NOT NULL UNIQUE,
+  codigo_escala              TEXT NOT NULL UNIQUE DEFAULT public.gerar_codigo_escala(),
+  logo_url                   TEXT,
+  cor_primaria               TEXT NOT NULL DEFAULT '#3b82f6',
+  plano                      TEXT NOT NULL DEFAULT 'trial',
+  status                     TEXT NOT NULL DEFAULT 'ativo', -- 'ativo', 'inativo', 'bloqueado'
+  exigir_cadastro_previo     BOOLEAN NOT NULL DEFAULT false,
+  tipo_validacao_equipe      TEXT NOT NULL DEFAULT 'whatsapp' CHECK (tipo_validacao_equipe IN ('whatsapp', 'email', 'ambos')),
+  asaas_customer_id          TEXT,
+  asaas_subscription_id      TEXT,
+  asaas_payment_id           TEXT,
+  email_cobranca             TEXT,
+  telefone_cobranca          TEXT,
+  termos                     JSONB NOT NULL DEFAULT '{}'::jsonb,
   msg_whatsapp_geral         TEXT,
   rodape_whatsapp_geral      TEXT,
   copia_whatsapp_geral_ativa BOOLEAN NOT NULL DEFAULT true,
@@ -64,8 +63,8 @@ CREATE INDEX IF NOT EXISTS idx_empresas_asaas_subscription ON public.empresas(as
 CREATE INDEX IF NOT EXISTS idx_empresas_status ON public.empresas(status);
 
 -- Inserção da empresa demonstrativa padrão
-INSERT INTO public.empresas (nome, slug, admin_pin, plano, status)
-VALUES ('Minha Imobiliária', 'demo', '1234', 'ilimitado', 'ativo')
+INSERT INTO public.empresas (nome, slug, plano, status)
+VALUES ('Minha Imobiliária', 'demo', 'ilimitado', 'ativo')
 ON CONFLICT (slug) DO NOTHING;
 
 -- 1.2 Tabela de perfis vinculada ao auth.users do Supabase
@@ -179,6 +178,29 @@ CREATE INDEX IF NOT EXISTS idx_asaas_webhooks_log_event ON public.asaas_webhooks
 CREATE INDEX IF NOT EXISTS idx_asaas_webhooks_log_customer ON public.asaas_webhooks_log(customer_id);
 CREATE INDEX IF NOT EXISTS idx_asaas_webhooks_log_payment ON public.asaas_webhooks_log(payment_id);
 
+-- 1.8.1 Tabela de convites pendentes de gestores
+CREATE TABLE IF NOT EXISTS public.convites_gestores (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+  email      TEXT NOT NULL,
+  role       TEXT NOT NULL DEFAULT 'gestor' CHECK (role IN ('admin', 'gestor')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (empresa_id, email)
+);
+
+CREATE INDEX IF NOT EXISTS idx_convites_gestores_empresa ON public.convites_gestores(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_convites_gestores_email_lower ON public.convites_gestores(lower(email));
+
+-- 1.8.2 Tabela de sinalização Realtime sem PII para visão pública
+CREATE TABLE IF NOT EXISTS public.escala_sync (
+  empresa_id UUID PRIMARY KEY REFERENCES public.empresas(id) ON DELETE CASCADE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO public.escala_sync (empresa_id, updated_at)
+SELECT id, now() FROM public.empresas
+ON CONFLICT (empresa_id) DO NOTHING;
+
 -- 1.9 População inicial de turnos e pontos para a empresa de demonstração 'demo'
 DO $$
 DECLARE
@@ -211,7 +233,7 @@ END $$;
 -- 2. FUNÇÕES DE AUTENTICAÇÃO E PERMISSÕES (SECURITY DEFINER)
 -- ============================================================
 
--- 2.1 Verifica se o usuário atual é Superadmin do SaaS
+-- 2.1 Superadmin desativado (isolamento multi-tenant estrito)
 CREATE OR REPLACE FUNCTION public.is_superadmin(p_user_id UUID DEFAULT auth.uid())
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -219,10 +241,7 @@ SECURITY DEFINER
 STABLE
 SET search_path = public
 AS $$
-  SELECT COALESCE(
-    (SELECT is_superadmin FROM public.perfis WHERE id = p_user_id),
-    false
-  );
+  SELECT false;
 $$;
 
 -- 2.2 Verifica se o usuário tem um dos papéis informados na empresa
@@ -237,13 +256,14 @@ SECURITY DEFINER
 STABLE
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.usuarios_empresas
-    WHERE user_id = p_user_id
-      AND empresa_id = p_empresa_id
-      AND role = ANY(p_roles)
-      AND ativo = true
-  ) OR public.is_superadmin(p_user_id);
+  SELECT p_user_id IS NOT NULL
+    AND EXISTS (
+      SELECT 1 FROM public.usuarios_empresas
+      WHERE user_id = p_user_id
+        AND empresa_id = p_empresa_id
+        AND role = ANY(p_roles)
+        AND ativo = true
+    );
 $$;
 
 -- 2.3 Retorna as empresas às quais o usuário logado possui acesso
@@ -356,7 +376,6 @@ BEGIN
       nome,
       slug,
       codigo_escala,
-      admin_pin,
       status,
       plano,
       termos
@@ -365,7 +384,6 @@ BEGIN
       v_empresa_nome,
       v_slug_final,
       v_codigo_seguro,
-      '1234',
       'ativo',
       'trial',
       '{}'::jsonb
@@ -407,76 +425,74 @@ SELECT
 FROM auth.users u
 ON CONFLICT (id) DO NOTHING;
 
--- Garante que se houver pelo menos um usuário e nenhum superadmin, o primeiro seja superadmin
-DO $$
-DECLARE
-  v_primeiro_id UUID;
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.perfis WHERE is_superadmin = true) THEN
-    SELECT id INTO v_primeiro_id FROM public.perfis ORDER BY created_at ASC LIMIT 1;
-    IF v_primeiro_id IS NOT NULL THEN
-      UPDATE public.perfis SET is_superadmin = true WHERE id = v_primeiro_id;
-    END IF;
-  END IF;
-END $$;
+-- Garante que nenhum perfil permaneça marcado como superadmin
+UPDATE public.perfis SET is_superadmin = false WHERE is_superadmin = true;
 
 -- ============================================================
--- 3. POLÍTICAS DE RLS (ROW LEVEL SECURITY)
+-- 3. POLÍTICAS DE RLS (ROW LEVEL SECURITY ESTRITO)
 -- ============================================================
 
 ALTER TABLE public.empresas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.perfis ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.usuarios_empresas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.convites_gestores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pontos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.turnos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reservas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.equipe_corretores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asaas_webhooks_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.escala_sync ENABLE ROW LEVEL SECURITY;
 
 -- 3.1 PERFIS
 DROP POLICY IF EXISTS "perfis_select" ON public.perfis;
 CREATE POLICY "perfis_select"
   ON public.perfis FOR SELECT TO authenticated
-  USING (id = auth.uid() OR public.is_superadmin());
+  USING (id = auth.uid());
 
 DROP POLICY IF EXISTS "perfis_update" ON public.perfis;
 CREATE POLICY "perfis_update"
   ON public.perfis FOR UPDATE TO authenticated
-  USING (id = auth.uid() OR public.is_superadmin())
-  WITH CHECK (id = auth.uid() OR public.is_superadmin());
+  USING (id = auth.uid())
+  WITH CHECK (id = auth.uid());
 
 -- 3.2 USUARIOS_EMPRESAS
 DROP POLICY IF EXISTS "usuarios_empresas_select" ON public.usuarios_empresas;
 CREATE POLICY "usuarios_empresas_select"
   ON public.usuarios_empresas FOR SELECT TO authenticated
-  USING (user_id = auth.uid() OR public.is_superadmin() OR public.has_empresa_role(empresa_id, ARRAY['admin']));
+  USING (user_id = auth.uid() OR public.has_empresa_role(empresa_id, ARRAY['admin']));
 
 DROP POLICY IF EXISTS "usuarios_empresas_insert" ON public.usuarios_empresas;
 CREATE POLICY "usuarios_empresas_insert"
   ON public.usuarios_empresas FOR INSERT TO authenticated
-  WITH CHECK (public.is_superadmin() OR public.has_empresa_role(empresa_id, ARRAY['admin']));
+  WITH CHECK (public.has_empresa_role(empresa_id, ARRAY['admin']));
 
 DROP POLICY IF EXISTS "usuarios_empresas_update" ON public.usuarios_empresas;
 CREATE POLICY "usuarios_empresas_update"
   ON public.usuarios_empresas FOR UPDATE TO authenticated
-  USING (public.is_superadmin() OR public.has_empresa_role(empresa_id, ARRAY['admin']))
-  WITH CHECK (public.is_superadmin() OR public.has_empresa_role(empresa_id, ARRAY['admin']));
+  USING (public.has_empresa_role(empresa_id, ARRAY['admin']))
+  WITH CHECK (public.has_empresa_role(empresa_id, ARRAY['admin']));
 
 DROP POLICY IF EXISTS "usuarios_empresas_delete" ON public.usuarios_empresas;
 CREATE POLICY "usuarios_empresas_delete"
   ON public.usuarios_empresas FOR DELETE TO authenticated
-  USING (public.is_superadmin() OR public.has_empresa_role(empresa_id, ARRAY['admin']));
+  USING (public.has_empresa_role(empresa_id, ARRAY['admin']));
+
+-- 3.2.1 CONVITES_GESTORES
+DROP POLICY IF EXISTS "convites_gestores_admin" ON public.convites_gestores;
+CREATE POLICY "convites_gestores_admin"
+  ON public.convites_gestores FOR ALL TO authenticated
+  USING (public.has_empresa_role(empresa_id, ARRAY['admin']))
+  WITH CHECK (public.has_empresa_role(empresa_id, ARRAY['admin']));
 
 -- 3.3 EMPRESAS
 DROP POLICY IF EXISTS "empresas_select_public" ON public.empresas;
-CREATE POLICY "empresas_select_public"
-  ON public.empresas FOR SELECT TO anon, authenticated
-  USING (true);
+DROP POLICY IF EXISTS "empresas_select_gestores" ON public.empresas;
+CREATE POLICY "empresas_select_gestores"
+  ON public.empresas FOR SELECT TO authenticated
+  USING (public.has_empresa_role(id, ARRAY['admin', 'gestor']));
 
 DROP POLICY IF EXISTS "empresas_insert_authenticated" ON public.empresas;
-CREATE POLICY "empresas_insert_authenticated"
-  ON public.empresas FOR INSERT TO authenticated
-  WITH CHECK (public.is_superadmin());
+DROP POLICY IF EXISTS "empresas_delete_superadmin" ON public.empresas;
 
 DROP POLICY IF EXISTS "empresas_update_auth" ON public.empresas;
 CREATE POLICY "empresas_update_auth"
@@ -484,16 +500,12 @@ CREATE POLICY "empresas_update_auth"
   USING (public.has_empresa_role(id, ARRAY['admin']))
   WITH CHECK (public.has_empresa_role(id, ARRAY['admin']));
 
-DROP POLICY IF EXISTS "empresas_delete_superadmin" ON public.empresas;
-CREATE POLICY "empresas_delete_superadmin"
-  ON public.empresas FOR DELETE TO authenticated
-  USING (public.is_superadmin());
-
 -- 3.4 PONTOS
 DROP POLICY IF EXISTS "pontos_select_public" ON public.pontos;
-CREATE POLICY "pontos_select_public"
-  ON public.pontos FOR SELECT TO anon, authenticated
-  USING (true);
+DROP POLICY IF EXISTS "pontos_select_gestores" ON public.pontos;
+CREATE POLICY "pontos_select_gestores"
+  ON public.pontos FOR SELECT TO authenticated
+  USING (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']));
 
 DROP POLICY IF EXISTS "pontos_insert_gestores" ON public.pontos;
 CREATE POLICY "pontos_insert_gestores"
@@ -513,9 +525,10 @@ CREATE POLICY "pontos_delete_gestores"
 
 -- 3.5 TURNOS
 DROP POLICY IF EXISTS "turnos_select_public" ON public.turnos;
-CREATE POLICY "turnos_select_public"
-  ON public.turnos FOR SELECT TO anon, authenticated
-  USING (true);
+DROP POLICY IF EXISTS "turnos_select_gestores" ON public.turnos;
+CREATE POLICY "turnos_select_gestores"
+  ON public.turnos FOR SELECT TO authenticated
+  USING (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']));
 
 DROP POLICY IF EXISTS "turnos_insert_gestores" ON public.turnos;
 CREATE POLICY "turnos_insert_gestores"
@@ -535,28 +548,36 @@ CREATE POLICY "turnos_delete_gestores"
 
 -- 3.6 RESERVAS
 DROP POLICY IF EXISTS "reservas_select_public" ON public.reservas;
-CREATE POLICY "reservas_select_public"
-  ON public.reservas FOR SELECT TO anon, authenticated
-  USING (true);
-
 DROP POLICY IF EXISTS "reservas_insert_allowed" ON public.reservas;
-CREATE POLICY "reservas_insert_allowed"
-  ON public.reservas FOR INSERT TO anon, authenticated
-  WITH CHECK (true);
-
 DROP POLICY IF EXISTS "reservas_delete_gestor_or_own" ON public.reservas;
-CREATE POLICY "reservas_delete_gestor_or_own"
-  ON public.reservas FOR DELETE TO anon, authenticated
-  USING (
-    public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor'])
-    OR device_id IS NOT NULL
-  );
+
+DROP POLICY IF EXISTS "reservas_select_gestores" ON public.reservas;
+CREATE POLICY "reservas_select_gestores"
+  ON public.reservas FOR SELECT TO authenticated
+  USING (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']));
+
+DROP POLICY IF EXISTS "reservas_insert_gestores" ON public.reservas;
+CREATE POLICY "reservas_insert_gestores"
+  ON public.reservas FOR INSERT TO authenticated
+  WITH CHECK (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']));
+
+DROP POLICY IF EXISTS "reservas_update_gestores" ON public.reservas;
+CREATE POLICY "reservas_update_gestores"
+  ON public.reservas FOR UPDATE TO authenticated
+  USING (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']))
+  WITH CHECK (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']));
+
+DROP POLICY IF EXISTS "reservas_delete_gestores" ON public.reservas;
+CREATE POLICY "reservas_delete_gestores"
+  ON public.reservas FOR DELETE TO authenticated
+  USING (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']));
 
 -- 3.7 EQUIPE_CORRETORES
 DROP POLICY IF EXISTS "equipe_corretores_select" ON public.equipe_corretores;
-CREATE POLICY "equipe_corretores_select"
-  ON public.equipe_corretores FOR SELECT TO anon, authenticated
-  USING (true);
+DROP POLICY IF EXISTS "equipe_corretores_select_gestores" ON public.equipe_corretores;
+CREATE POLICY "equipe_corretores_select_gestores"
+  ON public.equipe_corretores FOR SELECT TO authenticated
+  USING (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']));
 
 DROP POLICY IF EXISTS "equipe_corretores_all_gestores" ON public.equipe_corretores;
 CREATE POLICY "equipe_corretores_all_gestores"
@@ -564,11 +585,14 @@ CREATE POLICY "equipe_corretores_all_gestores"
   USING (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']))
   WITH CHECK (public.has_empresa_role(empresa_id, ARRAY['admin', 'gestor']));
 
--- 3.8 ASAAS_WEBHOOKS_LOG
+-- 3.8 ESCALA_SYNC (Realtime público sem dados sensíveis)
+DROP POLICY IF EXISTS "escala_sync_select_public" ON public.escala_sync;
+CREATE POLICY "escala_sync_select_public"
+  ON public.escala_sync FOR SELECT TO anon, authenticated
+  USING (true);
+
+-- 3.9 ASAAS_WEBHOOKS_LOG (exclusivo service_role)
 DROP POLICY IF EXISTS "asaas_webhooks_log_select_superadmin" ON public.asaas_webhooks_log;
-CREATE POLICY "asaas_webhooks_log_select_superadmin"
-  ON public.asaas_webhooks_log FOR SELECT TO authenticated
-  USING (public.is_superadmin());
 
 -- ============================================================
 -- 4. RPCS CRÍTICAS DO CORE (PL/PGSQL COM SECURITY DEFINER)
@@ -595,6 +619,7 @@ DECLARE
   v_capacidade        INT;
   v_atual             INT;
   v_empresa_id        UUID;
+  v_ponto_ativo       BOOLEAN;
   v_status            TEXT;
   v_exigir_cadastro   BOOLEAN;
   v_tipo_validacao    TEXT;
@@ -612,13 +637,19 @@ BEGIN
   END IF;
 
   -- 1. Trava o turno contra concorrência simultânea (Race Condition)
-  SELECT capacidade, empresa_id INTO v_capacidade, v_empresa_id
-  FROM public.turnos
-  WHERE id = p_turno_id
-  FOR UPDATE;
+  SELECT t.capacidade, t.empresa_id, COALESCE(p.ativo, true)
+  INTO v_capacidade, v_empresa_id, v_ponto_ativo
+  FROM public.turnos t
+  JOIN public.pontos p ON p.id = t.ponto_id
+  WHERE t.id = p_turno_id
+  FOR UPDATE OF t;
 
   IF v_capacidade IS NULL THEN
-    RAISE EXCEPTION 'Turno não encontrado';
+    RAISE EXCEPTION 'Turno não encontrado.';
+  END IF;
+
+  IF NOT v_ponto_ativo THEN
+    RAISE EXCEPTION 'Este ponto de escala está pausado no momento.';
   END IF;
 
   -- 2. Valida o status da empresa e configurações de equipe
@@ -704,17 +735,6 @@ BEGIN
       LIMIT 1;
     END IF;
 
-    -- Fallback final por nome
-    IF v_nome_oficial IS NULL AND v_nome_final <> '' THEN
-      SELECT id, nome, device_id 
-      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
-      FROM public.equipe_corretores
-      WHERE empresa_id = v_empresa_id
-        AND ativo = true
-        AND lower(trim(nome)) = lower(v_nome_final)
-      LIMIT 1;
-    END IF;
-
     IF v_nome_oficial IS NULL THEN
       IF v_tipo_validacao = 'email' THEN
         RAISE EXCEPTION 'Acesso restrito: Seu e-mail corporativo não foi encontrado na equipe autorizada desta empresa. Fale com seu coordenador.';
@@ -737,6 +757,10 @@ BEGIN
 
     -- REGRA CRÍTICA: Se a empresa exige cadastro, utiliza SEMPRE o nome oficial cadastrado pelo gestor
     v_nome_final := v_nome_oficial;
+  ELSE
+    IF length(trim(COALESCE(v_nome_final, ''))) < 2 THEN
+      RAISE EXCEPTION 'Informe seu nome completo para reservar uma vaga.';
+    END IF;
   END IF;
 
   -- 4. Anti-Spoofing: Impede que o mesmo WhatsApp ou E-mail seja utilizado por nomes diferentes
@@ -829,6 +853,10 @@ AS $$
 DECLARE
   v_rows INT;
 BEGIN
+  IF trim(COALESCE(p_device_id, '')) = '' THEN
+    RETURN FALSE;
+  END IF;
+
   -- Apenas o aparelho físico que realizou a reserva tem autorização para cancelá-la
   DELETE FROM public.reservas
   WHERE id = p_reserva_id
@@ -836,6 +864,326 @@ BEGIN
 
   GET DIAGNOSTICS v_rows = ROW_COUNT;
   RETURN v_rows > 0;
+END;
+$$;
+
+-- 4.2.1 RPC Pública: get_empresa_publica (retorna apenas metadados públicos não-sensíveis)
+CREATE OR REPLACE FUNCTION public.get_empresa_publica(p_identificador TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_raw     TEXT := trim(COALESCE(p_identificador, ''));
+  v_slug    TEXT;
+  v_empresa RECORD;
+BEGIN
+  IF v_raw = '' THEN
+    RETURN NULL;
+  END IF;
+
+  IF length(v_raw) = 12 AND v_raw ~ '^[A-Za-z0-9]{12}$' THEN
+    SELECT
+      id, nome, slug, codigo_escala, logo_url, cor_primaria, plano, status,
+      exigir_cadastro_previo, tipo_validacao_equipe, termos,
+      msg_whatsapp_geral, rodape_whatsapp_geral, copia_whatsapp_geral_ativa,
+      ocultar_nomes_escala, created_at
+    INTO v_empresa
+    FROM public.empresas
+    WHERE codigo_escala = v_raw
+    LIMIT 1;
+  END IF;
+
+  IF v_empresa.id IS NULL THEN
+    v_slug := lower(regexp_replace(
+      translate(v_raw, 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ', 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN'),
+      '[^a-zA-Z0-9_-]', '', 'g'
+    ));
+
+    IF v_slug <> '' THEN
+      SELECT
+        id, nome, slug, codigo_escala, logo_url, cor_primaria, plano, status,
+        exigir_cadastro_previo, tipo_validacao_equipe, termos,
+        msg_whatsapp_geral, rodape_whatsapp_geral, copia_whatsapp_geral_ativa,
+        ocultar_nomes_escala, created_at
+      INTO v_empresa
+      FROM public.empresas
+      WHERE lower(slug) = v_slug
+      LIMIT 1;
+    END IF;
+  END IF;
+
+  IF v_empresa.id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  RETURN to_jsonb(v_empresa);
+END;
+$$;
+
+-- 4.2.2 RPC Pública: get_escala_publica (sem device_id, whatsapp, email e com Modo Anônimo aplicado no servidor)
+CREATE OR REPLACE FUNCTION public.get_escala_publica(
+  p_empresa_id UUID,
+  p_device_id  TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_status        TEXT;
+  v_ocultar_nomes BOOLEAN := false;
+  v_device_limpo  TEXT := trim(COALESCE(p_device_id, ''));
+BEGIN
+  SELECT
+    status,
+    (COALESCE(ocultar_nomes_escala, false) OR COALESCE((termos->>'ocultarNomesEscala')::boolean, false))
+  INTO v_status, v_ocultar_nomes
+  FROM public.empresas
+  WHERE id = p_empresa_id;
+
+  IF v_status IS NULL OR v_status <> 'ativo' THEN
+    RETURN jsonb_build_object(
+      'pontos', '[]'::jsonb,
+      'turnos', '[]'::jsonb,
+      'reservas', '[]'::jsonb
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'pontos', COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'id', p.id,
+          'empresa_id', p.empresa_id,
+          'nome', p.nome,
+          'ordem', p.ordem,
+          'ativo', p.ativo,
+          'cabecalho_whatsapp', p.cabecalho_whatsapp,
+          'rodape_whatsapp', p.rodape_whatsapp,
+          'copia_whatsapp_ativa', p.copia_whatsapp_ativa,
+          'created_at', p.created_at
+        )
+        ORDER BY p.ordem ASC
+      )
+      FROM public.pontos p
+      WHERE p.empresa_id = p_empresa_id
+        AND p.ativo = true
+    ), '[]'::jsonb),
+    'turnos', COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'id', t.id,
+          'empresa_id', t.empresa_id,
+          'ponto_id', t.ponto_id,
+          'dia', t.dia,
+          'horario', t.horario,
+          'capacidade', t.capacidade,
+          'ordem', t.ordem,
+          'created_at', t.created_at
+        )
+        ORDER BY t.ordem ASC
+      )
+      FROM public.turnos t
+      JOIN public.pontos p ON p.id = t.ponto_id
+      WHERE t.empresa_id = p_empresa_id
+        AND p.empresa_id = p_empresa_id
+        AND p.ativo = true
+    ), '[]'::jsonb),
+    'reservas', COALESCE((
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'id', r.id,
+          'empresa_id', r.empresa_id,
+          'turno_id', r.turno_id,
+          'eh_minha', (v_device_limpo <> '' AND r.device_id = v_device_limpo),
+          'corretor_nome', CASE
+            WHEN v_ocultar_nomes AND NOT (v_device_limpo <> '' AND r.device_id = v_device_limpo)
+              THEN 'Reservado'
+            ELSE r.corretor_nome
+          END,
+          'created_at', r.created_at
+        )
+        ORDER BY r.created_at ASC
+      )
+      FROM public.reservas r
+      JOIN public.turnos t ON t.id = r.turno_id
+      JOIN public.pontos p ON p.id = t.ponto_id
+      WHERE r.empresa_id = p_empresa_id
+        AND p.ativo = true
+    ), '[]'::jsonb)
+  );
+END;
+$$;
+
+-- 4.2.3 RPC Pública: verificar_identidade_colaborador (checagem pontual sem listar equipe_corretores)
+CREATE OR REPLACE FUNCTION public.verificar_identidade_colaborador(
+  p_empresa_id UUID,
+  p_whatsapp   TEXT DEFAULT NULL,
+  p_email      TEXT DEFAULT NULL,
+  p_device_id  TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_exigir_cadastro BOOLEAN;
+  v_tipo_validacao  TEXT;
+  v_zap_limpo       TEXT;
+  v_email_limpo     TEXT;
+  v_device_limpo    TEXT := trim(COALESCE(p_device_id, ''));
+  v_membro          RECORD;
+  v_tem_equipe      BOOLEAN := false;
+  v_tem_zap         BOOLEAN := false;
+  v_tem_email       BOOLEAN := false;
+  v_nome_conflito   TEXT;
+BEGIN
+  SELECT
+    COALESCE(exigir_cadastro_previo, false),
+    COALESCE(tipo_validacao_equipe, 'whatsapp')
+  INTO v_exigir_cadastro, v_tipo_validacao
+  FROM public.empresas
+  WHERE id = p_empresa_id;
+
+  IF v_exigir_cadastro IS NULL THEN
+    RETURN jsonb_build_object(
+      'autorizado', false,
+      'nao_encontrado', true,
+      'mensagem_erro', 'Empresa não encontrada.'
+    );
+  END IF;
+
+  v_zap_limpo := regexp_replace(COALESCE(p_whatsapp, ''), '[^0-9]', '', 'g');
+  IF length(v_zap_limpo) IN (12, 13) AND v_zap_limpo LIKE '55%' THEN
+    v_zap_limpo := substr(v_zap_limpo, 3);
+  END IF;
+  v_email_limpo := lower(trim(COALESCE(p_email, '')));
+
+  IF v_exigir_cadastro THEN
+    SELECT EXISTS (
+      SELECT 1 FROM public.equipe_corretores
+      WHERE empresa_id = p_empresa_id AND ativo = true
+    ) INTO v_tem_equipe;
+
+    IF NOT v_tem_equipe THEN
+      RETURN jsonb_build_object(
+        'autorizado', false,
+        'nao_encontrado', true,
+        'mensagem_erro', 'Nenhum colaborador autorizado foi cadastrado na coordenação ainda.'
+      );
+    END IF;
+
+    IF v_tipo_validacao = 'whatsapp' THEN
+      SELECT id, nome, device_id INTO v_membro
+      FROM public.equipe_corretores
+      WHERE empresa_id = p_empresa_id
+        AND ativo = true
+        AND v_zap_limpo <> ''
+        AND regexp_replace(regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+      LIMIT 1;
+    ELSIF v_tipo_validacao = 'email' THEN
+      SELECT id, nome, device_id INTO v_membro
+      FROM public.equipe_corretores
+      WHERE empresa_id = p_empresa_id
+        AND ativo = true
+        AND v_email_limpo <> ''
+        AND lower(trim(COALESCE(email, ''))) = v_email_limpo
+      LIMIT 1;
+    ELSIF v_tipo_validacao = 'ambos' THEN
+      SELECT id, nome, device_id INTO v_membro
+      FROM public.equipe_corretores
+      WHERE empresa_id = p_empresa_id
+        AND ativo = true
+        AND v_zap_limpo <> ''
+        AND v_email_limpo <> ''
+        AND regexp_replace(regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+        AND lower(trim(COALESCE(email, ''))) = v_email_limpo
+      LIMIT 1;
+    END IF;
+
+    IF v_membro.id IS NOT NULL THEN
+      IF v_membro.device_id IS NOT NULL AND v_device_limpo <> '' AND v_membro.device_id <> v_device_limpo THEN
+        RETURN jsonb_build_object(
+          'autorizado', false,
+          'nao_encontrado', true,
+          'dispositivo_diferente', true,
+          'mensagem_erro', 'Acesso bloqueado: Este cadastro já está vinculado a outro aparelho celular. Por segurança contra uso indevido, cada colaborador deve acessar exclusivamente pelo seu próprio aparelho.'
+        );
+      END IF;
+
+      RETURN jsonb_build_object(
+        'autorizado', true,
+        'nome_oficial', v_membro.nome,
+        'nao_encontrado', false,
+        'dispositivo_diferente', false,
+        'mensagem_erro', NULL
+      );
+    END IF;
+
+    IF v_tipo_validacao = 'email' THEN
+      RETURN jsonb_build_object(
+        'autorizado', false,
+        'nao_encontrado', true,
+        'mensagem_erro', 'Este e-mail corporativo não consta na equipe autorizada.'
+      );
+    ELSIF v_tipo_validacao = 'ambos' THEN
+      SELECT EXISTS (
+        SELECT 1 FROM public.equipe_corretores
+        WHERE empresa_id = p_empresa_id AND ativo = true AND v_zap_limpo <> ''
+          AND regexp_replace(regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+      ) INTO v_tem_zap;
+
+      SELECT EXISTS (
+        SELECT 1 FROM public.equipe_corretores
+        WHERE empresa_id = p_empresa_id AND ativo = true AND v_email_limpo <> ''
+          AND lower(trim(COALESCE(email, ''))) = v_email_limpo
+      ) INTO v_tem_email;
+
+      RETURN jsonb_build_object(
+        'autorizado', false,
+        'nao_encontrado', true,
+        'mensagem_erro', CASE
+          WHEN v_tem_zap OR v_tem_email THEN 'WhatsApp e E-mail não coincidem com o cadastro oficial da equipe.'
+          ELSE 'Dados não encontrados na equipe autorizada.'
+        END
+      );
+    ELSE
+      RETURN jsonb_build_object(
+        'autorizado', false,
+        'nao_encontrado', true,
+        'mensagem_erro', 'Este número de WhatsApp não consta na equipe autorizada.'
+      );
+    END IF;
+  END IF;
+
+  IF v_zap_limpo <> '' THEN
+    SELECT corretor_nome INTO v_nome_conflito
+    FROM public.reservas
+    WHERE empresa_id = p_empresa_id
+      AND regexp_replace(regexp_replace(COALESCE(corretor_whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+    LIMIT 1;
+  END IF;
+
+  IF v_nome_conflito IS NULL AND v_email_limpo <> '' THEN
+    SELECT corretor_nome INTO v_nome_conflito
+    FROM public.reservas
+    WHERE empresa_id = p_empresa_id
+      AND lower(trim(COALESCE(corretor_email, ''))) = v_email_limpo
+    LIMIT 1;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'autorizado', false,
+    'nao_encontrado', false,
+    'nome_existente_reservas', v_nome_conflito
+  );
 END;
 $$;
 
@@ -850,10 +1198,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) THEN
+    RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
   END IF;
 
   UPDATE public.equipe_corretores
@@ -864,7 +1210,7 @@ BEGIN
 END;
 $$;
 
--- 4.3 RPC: limpar_escala (com checagem de permissão se autenticado)
+-- 4.4 RPC: limpar_escala (restrita estritamente a administradores autenticados)
 CREATE OR REPLACE FUNCTION public.limpar_escala(
   p_empresa_id UUID,
   p_ponto_id   UUID DEFAULT NULL
@@ -875,10 +1221,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) THEN
-      RAISE EXCEPTION 'Acesso negado: Você não possui permissão para limpar a escala desta imobiliária.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
+    RAISE EXCEPTION 'Acesso negado: Apenas administradores autenticados podem limpar a escala.';
   END IF;
 
   IF p_ponto_id IS NOT NULL THEN
@@ -894,11 +1238,15 @@ BEGIN
 END;
 $$;
 
--- 4.4 RPC: criar_nova_empresa (onboarding self-service / demo)
+-- 4.5 RPC: criar_nova_empresa (onboarding self-service com slug único e sem PIN)
+DROP FUNCTION IF EXISTS public.criar_nova_empresa(TEXT, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.criar_nova_empresa(TEXT, TEXT, TEXT, JSONB);
+DROP FUNCTION IF EXISTS public.criar_nova_empresa(TEXT, TEXT, JSONB);
+
 CREATE OR REPLACE FUNCTION public.criar_nova_empresa(
-  p_nome      TEXT,
-  p_slug      TEXT,
-  p_admin_pin TEXT DEFAULT '1234'
+  p_nome   TEXT,
+  p_slug   TEXT DEFAULT NULL,
+  p_termos JSONB DEFAULT '{}'::jsonb
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -906,165 +1254,82 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_slug_limpo TEXT;
-  v_nova_empresa RECORD;
-  v_user_id UUID := auth.uid();
-  v_novo_ponto_id UUID;
-BEGIN
-  v_slug_limpo := lower(regexp_replace(trim(p_slug), '[^a-zA-Z0-9_-]', '', 'g'));
-
-  IF length(v_slug_limpo) < 2 THEN
-    RAISE EXCEPTION 'Slug inválido ou muito curto.';
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM public.empresas WHERE slug = v_slug_limpo) THEN
-    RAISE EXCEPTION 'Este slug/endereço já está em uso.';
-  END IF;
-
-  INSERT INTO public.empresas (nome, slug, admin_pin, plano, status)
-  VALUES (trim(p_nome), v_slug_limpo, COALESCE(NULLIF(trim(p_admin_pin), ''), '1234'), 'trial', 'ativo')
-  RETURNING * INTO v_nova_empresa;
-
-  -- Se o criador estiver autenticado, vincula-o imediatamente como 'admin' desta nova empresa
-  IF v_user_id IS NOT NULL THEN
-    INSERT INTO public.usuarios_empresas (user_id, empresa_id, role, ativo)
-    VALUES (v_user_id, v_nova_empresa.id, 'admin', true)
-    ON CONFLICT (user_id, empresa_id) DO NOTHING;
-  END IF;
-
-  -- Cria ponto de captação inicial com turnos de exemplo para a nova empresa
-  INSERT INTO public.pontos (empresa_id, nome, ordem, ativo)
-  VALUES (v_nova_empresa.id, 'Plantão Principal', 1, true)
-  RETURNING id INTO v_novo_ponto_id;
-
-  INSERT INTO public.turnos (empresa_id, ponto_id, dia, horario, capacidade, ordem)
-  VALUES
-    (v_nova_empresa.id, v_novo_ponto_id, 'SEGUNDA-FEIRA', '08:00 às 12:00', 2, 1),
-    (v_nova_empresa.id, v_novo_ponto_id, 'SEGUNDA-FEIRA', '13:00 às 17:00', 2, 2),
-    (v_nova_empresa.id, v_novo_ponto_id, 'TERÇA-FEIRA', '08:00 às 12:00', 2, 1),
-    (v_nova_empresa.id, v_novo_ponto_id, 'TERÇA-FEIRA', '13:00 às 17:00', 2, 2),
-    (v_nova_empresa.id, v_novo_ponto_id, 'SÁBADO', '09:00 às 13:00', 3, 1),
-    (v_nova_empresa.id, v_novo_ponto_id, 'DOMINGO', '09:00 às 13:00', 3, 1);
-
-  RETURN to_jsonb(v_nova_empresa);
-END;
-$$;
-
--- 4.5 RPC: verificar_admin_pin (por empresa - contingência e compatibilidade)
-CREATE OR REPLACE FUNCTION public.verificar_admin_pin(
-  p_empresa_id UUID,
-  p_pin        TEXT
-)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_valido BOOLEAN;
-BEGIN
-  SELECT (admin_pin = trim(p_pin)) INTO v_valido
-  FROM public.empresas
-  WHERE id = p_empresa_id AND status = 'ativo';
-
-  RETURN COALESCE(v_valido, FALSE);
-END;
-$$;
-
--- 4.6 RPC: alterar_admin_pin (por empresa)
-CREATE OR REPLACE FUNCTION public.alterar_admin_pin(
-  p_empresa_id UUID,
-  p_pin_atual  TEXT,
-  p_novo_pin   TEXT
-)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF length(trim(p_novo_pin)) < 4 THEN
-    RETURN FALSE;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM public.empresas
-    WHERE id = p_empresa_id AND admin_pin = trim(p_pin_atual)
-  ) THEN
-    RETURN FALSE;
-  END IF;
-
-  UPDATE public.empresas
-  SET admin_pin = trim(p_novo_pin)
-  WHERE id = p_empresa_id;
-
-  RETURN TRUE;
-END;
-$$;
-
--- 4.7 RPC: vincular_com_pin (auto-vinculação segura com o PIN do tenant)
-CREATE OR REPLACE FUNCTION public.vincular_com_pin(
-  p_empresa_id UUID,
-  p_pin TEXT
-)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_user_id UUID := auth.uid();
-  v_pin_correto TEXT;
+  v_user_id       UUID := auth.uid();
+  v_empresa_id    UUID;
+  v_slug_base     TEXT;
+  v_slug_final    TEXT;
+  v_contador      INT := 1;
+  v_codigo_seguro TEXT;
 BEGIN
   IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'Usuário não autenticado.';
+    RAISE EXCEPTION 'Apenas usuários autenticados podem criar uma nova empresa.';
   END IF;
 
-  SELECT admin_pin INTO v_pin_correto
-  FROM public.empresas
-  WHERE id = p_empresa_id;
-
-  IF v_pin_correto IS NULL THEN
-    RAISE EXCEPTION 'Imobiliária não encontrada.';
+  IF trim(COALESCE(p_nome, '')) = '' THEN
+    RAISE EXCEPTION 'Informe o nome da empresa ou imobiliária.';
   END IF;
 
-  IF v_pin_correto <> trim(p_pin) THEN
-    RETURN FALSE;
+  IF p_slug IS NULL OR trim(p_slug) = '' THEN
+    v_slug_base := lower(regexp_replace(
+      translate(trim(p_nome), 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ', 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN'),
+      '[^a-zA-Z0-9_-]', '', 'g'
+    ));
+  ELSE
+    v_slug_base := lower(regexp_replace(
+      translate(trim(p_slug), 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ', 'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN'),
+      '[^a-zA-Z0-9_-]', '', 'g'
+    ));
   END IF;
 
-  -- Se o PIN estiver correto, vincula o usuário autenticado como admin
+  IF v_slug_base = '' THEN
+    v_slug_base := 'empresa';
+  END IF;
+
+  v_slug_final := v_slug_base;
+  WHILE EXISTS (SELECT 1 FROM public.empresas WHERE slug = v_slug_final) LOOP
+    v_contador := v_contador + 1;
+    v_slug_final := v_slug_base || '-' || v_contador::text;
+  END LOOP;
+
+  v_codigo_seguro := public.gerar_codigo_escala();
+
+  INSERT INTO public.empresas (
+    nome,
+    slug,
+    codigo_escala,
+    status,
+    plano,
+    termos
+  )
+  VALUES (
+    trim(p_nome),
+    v_slug_final,
+    v_codigo_seguro,
+    'ativo',
+    'trial',
+    COALESCE(p_termos, '{}'::jsonb)
+  )
+  RETURNING id INTO v_empresa_id;
+
   INSERT INTO public.usuarios_empresas (user_id, empresa_id, role, ativo)
-  VALUES (v_user_id, p_empresa_id, 'admin', true)
+  VALUES (v_user_id, v_empresa_id, 'admin', true)
   ON CONFLICT (user_id, empresa_id) DO UPDATE
   SET role = 'admin', ativo = true;
 
-  RETURN TRUE;
+  RETURN jsonb_build_object(
+    'empresa_id', v_empresa_id,
+    'id', v_empresa_id,
+    'nome', trim(p_nome),
+    'slug', v_slug_final,
+    'codigo_escala', v_codigo_seguro,
+    'mensagem', 'Empresa criada com sucesso!'
+  );
 END;
 $$;
 
 -- ============================================================
--- 5. FUNÇÕES DE GESTÃO, EQUIPE E SUPERADMIN
+-- 5. FUNÇÕES DE GESTÃO E EQUIPE
 -- ============================================================
-
--- 5.1 Promover usuário a Superadmin do SaaS
-CREATE OR REPLACE FUNCTION public.promover_superadmin(p_email TEXT)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF NOT public.is_superadmin() AND EXISTS (SELECT 1 FROM public.perfis WHERE is_superadmin = true) THEN
-    RAISE EXCEPTION 'Apenas um Superadmin pode promover outros usuários a Superadmin.';
-  END IF;
-
-  UPDATE public.perfis
-  SET is_superadmin = true, updated_at = now()
-  WHERE lower(email) = lower(trim(p_email));
-
-  RETURN FOUND;
-END;
-$$;
 
 -- 5.2 Vincular usuário a uma empresa por e-mail (com suporte a pré-convite)
 CREATE OR REPLACE FUNCTION public.vincular_usuario_empresa(
@@ -1082,7 +1347,7 @@ DECLARE
   v_email_limpo TEXT := lower(trim(p_email));
   v_resultado JSONB;
 BEGIN
-  IF NOT (public.is_superadmin() OR public.has_empresa_role(p_empresa_id, ARRAY['admin'])) THEN
+  IF NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
     RAISE EXCEPTION 'Você não tem permissão para adicionar membros a esta empresa.';
   END IF;
 
@@ -1137,7 +1402,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NOT (public.is_superadmin() OR public.has_empresa_role(p_empresa_id, ARRAY['admin'])) THEN
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
     RAISE EXCEPTION 'Você não tem permissão para remover membros desta empresa.';
   END IF;
 
@@ -1168,7 +1433,7 @@ STABLE
 SET search_path = public
 AS $$
 BEGIN
-  IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin']) OR public.is_superadmin()) THEN
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
     RAISE EXCEPTION 'Acesso negado: apenas administradores podem visualizar a lista de gestores.';
   END IF;
 
@@ -1215,7 +1480,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NOT (public.is_superadmin() OR public.has_empresa_role(p_empresa_id, ARRAY['admin'])) THEN
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
     RAISE EXCEPTION 'Você não tem permissão para remover convites desta empresa.';
   END IF;
 
@@ -1226,7 +1491,7 @@ BEGIN
 END;
 $$;
 
--- 5.5 Métricas agregadas de consumo das empresas (Painel Superadmin)
+-- 5.5 Métricas agregadas de consumo das empresas do usuário autenticado
 CREATE OR REPLACE FUNCTION public.get_metricas_empresas()
 RETURNS TABLE (
   empresa_id UUID,
@@ -1260,7 +1525,9 @@ AS $$
     SELECT empresa_id, COUNT(*) AS total_reservas
     FROM public.reservas
     GROUP BY empresa_id
-  ) r ON r.empresa_id = e.id;
+  ) r ON r.empresa_id = e.id
+  WHERE auth.uid() IS NOT NULL
+    AND public.has_empresa_role(e.id, ARRAY['admin', 'gestor']);
 $$;
 
 -- 5.5 Gestão da Equipe Autorizada de Corretores (Proteção contra invasores)
@@ -1274,10 +1541,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Apenas administradores podem alterar a política de acesso.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
+    RAISE EXCEPTION 'Apenas administradores podem alterar a política de acesso.';
   END IF;
 
   UPDATE public.empresas
@@ -1301,10 +1566,8 @@ DECLARE
   v_novo_codigo TEXT;
   v_tentativas INT := 0;
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Apenas administradores podem redefinir o link seguro da escala.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
+    RAISE EXCEPTION 'Apenas administradores podem redefinir o link seguro da escala.';
   END IF;
 
   LOOP
@@ -1341,10 +1604,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Apenas administradores podem alterar a política de identificação da equipe.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
+    RAISE EXCEPTION 'Apenas administradores podem alterar a política de identificação da equipe.';
   END IF;
 
   IF p_tipo_validacao NOT IN ('whatsapp', 'email', 'ambos') THEN
@@ -1380,10 +1641,8 @@ DECLARE
   v_tipo_validacao TEXT;
   v_novo           RECORD;
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) THEN
+    RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
   END IF;
 
   IF trim(COALESCE(p_nome, '')) = '' THEN
@@ -1474,10 +1733,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) THEN
+    RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
   END IF;
 
   UPDATE public.equipe_corretores
@@ -1498,10 +1755,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Apenas administradores podem remover corretores da equipe.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
+    RAISE EXCEPTION 'Apenas administradores podem remover corretores da equipe.';
   END IF;
 
   DELETE FROM public.equipe_corretores
@@ -1529,10 +1784,8 @@ DECLARE
   v_nome_limpo  TEXT;
   v_atualizado  RECORD;
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) THEN
+    RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
   END IF;
 
   v_nome_limpo := trim(p_nome);
@@ -1624,7 +1877,6 @@ DECLARE
   v_contador   INT := 1;
   v_nova_empresa RECORD;
   v_novo_ponto_id UUID;
-  v_pin_aleatorio TEXT;
 BEGIN
   v_slug_limpo := lower(regexp_replace(trim(p_slug), '[^a-zA-Z0-9_-]', '', 'g'));
   IF length(v_slug_limpo) < 2 THEN
@@ -1637,13 +1889,10 @@ BEGIN
     v_slug_final := v_slug_limpo || '-' || v_contador::text;
   END LOOP;
 
-  v_pin_aleatorio := lpad((floor(random() * 9000 + 1000)::int)::text, 4, '0');
-
   INSERT INTO public.empresas (
     nome,
     slug,
     codigo_escala,
-    admin_pin,
     plano,
     status,
     asaas_customer_id,
@@ -1655,7 +1904,6 @@ BEGIN
     trim(p_nome),
     v_slug_final,
     public.gerar_codigo_escala(),
-    v_pin_aleatorio,
     COALESCE(p_plano, 'pro'),
     'ativo',
     p_asaas_customer_id,
@@ -1735,6 +1983,7 @@ ALTER TABLE public.reservas REPLICA IDENTITY FULL;
 ALTER TABLE public.perfis REPLICA IDENTITY FULL;
 ALTER TABLE public.usuarios_empresas REPLICA IDENTITY FULL;
 ALTER TABLE public.equipe_corretores REPLICA IDENTITY FULL;
+ALTER TABLE public.escala_sync REPLICA IDENTITY FULL;
 
 -- Publicação Realtime idempotente (não gera erro caso já pertença à publicação)
 DO $$
@@ -1787,7 +2036,61 @@ BEGIN
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.equipe_corretores;
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'escala_sync'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.escala_sync;
+  END IF;
 END $$;
+
+-- Trigger de sincronização automática da tabela não-sensível escala_sync
+CREATE OR REPLACE FUNCTION public.fn_sync_escala_empresa()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_empresa_id UUID;
+BEGIN
+  IF TG_TABLE_NAME = 'empresas' THEN
+    v_empresa_id := NEW.id;
+  ELSE
+    v_empresa_id := COALESCE(NEW.empresa_id, OLD.empresa_id);
+  END IF;
+
+  IF v_empresa_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.empresas WHERE id = v_empresa_id) THEN
+    INSERT INTO public.escala_sync (empresa_id, updated_at)
+    VALUES (v_empresa_id, now())
+    ON CONFLICT (empresa_id) DO UPDATE
+    SET updated_at = now();
+  END IF;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_escala_empresas ON public.empresas;
+CREATE TRIGGER trg_sync_escala_empresas
+  AFTER INSERT OR UPDATE ON public.empresas
+  FOR EACH ROW EXECUTE FUNCTION public.fn_sync_escala_empresa();
+
+DROP TRIGGER IF EXISTS trg_sync_escala_pontos ON public.pontos;
+CREATE TRIGGER trg_sync_escala_pontos
+  AFTER INSERT OR UPDATE OR DELETE ON public.pontos
+  FOR EACH ROW EXECUTE FUNCTION public.fn_sync_escala_empresa();
+
+DROP TRIGGER IF EXISTS trg_sync_escala_turnos ON public.turnos;
+CREATE TRIGGER trg_sync_escala_turnos
+  AFTER INSERT OR UPDATE OR DELETE ON public.turnos
+  FOR EACH ROW EXECUTE FUNCTION public.fn_sync_escala_empresa();
+
+DROP TRIGGER IF EXISTS trg_sync_escala_reservas ON public.reservas;
+CREATE TRIGGER trg_sync_escala_reservas
+  AFTER INSERT OR UPDATE OR DELETE ON public.reservas
+  FOR EACH ROW EXECUTE FUNCTION public.fn_sync_escala_empresa();
 
 -- 4.19 RPC: atualizar_termos_empresa (Fase 5 - Vocabulário & Nicho Dinâmico)
 CREATE OR REPLACE FUNCTION public.atualizar_termos_empresa(
@@ -1799,22 +2102,9 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-DECLARE
-    v_user_id UUID := auth.uid();
-    v_has_access BOOLEAN := false;
 BEGIN
-    IF v_user_id IS NOT NULL THEN
-        IF public.is_superadmin(v_user_id) OR public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor'], v_user_id) THEN
-            v_has_access := true;
-        END IF;
-    END IF;
-
-    IF NOT v_has_access THEN
-        IF v_user_id IS NULL THEN
-            v_has_access := true;
-        ELSE
-            RAISE EXCEPTION 'Acesso negado para atualizar os termos desta empresa.';
-        END IF;
+    IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) THEN
+        RAISE EXCEPTION 'Acesso negado para atualizar os termos desta empresa.';
     END IF;
 
     UPDATE public.empresas
@@ -1844,10 +2134,8 @@ AS $$
 DECLARE
   v_ponto RECORD;
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) THEN
+    RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
   END IF;
 
   UPDATE public.pontos
@@ -1879,10 +2167,8 @@ AS $$
 DECLARE
   v_empresa RECORD;
 BEGIN
-  IF auth.uid() IS NOT NULL THEN
-    IF NOT (public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) OR public.is_superadmin()) THEN
-      RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
-    END IF;
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin', 'gestor']) THEN
+    RAISE EXCEPTION 'Acesso restrito a gestores e administradores.';
   END IF;
 
   UPDATE public.empresas
@@ -1901,10 +2187,111 @@ END;
 $$;
 
 -- ============================================================
--- 8. PERMISSÕES E PRIVILÉGIOS (GRANTS)
+-- 8. PERMISSÕES E PRIVILÉGIOS GRANULARES (GRANTS / REVOKES)
 -- ============================================================
 
+REVOKE ALL ON TABLE
+  public.empresas,
+  public.perfis,
+  public.usuarios_empresas,
+  public.convites_gestores,
+  public.pontos,
+  public.turnos,
+  public.reservas,
+  public.equipe_corretores,
+  public.asaas_webhooks_log,
+  public.escala_sync
+FROM PUBLIC, anon, authenticated;
+
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, anon;
+
+REVOKE ALL ON FUNCTION public.gerar_codigo_escala() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.fn_sync_escala_empresa() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.handle_new_auth_user() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.is_superadmin(UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.has_empresa_role(UUID, TEXT[], UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_minhas_empresas() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.criar_nova_empresa(TEXT, TEXT, JSONB) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_empresa_publica(TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_escala_publica(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.verificar_identidade_colaborador(UUID, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.reservar_vaga(UUID, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.cancelar_vaga(UUID, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.limpar_escala(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.alternar_protecao_equipe(UUID, BOOLEAN) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.redefinir_codigo_escala(UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.alternar_tipo_validacao_equipe(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.adicionar_corretor_equipe(UUID, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.editar_corretor_equipe(UUID, UUID, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.alternar_status_corretor(UUID, UUID, BOOLEAN) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.desvincular_aparelho_corretor(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.remover_corretor_equipe(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.atualizar_termos_empresa(UUID, JSONB) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.atualizar_whatsapp_ponto(UUID, UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.atualizar_whatsapp_empresa(UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.vincular_usuario_empresa(TEXT, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.desvincular_usuario_empresa(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_gestores_empresa(UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.cancelar_convite_gestor(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_metricas_empresas() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.provisionar_empresa_asaas(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.atualizar_status_empresa_asaas(TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT SELECT ON public.escala_sync TO anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION public.get_empresa_publica(TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_escala_publica(UUID, TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.verificar_identidade_colaborador(UUID, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.reservar_vaga(UUID, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cancelar_vaga(UUID, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  public.empresas,
+  public.perfis,
+  public.usuarios_empresas,
+  public.convites_gestores,
+  public.pontos,
+  public.turnos,
+  public.reservas,
+  public.equipe_corretores
+TO authenticated;
+
+GRANT EXECUTE ON FUNCTION public.gerar_codigo_escala() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_superadmin(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.has_empresa_role(UUID, TEXT[], UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_minhas_empresas() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.criar_nova_empresa(TEXT, TEXT, JSONB) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.limpar_escala(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.alternar_protecao_equipe(UUID, BOOLEAN) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.redefinir_codigo_escala(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.alternar_tipo_validacao_equipe(UUID, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.adicionar_corretor_equipe(UUID, TEXT, TEXT, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.editar_corretor_equipe(UUID, UUID, TEXT, TEXT, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.alternar_status_corretor(UUID, UUID, BOOLEAN) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.desvincular_aparelho_corretor(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.remover_corretor_equipe(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.atualizar_termos_empresa(UUID, JSONB) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.atualizar_whatsapp_ponto(UUID, UUID, TEXT, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.atualizar_whatsapp_empresa(UUID, TEXT, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.vincular_usuario_empresa(TEXT, UUID, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.desvincular_usuario_empresa(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_gestores_empresa(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.cancelar_convite_gestor(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_metricas_empresas() TO authenticated, service_role;
+
+GRANT ALL ON TABLE
+  public.empresas,
+  public.perfis,
+  public.usuarios_empresas,
+  public.convites_gestores,
+  public.pontos,
+  public.turnos,
+  public.reservas,
+  public.equipe_corretores,
+  public.asaas_webhooks_log,
+  public.escala_sync
+TO service_role;
+
+GRANT EXECUTE ON FUNCTION public.provisionar_empresa_asaas(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.atualizar_status_empresa_asaas(TEXT, TEXT, TEXT) TO service_role;

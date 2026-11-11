@@ -33,7 +33,7 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
   - Supabase Realtime via WebSockets escutando com filtro estrito de `empresa_id`
   - Postgres Functions / RPCs com transações e row-level locking (`FOR UPDATE`)
 - **Autenticação dos Corretores (Zero-Atrito)**: Sem login tradicional (identidade via `localStorage` com `device_id` UUID e `corretor_nome`).
-- **Autenticação dos Gestores (RBAC)**: Supabase Auth (`auth.users`) + tabela `perfis` e `usuarios_empresas` com papéis ('superadmin', 'admin', 'gestor'). PIN legado preservado como fallback de contingência.
+- **Autenticação dos Gestores (RBAC)**: Supabase Auth (`auth.users`) + tabela `perfis` e `usuarios_empresas` com papéis ('admin', 'gestor'). Acesso administrativo exclusivamente autenticado via E-mail e Senha (PIN legado removido integralmente na Fase 14).
 
 ---
 
@@ -47,7 +47,6 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
    - `codigo_escala` (text UNIQUE, código aleatório de 12 caracteres alfanuméricos anti-espionagem)
    - `logo_url` (text)
    - `cor_primaria` (text, padrão `#3b82f6`)
-   - `admin_pin` (text, padrão `'1234'`)
    - `plano` (text: 'trial', 'pro', 'ilimitado')
    - `status` (text: 'ativo', 'inativo', 'bloqueado')
    - `asaas_customer_id` (text, opcional para billing Asaas)
@@ -112,23 +111,21 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
 - **`cancelar_vaga(p_reserva_id, p_device_id)`**:
   - Permite que o corretor delete apenas sua própria vaga comparando `device_id`.
 - **`limpar_escala(p_empresa_id, p_ponto_id DEFAULT NULL)`**:
-  - Valida papel do gestor autenticado ou superadmin antes de deletar reservas.
+  - Exige `auth.uid() IS NOT NULL` e papel `'admin'` na empresa antes de deletar reservas.
+- **`get_empresa_publica(p_identificador)`**, **`get_escala_publica(p_empresa_id, p_device_id)`** e **`verificar_identidade_colaborador(p_empresa_id, p_whatsapp, p_email, p_device_id)`** (Fase 14):
+  - RPCs públicas `SECURITY DEFINER` sanitizadas que substituem consultas anônimas diretas às tabelas, ocultando `device_id`, telefones, e-mails e dados financeiros.
 - **`get_metricas_empresas()`**:
-  - Retorna em uma única query agregada as contagens reais de pontos ativos, turnos e reservas de cada tenant para o Superadmin.
-- **`is_superadmin(p_user_id DEFAULT auth.uid())`**:
-  - Função `SECURITY DEFINER` para verificação de permissão global de Superadmin.
+  - Retorna contagens de pontos ativos, turnos e reservas apenas das empresas às quais o usuário autenticado pertence.
 - **`has_empresa_role(p_empresa_id, p_roles, p_user_id)`**:
-  - Função `SECURITY DEFINER` para validação de papel na imobiliária.
+  - Função `SECURITY DEFINER` estrita (sem bypass de superadmin) para validação de papel na imobiliária.
 - **`get_minhas_empresas()`**:
-  - Retorna as empresas às quais o usuário logado possui acesso de gestão.
-- **`promover_superadmin(p_email)`**:
-  - Promove usuário a Superadmin do SaaS com segurança.
+  - Retorna estritamente as empresas às quais o usuário autenticado possui vínculo ativo em `usuarios_empresas`.
 - **`vincular_usuario_empresa(p_email, p_empresa_id, p_role)`**:
   - Vincula gestores e diretores a uma imobiliária por e-mail.
-- **`criar_nova_empresa(p_nome, p_slug, p_admin_pin DEFAULT '1234')`**:
-  - Cria um novo tenant isolado e associa o criador logado como admin.
+- **`criar_nova_empresa(p_nome, p_slug DEFAULT NULL, p_termos DEFAULT '{}'::jsonb)`**:
+  - Cria um novo tenant isolado com slug único anti-colisão, código seguro de 12 caracteres e associa o criador logado como `'admin'`.
 - **`alternar_protecao_equipe(p_empresa_id, p_exigir)`**:
-  - Altera a chave exigir_cadastro_previo com suporte híbrido para Supabase Auth e PIN de contingência.
+  - Exige `auth.uid() IS NOT NULL` e papel `'admin'` para alterar `exigir_cadastro_previo`.
 - **`adicionar_corretor_equipe(p_empresa_id, p_nome, p_whatsapp DEFAULT NULL, p_email DEFAULT NULL)`**:
   - Adiciona membro autorizado na equipe de corretores via RPC segura com suporte a WhatsApp e E-mail corporativo.
 - **`editar_corretor_equipe(p_corretor_id, p_empresa_id, p_nome, p_whatsapp DEFAULT NULL, p_email DEFAULT NULL)`**:
@@ -178,6 +175,7 @@ e:\Escala\
 ├── supabase_migration_fase11_copia_whatsapp.sql # Script de migração Fase 11: Controle de Visibilidade da Cópia da Escala (Eye/EyeOff)
 ├── supabase_migration_fase12_ocultar_nomes.sql  # Script de migração Fase 12: Privacidade da Escala Pública (Modo Anônimo / Ocultar Nomes)
 ├── supabase_migration_fase13_onboarding_empresa.sql # Script de migração Fase 13: Onboarding Multi-Tenant, Nome da Empresa no Cadastro & Erradicação de Superadmin
+├── supabase_migration_fase14_blindagem_seguranca.sql # Script de migração Fase 14: Blindagem RLS/RPCs, Realtime sem PII e Remoção do PIN Legado
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -199,6 +197,7 @@ e:\Escala\
     │   └── useDemoEscala.js     # Hook de sandbox local, simulação de reservas e regras da demonstração (/demo)
     ├── lib/
     │   ├── supabaseClient.js    # Instância do createClient configurada
+    │   ├── supabasePublicHelper.js # Utilitários de execução pública segura (JWT expirado e fallback RPC)
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
     │   ├── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
     │   ├── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
@@ -236,13 +235,11 @@ e:\Escala\
         ├── ConfirmModal.jsx     # Modal universal assíncrono de confirmação/exclusão (useConfirm)
         ├── AdminLoginModal.jsx  # Modal orquestrador de login do gestor (modularizado e enxuto)
         ├── admin-login/         # Submódulos e formulários isolados do fluxo de autenticação do gestor
-        │   ├── adminAuthHelper.js     # Helper de validação e auto-vinculação com PIN (RPCs Supabase)
         │   ├── AuthFeedback.jsx       # Componente de feedback para erros e alertas
         │   ├── AcessoRestritoView.jsx # Visão de usuário logado sem vínculo à empresa ativa
         │   ├── LoginForm.jsx          # Formulário de login institucional (E-mail/Senha)
         │   ├── CadastroForm.jsx       # Formulário de criação de conta de gestor
-        │   ├── RecuperarSenhaForm.jsx # Formulário de redefinição de senha
-        │   └── PinLegadoForm.jsx      # Formulário de contingência via PIN legado
+        │   └── RecuperarSenhaForm.jsx # Formulário de redefinição de senha
         ├── PortalGestorLogin.jsx# Tela full-page orquestradora modularizada de login dos gestores (app.escalafacil.online)
         ├── portal-gestor/       # Submódulos e formulários isolados do Portal do Gestor
         │   ├── usePortalAuth.js           # Hook com lógica de autenticação, estados e RPCs do portal
@@ -252,11 +249,9 @@ e:\Escala\
         │   ├── PortalLoginForm.jsx        # Formulário de login com e-mail/senha, visibilidade e links
         │   ├── PortalCadastroForm.jsx     # Formulário de criação de conta de gestor
         │   ├── PortalRecuperarSenhaForm.jsx # Formulário para solicitação de redefinição de senha
-        │   ├── PortalPinLegadoForm.jsx    # Formulário de contingência por PIN legado com máscara mono
         │   └── PortalSecurityFooter.jsx   # Rodapé com selo de segurança RBAC e ambiente blindado
         ├── PortalSemEmpresaView.jsx # Tela de aviso amigável quando o gestor logado não tem empresa vinculada
         ├── LinkSeguroManager.jsx# Re-export para retrocompatibilidade do gerenciador de link seguro
-        ├── AlterarSenhaModal.jsx# Re-export para retrocompatibilidade do modal de alteração de senha
         ├── AdminView.jsx        # Painel orquestrador do Administrador (modularizado e enxuto)
         ├── admin/               # Submódulos e formulários isolados do Painel do Administrador
         │   ├── AdminHeaderBanner.jsx      # Banner de identidade do gestor e alerta de suspensão Asaas
@@ -272,15 +267,12 @@ e:\Escala\
         │   ├── DuplicarDiaModal.jsx       # Modal de replicação de turnos para múltiplos dias com presets
         │   ├── IncluirPessoaModal.jsx     # Modal para inclusão manual de colaborador no turno
         │   ├── EditarTurnoModal.jsx       # Modal para edição de horário e capacidade com validações
-        │   ├── AlterarSenhaModal.jsx      # Modal para alteração segura de PIN pelo gestor da empresa
-        │   ├── InputSenhaPin.jsx          # Campo reutilizável para entrada de senha/PIN com botão Eye/EyeOff
         │   ├── LayoutPreferencesCard.jsx  # Card para alternar modo de navegação (Abas vs Visão Contínua)
         │   ├── LinkSeguroManager.jsx      # Gerenciador de link seguro anti-espionagem (12 chars) com redefinição
         │   ├── EmpresaNomeCard.jsx        # Card de visualização e atalho para alteração do nome da empresa
         │   ├── EditarNomeEmpresaModal.jsx # Modal para edição do nome oficial da empresa com atualização Realtime
         │   ├── EscalaPrivacidadeCard.jsx  # Card de privacidade da escala pública (Modo Anônimo / Ocultar Nomes)
         │   ├── VocabularioCard.jsx        # Card de atalho para customização de vocabulário e nicho
-        │   ├── AdminSenhaCard.jsx         # Card de alteração da senha de contingência/admin
         │   ├── whatsapp/                  # Submódulos isolados de customização do WhatsApp
         │   │   ├── useWhatsappConfig.js     # Hook de lógica, tags, preview e persistência multi-alvo (pontos e geral)
         │   │   ├── WhatsappConfigCard.jsx   # Card de atalho na aba Configurações com status
@@ -471,10 +463,21 @@ e:\Escala\
    - `fetchUserData` reformulado para retornar `{ data, jwtExpired }` com *early return* ao primeiro erro PGRST303, evitando 3 requests 401 desnecessárias e tentando refresh + retry se JWT expirou durante o fetch.
    - Helper `isJwtExpiredError()` centralizado para detecção de erros `PGRST303`, `JWT expired` e `401`.
    - Sessão null (refresh falhou): apenas limpa estado React sem re-executar `signOut` (Supabase já limpou).
-3. **`TenantContext.jsx` — Query Pública Segura (`queryEmpresaSegura`)**:
-   - Wrapper factory-based para queries da área pública (Cenário C / visão do colaborador).
-   - Se a primeira tentativa retorna `PGRST303`, faz `signOut({ scope: 'local' })` silencioso e reconstrói a query do zero (query builders do Supabase são single-use) — que agora passa com role `anon` sem JWT.
-   - Garante que colaboradores nunca vejam "Erro de Configuração" por causa de sessão expirada de gestor no mesmo navegador.
+3. **`TenantContext.jsx` & `supabasePublicHelper.js` — Chamadas Públicas Seguras (`executarPublicoSeguro`)**:
+   - Wrapper factory-based reutilizável para RPCs/queries da área pública (visão do colaborador).
+   - Se a primeira tentativa retorna `PGRST303`, faz `signOut({ scope: 'local' })` silencioso e reconstrói a chamada do zero — passando com role `anon` sem JWT expirado.
+
+### 5.13. Blindagem de Segurança & Remoção Integral do PIN Legado (Fase 14)
+1. **Remoção Completa do PIN Legado**:
+   - Autenticação administrativa 100% via Supabase Auth (E-mail e Senha). Removidos todos os formulários, cards e modais de PIN (`PinLegadoForm`, `PortalPinLegadoForm`, `AlterarSenhaModal`, `AdminSenhaCard`, `InputSenhaPin`, `adminAuthHelper`, `isPinAuth`), além da coluna `empresas.admin_pin` e RPCs `verificar_admin_pin`, `alterar_admin_pin` e `vincular_com_pin`.
+2. **Fechamento de RLS e Bypass Anônimo**:
+   - Todas as RPCs administrativas rejeitam `auth.uid() IS NULL` e validam `has_empresa_role` sem bypass de superadmin.
+   - Leitura/escrita direta de `anon` bloqueada nas tabelas `empresas`, `pontos`, `turnos`, `reservas`, `equipe_corretores`, `convites_gestores` e `asaas_webhooks_log`.
+   - `provisionar_empresa_asaas` e `atualizar_status_empresa_asaas` restritas exclusivamente a `service_role`.
+   - Removido o fallback por nome em `reservar_vaga` quando `exigir_cadastro_previo = true`.
+3. **RPCs Públicas Sanitizadas & Realtime sem PII (`escala_sync`)**:
+   - Visão pública utiliza `get_empresa_publica`, `get_escala_publica` (com mascaramento server-side para Modo Anônimo e omissão de `device_id`, `corretor_whatsapp` e `corretor_email`) e `verificar_identidade_colaborador` (sem download de listas de equipe ou reservas).
+   - Realtime público escuta a tabela não-sensível `escala_sync` (apenas `empresa_id` e `updated_at`), mantida sincronizada por triggers `fn_sync_escala_empresa`.
 
 
 

@@ -1229,5 +1229,26 @@ npm run build
      - Atualizado `.env.example` com `VITE_EM_CONSTRUCAO`.
      - `npm run build` executado com sucesso e zero erros.
 
+---
+
+## 35. Blindagem de Segurança & Remoção Integral do PIN Legado (Fase 14) — Novembro/2026
+- **Contexto e Riscos Endereçados**:
+  1. **Remoção total do PIN Legado**: O sistema passou a operar exclusivamente com autenticação institucional via Supabase Auth (E-mail e Senha), eliminando formulários, cards, modais e RPCs legadas de PIN (`PinLegadoForm`, `PortalPinLegadoForm`, `AlterarSenhaModal`, `AdminSenhaCard`, `InputSenhaPin`, `adminAuthHelper`, `isPinAuth`, `empresas.admin_pin`, `verificar_admin_pin`, `alterar_admin_pin`, `vincular_com_pin`).
+  2. **Brecha de chamada anônima em RPCs administrativas**: Corrigidas todas as funções `SECURITY DEFINER` que usavam `IF auth.uid() IS NOT NULL THEN ...` para exigir estritamente `auth.uid() IS NOT NULL AND has_empresa_role(...)` (sem bypass de superadmin).
+  3. **Exposição pública via `SELECT USING (true)`**: Bloqueado acesso direto de `anon` nas tabelas `empresas`, `pontos`, `turnos`, `reservas`, `equipe_corretores`, `convites_gestores` e `asaas_webhooks_log`, e removida escrita direta anônima em `reservas`.
+  4. **Fallback por nome em `reservar_vaga`**: Removida a busca por nome quando `exigir_cadastro_previo = true`, exigindo correspondência exata na credencial configurada (`whatsapp`, `email` ou `ambos`).
+  5. **Restrição de Webhook Asaas**: `provisionar_empresa_asaas` e `atualizar_status_empresa_asaas` revogadas de `PUBLIC`, `anon` e `authenticated`, ficando restritas a `service_role`.
+- **Arquitetura Implementada**:
+  1. **Script SQL `supabase_migration_fase14_blindagem_seguranca.sql` + `supabase_schema.sql`**:
+     - Nova tabela `escala_sync (empresa_id, updated_at)` sem PII, atualizada por trigger `fn_sync_escala_empresa` para Realtime público seguro.
+     - Novas RPCs públicas sanitizadas: `get_empresa_publica`, `get_escala_publica` (oculta `device_id`, `corretor_whatsapp`, `corretor_email` e aplica Modo Anônimo no servidor) e `verificar_identidade_colaborador` (checagem pontual sem listar equipe/reservas).
+  2. **Frontend Blindado**:
+     - Novo helper `src/lib/supabasePublicHelper.js` (`executarPublicoSeguro`, `isRpcAusenteError`, `isJwtExpiredError`).
+     - `TenantContext.jsx`, `useEscalaData.js`, `useVerificacaoIdentidade.js` e `useColaborador.js` migrados para as RPCs públicas sanitizadas e `escala_sync` (com fallback transitório automático caso a migração SQL ainda não tenha sido executada).
+     - `TurnoCard.jsx` e `DiaAcordeonItem.jsx` compatíveis com `eh_minha` (RPC pública) e `device_id` (gestor/demo).
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros (`vite build`).
+
+
 
 

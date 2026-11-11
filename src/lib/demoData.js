@@ -10,7 +10,6 @@ export const DEMO_EMPRESA = {
   codigo_escala: 'demo',
   logo_url: null,
   cor_primaria: '#3b82f6',
-  admin_pin: '1234',
   plano: 'pro',
   status: 'ativo',
   exigir_cadastro_previo: false,

@@ -2,13 +2,12 @@ import LinkSeguroManager from './LinkSeguroManager'
 import EmpresaNomeCard from './EmpresaNomeCard'
 import EscalaPrivacidadeCard from './EscalaPrivacidadeCard'
 import VocabularioCard from './VocabularioCard'
-import AdminSenhaCard from './AdminSenhaCard'
 import WhatsappConfigCard from './whatsapp/WhatsappConfigCard'
 
 /**
  * Seção / Aba de Ajustes e Configurações da Empresa.
- * Reúne link seguro anti-espionagem, nome oficial da empresa, mensagens customizadas de WhatsApp,
- * vocabulário personalizado de nicho e alteração de senha de contingência.
+ * Reúne link seguro anti-espionagem, nome oficial da empresa, privacidade,
+ * mensagens customizadas de WhatsApp e vocabulário personalizado de nicho.
  */
 export default function AdminTabConfiguracoes({
   empresa,
@@ -18,7 +17,6 @@ export default function AdminTabConfiguracoes({
   termos,
   onAbrirModalNome,
   onAbrirModalVocabulario,
-  onAbrirModalSenha,
   onAbrirModalWhatsapp,
 }) {
   return (
@@ -54,11 +52,6 @@ export default function AdminTabConfiguracoes({
         isFullAdmin={isFullAdmin}
         termos={termos}
         onAbrirModalVocabulario={onAbrirModalVocabulario}
-      />
-
-      <AdminSenhaCard
-        isFullAdmin={isFullAdmin}
-        onAbrirModalSenha={onAbrirModalSenha}
       />
     </div>
   )

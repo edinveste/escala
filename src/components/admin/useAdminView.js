@@ -24,7 +24,7 @@ export function useAdminView({
   const confirm = useConfirm()
   const { user, perfil, getEmpresaRole } = useAuth()
   const role = empresaId ? getEmpresaRole(empresaId) : null
-  const isFullAdmin = propIsFullAdmin ?? (role === 'admin' || !user)
+  const isFullAdmin = propIsFullAdmin ?? (role === 'admin')
   const termos = useMemo(() => obterTermos(empresa), [empresa])
 
   // Preferência de Modo de Visualização: 'abas' (Padrão) ou 'continuo' (Linear Clássico)
@@ -53,7 +53,6 @@ export function useAdminView({
   const [modalIncluirPessoa, setModalIncluirPessoa] = useState(null)
   const [modalEditarTurno, setModalEditarTurno] = useState(null)
   const [showModalNome, setShowModalNome] = useState(false)
-  const [showModalSenha, setShowModalSenha] = useState(false)
   const [showModalVocabulario, setShowModalVocabulario] = useState(false)
   const [showModalWhatsapp, setShowModalWhatsapp] = useState(false)
 
@@ -269,8 +268,6 @@ export function useAdminView({
     handleAbrirEditarTurno,
     showModalNome,
     setShowModalNome,
-    showModalSenha,
-    setShowModalSenha,
     showModalVocabulario,
     setShowModalVocabulario,
     showModalWhatsapp,
