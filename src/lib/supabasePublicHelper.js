@@ -24,6 +24,19 @@ export function isRpcAusenteError(err) {
 }
 
 /**
+ * Verifica se o erro indica que uma coluna recente ainda não existe no banco (pré-migração).
+ */
+export function isMissingColumnError(err) {
+  if (!err) return false
+  const msg = (err.message || '').toLowerCase()
+  return (
+    err.code === '42703' ||
+    err.code === 'PGRST204' ||
+    (msg.includes('column') && (msg.includes('does not exist') || msg.includes('schema cache')))
+  )
+}
+
+/**
  * Executa uma chamada pública (RPC ou query) tratando JWT expirado residual no browser.
  * Caso haja um token de gestor expirado no localStorage, limpa a sessão local e retenta
  * uma única vez como `anon` via factory function `buildCall`.

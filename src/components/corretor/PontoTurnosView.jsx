@@ -31,6 +31,7 @@ export default function PontoTurnosView({
   podeCopiar = true,
   termos = {},
   ocultarNomes = false,
+  resumoColaborador = null,
 }) {
   return (
     <>
@@ -60,7 +61,7 @@ export default function PontoTurnosView({
         </div>
       </div>
 
-      {/* Identificação do participante com suporte a edição */}
+      {/* Identificação do participante com suporte a edição e resumo de regras */}
       <CorretorIdentityHeader
         corretorNome={corretorNome}
         corretorWhatsapp={corretorWhatsapp}
@@ -68,6 +69,8 @@ export default function PontoTurnosView({
         cadastroNaoAutorizado={cadastroNaoAutorizado}
         onEditarPerfil={onEditarPerfil}
         termos={termos}
+        resumoColaborador={resumoColaborador}
+        selectedPontoId={selectedPonto?.id}
       />
 
       {turnosFiltrados.length === 0 ? (
@@ -125,6 +128,7 @@ export default function PontoTurnosView({
               onCancelar={onCancelar}
               termos={termos}
               ocultarNomes={ocultarNomes}
+              resumoColaborador={resumoColaborador}
             />
           ))}
         </div>

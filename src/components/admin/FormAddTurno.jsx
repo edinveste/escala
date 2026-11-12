@@ -1,7 +1,13 @@
 import { useState, useCallback } from 'react'
-import { Plus, MapPin, Calendar, Clock, Users, ChevronDown } from 'lucide-react'
+import { Plus, MapPin, Calendar, Clock, Users, ChevronDown, Pencil, RotateCcw } from 'lucide-react'
 import { DIAS_SEMANA, formatarNomeDia } from '../../lib/diasSemana'
 import { supabase } from '../../lib/supabaseClient'
+import { isMissingColumnError } from '../../lib/supabasePublicHelper'
+import {
+  formatarHorarioTurno,
+  normalizarTimeSql,
+  cruzaMeiaNoite,
+} from '../../lib/horarioHelper'
 
 const DIAS_OPCOES = DIAS_SEMANA
 
@@ -33,9 +39,19 @@ export default function FormAddTurno({
     }
     return 'SEGUNDA-FEIRA'
   })
-  const [formHorario, setFormHorario] = useState('')
+  const [horaInicio, setHoraInicio] = useState('')
+  const [horaFim, setHoraFim] = useState('')
+  const [personalizarTexto, setPersonalizarTexto] = useState(false)
+  const [formHorarioCustom, setFormHorarioCustom] = useState('')
   const [formCapacidade, setFormCapacidade] = useState(3)
   const [addingTurno, setAddingTurno] = useState(false)
+
+  const horarioGerado = formatarHorarioTurno(horaInicio, horaFim)
+  const horarioFinal = personalizarTexto
+    ? formHorarioCustom.trim() || horarioGerado
+    : horarioGerado
+  const horasIguais = Boolean(horaInicio && horaFim && horaInicio === horaFim)
+  const viraMadrugada = Boolean(horaInicio && horaFim && !horasIguais && cruzaMeiaNoite(horaInicio, horaFim))
 
   const handleDiaChange = (e) => {
     const novoDia = formatarNomeDia(e.target.value)
@@ -55,7 +71,15 @@ export default function FormAddTurno({
         showToast?.('Selecione um ponto de captação.', 'error')
         return
       }
-      if (!formHorario.trim()) {
+      if (!horaInicio || !horaFim) {
+        showToast?.('Selecione a hora de início e de fim do turno.', 'error')
+        return
+      }
+      if (horaInicio === horaFim) {
+        showToast?.('A hora de fim deve ser diferente da hora de início.', 'warning')
+        return
+      }
+      if (!horarioFinal) {
         showToast?.('Preencha o horário.', 'error')
         return
       }
@@ -71,19 +95,34 @@ export default function FormAddTurno({
             ? Math.max(...turnosMesmoDia.map((t) => (Number.isFinite(t.ordem) ? t.ordem : 0))) + 1
             : 0
 
-        const { error } = await supabase.from('turnos').insert({
+        const basePayload = {
           ponto_id: formPontoId,
           dia: diaNorm,
-          horario: formHorario.trim(),
+          horario: horarioFinal,
           capacidade: Math.max(1, formCapacidade),
           ordem: proximaOrdem,
           ...(empresaId ? { empresa_id: empresaId } : {}),
-        })
+        }
+
+        const payloadComHoras = {
+          ...basePayload,
+          hora_inicio: normalizarTimeSql(horaInicio),
+          hora_fim: normalizarTimeSql(horaFim),
+        }
+
+        let { error } = await supabase.from('turnos').insert(payloadComHoras)
+        if (error && isMissingColumnError(error)) {
+          const fallbackRes = await supabase.from('turnos').insert(basePayload)
+          error = fallbackRes.error
+        }
 
         if (error) throw error
 
         showToast?.('Turno adicionado com sucesso! ✅', 'success')
-        setFormHorario('')
+        setHoraInicio('')
+        setHoraFim('')
+        setFormHorarioCustom('')
+        setPersonalizarTexto(false)
         onDataChanged?.()
       } catch (err) {
         console.error('Erro ao adicionar turno:', err)
@@ -92,7 +131,18 @@ export default function FormAddTurno({
         setAddingTurno(false)
       }
     },
-    [formPontoId, formDia, formHorario, formCapacidade, turnos, empresaId, onDataChanged, showToast]
+    [
+      formPontoId,
+      formDia,
+      horaInicio,
+      horaFim,
+      horarioFinal,
+      formCapacidade,
+      turnos,
+      empresaId,
+      onDataChanged,
+      showToast,
+    ]
   )
 
   const pontoLabel = termos.ponto || 'Ponto de Captação'
@@ -166,19 +216,99 @@ export default function FormAddTurno({
             </div>
           </div>
 
-          {/* Horário */}
-          <div>
-            <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" />
-              Horário
-            </label>
-            <input
-              type="text"
-              value={formHorario}
-              onChange={(e) => setFormHorario(e.target.value)}
-              placeholder="Ex: 14h às 16h"
-              className="input-field"
-            />
+          {/* Hora Início e Hora Fim (Mobile-First) */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  Hora Início
+                </label>
+                <input
+                  type="time"
+                  value={horaInicio}
+                  onChange={(e) => setHoraInicio(e.target.value)}
+                  className="input-field text-sm sm:text-base font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  Hora Fim
+                </label>
+                <input
+                  type="time"
+                  value={horaFim}
+                  onChange={(e) => setHoraFim(e.target.value)}
+                  className="input-field text-sm sm:text-base font-medium"
+                  required
+                />
+              </div>
+            </div>
+
+            {horasIguais && (
+              <p className="text-[11px] text-red-500 dark:text-red-400 font-medium">
+                A hora de fim deve ser diferente da hora de início.
+              </p>
+            )}
+
+            {viraMadrugada && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                Turno noturno: encerra às {horaFim} (virada de madrugada).
+              </p>
+            )}
+
+            {/* Prévia do texto gerado + opção de personalização */}
+            {(horarioGerado || personalizarTexto) && (
+              <div className="pt-0.5">
+                {personalizarTexto ? (
+                  <div className="space-y-1.5 animate-fade-in">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-gray-400">
+                        Texto exibido na escala
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPersonalizarTexto(false)
+                          setFormHorarioCustom('')
+                        }}
+                        className="text-[11px] text-brand-500 dark:text-brand-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Usar automático
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={formHorarioCustom}
+                      onChange={(e) => setFormHorarioCustom(e.target.value)}
+                      placeholder={horarioGerado || 'Ex: 08:00 às 12:00 (Manhã)'}
+                      className="input-field text-sm py-2.5"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between text-[11px] text-gray-500 px-0.5">
+                    <span>
+                      Exibição: <strong className="text-gray-300">{horarioGerado}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormHorarioCustom(horarioGerado)
+                        setPersonalizarTexto(true)
+                      }}
+                      className="text-brand-500 dark:text-brand-400 hover:underline inline-flex items-center gap-1 font-medium"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Personalizar rótulo
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Capacidade */}
@@ -200,7 +330,7 @@ export default function FormAddTurno({
 
           <button
             type="submit"
-            disabled={addingTurno}
+            disabled={addingTurno || horasIguais}
             className="btn-primary w-full flex items-center justify-center gap-2"
           >
             {addingTurno ? (
@@ -220,4 +350,3 @@ export default function FormAddTurno({
     </div>
   )
 }
-

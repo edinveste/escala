@@ -1,4 +1,5 @@
 import { ChevronDown } from 'lucide-react'
+import { formatarNomeDia } from '../../lib/diasSemana'
 import TurnoCard from './TurnoCard'
 
 /**
@@ -20,6 +21,7 @@ export default function DiaAcordeonItem({
   onCancelar,
   termos = {},
   ocultarNomes = false,
+  resumoColaborador = null,
 }) {
   const totalCapacidadeDia = turnosDoDia.reduce((sum, t) => sum + t.capacidade, 0)
   const totalReservadosDia = turnosDoDia.reduce(
@@ -34,6 +36,11 @@ export default function DiaAcordeonItem({
   const usuarioTemVaga = turnosDoDia.some((t) =>
     (reservasPorTurno[t.id] || []).some(isMinhaReservaGeral)
   )
+  const limiteDia = resumoColaborador?.regras?.limiteDia
+  const pontoIdDia = turnosDoDia[0]?.ponto_id
+  const diaTemCota = !pontoIdDia || (resumoColaborador?.pontoTemCota?.(pontoIdDia) ?? true)
+  const qtdNoDia = resumoColaborador?.porDia?.[formatarNomeDia(dia)] || 0
+  const limiteDiaAtingido = diaTemCota && limiteDia !== null && limiteDia !== undefined && qtdNoDia >= limiteDia
 
   return (
     <section className="transition-all">
@@ -63,6 +70,12 @@ export default function DiaAcordeonItem({
           {usuarioTemVaga && (
             <span className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 bg-brand-500/15 border border-brand-500/30 px-2 py-0.5 rounded-md hidden sm:inline-flex items-center gap-1">
               Sua vaga
+            </span>
+          )}
+
+          {limiteDiaAtingido && (
+            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md hidden sm:inline-flex items-center gap-1">
+              Limite {qtdNoDia}/{limiteDia}
             </span>
           )}
 
@@ -106,6 +119,7 @@ export default function DiaAcordeonItem({
               acaoVaga={termos.acaoVaga}
               acaoCancelar={termos.acaoCancelar}
               ocultarNomes={ocultarNomes}
+              bloqueioRegra={resumoColaborador?.analisarTurno?.(turno) || null}
             />
           ))}
         </div>

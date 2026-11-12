@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from 'react'
 import { formatarNomeDia, compararDias } from '../lib/diasSemana'
 import { obterTermos } from '../lib/vocabularioHelper'
+import { calcularResumoColaborador } from '../lib/horarioHelper'
 import { useDiasAcordeon } from './corretor/useDiasAcordeon'
 import { gerarTextoEscala, copiarTextoParaClipboard } from './corretor/escalaTextoHelper'
 import PontoSelectorView from './corretor/PontoSelectorView'
@@ -96,6 +97,19 @@ export default function CorretorView({
     return mapa
   }, [pontos, turnos, reservasPorTurno])
 
+  // Resumo de cotas e análise de conflitos do colaborador atual
+  const resumoColaborador = useMemo(
+    () =>
+      calcularResumoColaborador({
+        empresa,
+        pontos,
+        turnos,
+        reservas,
+        deviceId,
+      }),
+    [empresa, pontos, turnos, reservas, deviceId]
+  )
+
   // Gerenciamento de acordeons por dia da semana com persistência por empresa
   const { isDiaAberto, toggleDia, toggleTodosDias, algumDiaExpandido } = useDiasAcordeon(
     selectedPontoId,
@@ -160,6 +174,7 @@ export default function CorretorView({
         onCopiar={handleCopiar}
         copied={copied}
         podeCopiar={podeCopiarGeral}
+        resumoColaborador={resumoColaborador}
       />
     )
   }
@@ -190,6 +205,7 @@ export default function CorretorView({
       podeCopiar={podeCopiarPonto}
       termos={termos}
       ocultarNomes={Boolean(empresa?.ocultar_nomes_escala || empresa?.termos?.ocultarNomesEscala)}
+      resumoColaborador={resumoColaborador}
     />
   )
 }

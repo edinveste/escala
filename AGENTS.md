@@ -55,6 +55,11 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
    - `telefone_cobranca` (text)
    - `copia_whatsapp_geral_ativa` (boolean, padrão `true`)
    - `ocultar_nomes_escala` (boolean, padrão `false`, modo anônimo para corretores)
+   - `bloquear_conflito_horario` (boolean, padrão `false`, bloqueio de turnos sobrepostos)
+   - `limite_vagas_semana` (int nullable, cota semanal máxima por colaborador)
+   - `limite_vagas_dia` (int nullable, cota diária máxima por colaborador)
+   - `limite_vagas_ponto` (int nullable, cota máxima por ponto/local por colaborador)
+   - `cotas_pontos_ids` (uuid[] nullable, lista de pontos sujeitos às cotas; `NULL` = todos os pontos)
    - `created_at` (timestamptz)
 2. **`perfis`** (Perfis de Usuários Supabase Auth):
    - `id` (uuid, PK REFERENCES `auth.users.id` ON DELETE CASCADE)
@@ -83,6 +88,8 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
    - `ponto_id` (uuid, FK `pontos.id` ON DELETE CASCADE)
    - `dia` (text: 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO', 'DOMINGO')
    - `horario` (text, ex: '8 as 10 hs', '11:30 às 14hrs')
+   - `hora_inicio` (time nullable, extraído de textos legados ou selecionado na criação/edição)
+   - `hora_fim` (time nullable, extraído de textos legados ou selecionado na criação/edição)
    - `capacidade` (int)
    - `ordem` (int)
    - `created_at` (timestamptz)
@@ -103,11 +110,13 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
    - `created_at` (timestamptz)
 
 ### RPCs Críticas (PostgreSQL):
-- **`reservar_vaga(p_turno_id, p_corretor_nome, p_device_id, p_corretor_whatsapp DEFAULT NULL)`**:
-  - Trava o turno contra race conditions (`SELECT capacidade, empresa_id FROM turnos WHERE id = p_turno_id FOR UPDATE`).
-  - Se `exigir_cadastro_previo` estiver ativo na imobiliária, valida se o corretor pertence à `equipe_corretores`.
-  - Impede reserva duplicada do mesmo `device_id` no turno.
-  - Insere a reserva vinculando automaticamente o `empresa_id` e salvando o WhatsApp.
+- **`reservar_vaga(p_turno_id, p_corretor_nome, p_device_id, p_corretor_whatsapp DEFAULT NULL, p_corretor_email DEFAULT NULL)`**:
+  - Serializa requisições simultâneas do mesmo colaborador via `pg_advisory_xact_lock` e trava o turno com `FOR UPDATE OF t`.
+  - Se `exigir_cadastro_previo` estiver ativo na empresa, valida estritamente contra `equipe_corretores` e vincula o `device_id`.
+  - Valida bloqueio de conflito de horário (mesmo dia normalizado em qualquer ponto ativo, tratando virada de meia-noite e fallback via `extrair_horarios_turno`) e cotas (`limite_vagas_semana`, `limite_vagas_dia`, `limite_vagas_ponto`).
+  - Insere a reserva vinculando automaticamente `empresa_id`, `device_id`, WhatsApp e E-mail.
+- **`atualizar_regras_escala(p_empresa_id, p_bloquear_conflito, p_limite_semana, p_limite_dia, p_limite_ponto, p_cotas_pontos_ids)`** (Fase 15):
+  - Exige `auth.uid() IS NOT NULL` e papel `'admin'` na empresa para configurar bloqueio de conflitos, cotas e o escopo de pontos (`NULL` = todos, ou array de UUIDs).
 - **`cancelar_vaga(p_reserva_id, p_device_id)`**:
   - Permite que o corretor delete apenas sua própria vaga comparando `device_id`.
 - **`limpar_escala(p_empresa_id, p_ponto_id DEFAULT NULL)`**:
@@ -176,6 +185,7 @@ e:\Escala\
 ├── supabase_migration_fase12_ocultar_nomes.sql  # Script de migração Fase 12: Privacidade da Escala Pública (Modo Anônimo / Ocultar Nomes)
 ├── supabase_migration_fase13_onboarding_empresa.sql # Script de migração Fase 13: Onboarding Multi-Tenant, Nome da Empresa no Cadastro & Erradicação de Superadmin
 ├── supabase_migration_fase14_blindagem_seguranca.sql # Script de migração Fase 14: Blindagem RLS/RPCs, Realtime sem PII e Remoção do PIN Legado
+├── supabase_migration_fase15_regras_escala.sql # Script de migração Fase 15: Bloqueio de Conflito de Horário & Cotas Anti-Monopólio
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -200,6 +210,7 @@ e:\Escala\
     │   ├── supabasePublicHelper.js # Utilitários de execução pública segura (JWT expirado e fallback RPC)
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
     │   ├── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
+    │   ├── horarioHelper.js     # Parsing de horários legados, detecção de conflitos e cálculo de cotas
     │   ├── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
     │   └── demoData.js          # Mock data e persistência local da escala demonstrativa sandbox (/demo)
     └── components/
@@ -217,7 +228,8 @@ e:\Escala\
         │   └── VocabularioModal.jsx          # Modal orquestrador enxuto com backdrop e ações
         ├── CorretorView.jsx     # Tela pública orquestradora do corretor (modularizada e enxuta)
         ├── corretor/            # Submódulos e componentes isolados da visão do corretor
-        │   ├── CorretorIdentityHeader.jsx # Saudação, alerta de autorização e correção de dados
+        │   ├── CorretorIdentityHeader.jsx # Saudação, resumo de cotas/regras e alerta de autorização
+        │   ├── CorretorRegrasBanner.jsx   # Barra discreta com saldo de cotas e regras ativas
         │   ├── CorretorCopyFooter.jsx     # Barra fixa inferior com botão de copiar escala (WhatsApp)
         │   ├── PontoSelectorView.jsx      # Tela de seleção de ponto com contagem de turnos e vagas
         │   ├── PontoTurnosView.jsx        # Tela de turnos do ponto com navegação, cabeçalho e dias
@@ -272,6 +284,9 @@ e:\Escala\
         │   ├── EmpresaNomeCard.jsx        # Card de visualização e atalho para alteração do nome da empresa
         │   ├── EditarNomeEmpresaModal.jsx # Modal para edição do nome oficial da empresa com atualização Realtime
         │   ├── EscalaPrivacidadeCard.jsx  # Card de privacidade da escala pública (Modo Anônimo / Ocultar Nomes)
+        │   ├── RegrasEscalaCard.jsx       # Card de configuração de bloqueio de conflito de horários e cotas anti-monopólio
+        │   ├── CotaStepperField.jsx       # Controle stepper touch-friendly de cota numérica ou Ilimitado
+        │   ├── CotasPontosDropdown.jsx    # Menu suspenso multi-seleção para aplicar cotas a todos os pontos ou pontos específicos
         │   ├── VocabularioCard.jsx        # Card de atalho para customização de vocabulário e nicho
         │   ├── whatsapp/                  # Submódulos isolados de customização do WhatsApp
         │   │   ├── useWhatsappConfig.js     # Hook de lógica, tags, preview e persistência multi-alvo (pontos e geral)
@@ -478,6 +493,17 @@ e:\Escala\
 3. **RPCs Públicas Sanitizadas & Realtime sem PII (`escala_sync`)**:
    - Visão pública utiliza `get_empresa_publica`, `get_escala_publica` (com mascaramento server-side para Modo Anônimo e omissão de `device_id`, `corretor_whatsapp` e `corretor_email`) e `verificar_identidade_colaborador` (sem download de listas de equipe ou reservas).
    - Realtime público escuta a tabela não-sensível `escala_sync` (apenas `empresa_id` e `updated_at`), mantida sincronizada por triggers `fn_sync_escala_empresa`.
+
+### 5.14. Regras Inteligentes de Escala: Bloqueio de Conflitos e Cotas Anti-Monopólio (Fase 15)
+1. **Bloqueio de Conflito de Horário (Turnos Simultâneos / Sobrepostos)**:
+   - Colunas `hora_inicio TIME` e `hora_fim TIME` em `public.turnos`, com função `extrair_horarios_turno(TEXT)`, backfill idempotente de formatos legados e trigger automático `trg_turnos_preencher_horas`.
+   - Coluna `bloquear_conflito_horario BOOLEAN` em `public.empresas` exposta em `get_empresa_publica` e `hora_inicio`/`hora_fim` em `get_escala_publica`.
+   - Formulários de criação (`FormAddTurno.jsx`), edição (`EditarTurnoModal.jsx`) e duplicação (`DuplicarDiaModal.jsx` e `usePontosManager.js`) operam com seletores **Hora Início** e **Hora Fim** e fallback seguro para bancos pré-migração.
+2. **Cotas / Limites Justos por Colaborador ("Anti-Monopólio")**:
+   - Colunas opcionais `limite_vagas_semana`, `limite_vagas_dia`, `limite_vagas_ponto` e `cotas_pontos_ids` (`NULL` = todos os pontos, ou UUIDs específicos) em `public.empresas`, configuradas via `RegrasEscalaCard.jsx` (`CotasPontosDropdown.jsx`) e RPC `atualizar_regras_escala`.
+   - `reservar_vaga` utiliza `pg_advisory_xact_lock` ordenado por empresa + identificadores do colaborador (`device_id`, WhatsApp e E-mail) antes de `FOR UPDATE OF t`, impedindo sobreposição de horários (inclusive com virada de meia-noite) e burla simultânea de cotas.
+   - Visão pública (`CorretorRegrasBanner.jsx`, `TurnoCard.jsx`, `useColaborador.js` e modo `/demo`) exibe saldo de vagas, sinaliza turnos conflitantes/bloqueados preventivamente e apresenta toasts contextuais claros.
+
 
 
 

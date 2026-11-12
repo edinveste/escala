@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS public.empresas (
   rodape_whatsapp_geral      TEXT,
   copia_whatsapp_geral_ativa BOOLEAN NOT NULL DEFAULT true,
   ocultar_nomes_escala       BOOLEAN NOT NULL DEFAULT false,
+  bloquear_conflito_horario  BOOLEAN NOT NULL DEFAULT false,
+  limite_vagas_semana        INT DEFAULT NULL CHECK (limite_vagas_semana IS NULL OR limite_vagas_semana >= 1),
+  limite_vagas_dia           INT DEFAULT NULL CHECK (limite_vagas_dia IS NULL OR limite_vagas_dia >= 1),
+  limite_vagas_ponto         INT DEFAULT NULL CHECK (limite_vagas_ponto IS NULL OR limite_vagas_ponto >= 1),
+  cotas_pontos_ids           UUID[] DEFAULT NULL,
   created_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -111,18 +116,153 @@ CREATE INDEX IF NOT EXISTS idx_pontos_empresa_id ON public.pontos(empresa_id);
 
 -- 1.5 Tabela de turnos (vinculados ao ponto e à empresa)
 CREATE TABLE IF NOT EXISTS public.turnos (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
-  ponto_id   UUID NOT NULL REFERENCES public.pontos(id) ON DELETE CASCADE,
-  dia        TEXT NOT NULL,          -- ex: 'SEGUNDA-FEIRA', 'SÁBADO'
-  horario    TEXT NOT NULL,          -- ex: '08:00 às 12:00'
-  capacidade INT  NOT NULL DEFAULT 1,
-  ordem      INT  NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id  UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
+  ponto_id    UUID NOT NULL REFERENCES public.pontos(id) ON DELETE CASCADE,
+  dia         TEXT NOT NULL,          -- ex: 'SEGUNDA-FEIRA', 'SÁBADO'
+  horario     TEXT NOT NULL,          -- ex: '08:00 às 12:00'
+  hora_inicio TIME,
+  hora_fim    TIME,
+  capacidade  INT  NOT NULL DEFAULT 1,
+  ordem       INT  NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_turnos_empresa_id ON public.turnos(empresa_id);
 CREATE INDEX IF NOT EXISTS idx_turnos_ponto_id ON public.turnos(ponto_id);
+CREATE INDEX IF NOT EXISTS idx_turnos_empresa_dia_horas ON public.turnos(empresa_id, dia, hora_inicio, hora_fim);
+
+-- 1.5.1 Helpers de normalização de dia e extração de hora_inicio/hora_fim
+CREATE OR REPLACE FUNCTION public.normalizar_dia_semana(p_dia TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT CASE upper(trim(COALESCE(p_dia, '')))
+    WHEN 'SEGUNDA'       THEN 'SEGUNDA-FEIRA'
+    WHEN 'SEGUNDA-FEIRA' THEN 'SEGUNDA-FEIRA'
+    WHEN 'TERÇA'         THEN 'TERÇA-FEIRA'
+    WHEN 'TERCA'         THEN 'TERÇA-FEIRA'
+    WHEN 'TERÇA-FEIRA'   THEN 'TERÇA-FEIRA'
+    WHEN 'TERCA-FEIRA'   THEN 'TERÇA-FEIRA'
+    WHEN 'QUARTA'        THEN 'QUARTA-FEIRA'
+    WHEN 'QUARTA-FEIRA'  THEN 'QUARTA-FEIRA'
+    WHEN 'QUINTA'        THEN 'QUINTA-FEIRA'
+    WHEN 'QUINTA-FEIRA'  THEN 'QUINTA-FEIRA'
+    WHEN 'SEXTA'         THEN 'SEXTA-FEIRA'
+    WHEN 'SEXTA-FEIRA'   THEN 'SEXTA-FEIRA'
+    WHEN 'SÁBADO'        THEN 'SÁBADO'
+    WHEN 'SABADO'        THEN 'SÁBADO'
+    WHEN 'DOMINGO'       THEN 'DOMINGO'
+    ELSE upper(trim(COALESCE(p_dia, '')))
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.extrair_horarios_turno(p_horario TEXT)
+RETURNS TABLE (hora_inicio TIME, hora_fim TIME)
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = public
+AS $$
+DECLARE
+  v_txt   TEXT := trim(COALESCE(p_horario, ''));
+  v_match TEXT[];
+  v_h1    INT;
+  v_m1    INT;
+  v_h2    INT;
+  v_m2    INT;
+  v_t1    TIME;
+  v_t2    TIME;
+BEGIN
+  IF v_txt = '' THEN
+    RETURN;
+  END IF;
+
+  v_match := regexp_match(
+    v_txt,
+    '([0-9]{1,2})\s*(?:(?::|[hH]\.?)\s*([0-9]{2})|[hH](?:rs?|s)?)\s*(?:às|as|até|ate|a|-|–|—|~|/)\s*([0-9]{1,2})\s*(?:(?::|[hH]\.?)\s*([0-9]{2})|[hH](?:rs?|s)?)?',
+    'i'
+  );
+
+  IF v_match IS NOT NULL THEN
+    v_h1 := v_match[1]::int;
+    v_m1 := COALESCE(NULLIF(v_match[2], ''), '0')::int;
+    v_h2 := v_match[3]::int;
+    v_m2 := COALESCE(NULLIF(v_match[4], ''), '0')::int;
+  ELSE
+    v_match := regexp_match(
+      v_txt,
+      '([0-9]{1,2})\s*(?:às|as|até|ate|a|-|–|—|~|/)\s*([0-9]{1,2})\s*(?:(?::|[hH]\.?)\s*([0-9]{2})|[hH](?:rs?|s)?)?',
+      'i'
+    );
+
+    IF v_match IS NULL THEN
+      RETURN;
+    END IF;
+
+    v_h1 := v_match[1]::int;
+    v_m1 := 0;
+    v_h2 := v_match[2]::int;
+    v_m2 := COALESCE(NULLIF(v_match[3], ''), '0')::int;
+  END IF;
+
+  IF v_h1 < 0 OR v_h1 > 23 OR v_m1 < 0 OR v_m1 > 59 THEN
+    RETURN;
+  END IF;
+
+  IF NOT ((v_h2 BETWEEN 0 AND 23 AND v_m2 BETWEEN 0 AND 59) OR (v_h2 = 24 AND v_m2 = 0)) THEN
+    RETURN;
+  END IF;
+
+  v_t1 := make_time(v_h1, v_m1, 0);
+  v_t2 := CASE WHEN v_h2 = 24 THEN '24:00:00'::time ELSE make_time(v_h2, v_m2, 0) END;
+
+  IF v_t1 = v_t2 THEN
+    RETURN;
+  END IF;
+
+  hora_inicio := v_t1;
+  hora_fim    := v_t2;
+  RETURN NEXT;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.fn_turnos_preencher_horas()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_extraido RECORD;
+BEGIN
+  IF (NEW.hora_inicio IS NULL OR NEW.hora_fim IS NULL) AND trim(COALESCE(NEW.horario, '')) <> '' THEN
+    SELECT * INTO v_extraido
+    FROM public.extrair_horarios_turno(NEW.horario)
+    LIMIT 1;
+
+    IF v_extraido.hora_inicio IS NOT NULL AND v_extraido.hora_fim IS NOT NULL THEN
+      NEW.hora_inicio := COALESCE(NEW.hora_inicio, v_extraido.hora_inicio);
+      NEW.hora_fim    := COALESCE(NEW.hora_fim, v_extraido.hora_fim);
+    END IF;
+  END IF;
+
+  IF trim(COALESCE(NEW.horario, '')) = '' AND NEW.hora_inicio IS NOT NULL AND NEW.hora_fim IS NOT NULL THEN
+    NEW.horario := to_char(NEW.hora_inicio, 'HH24:MI') || ' às ' || to_char(NEW.hora_fim, 'HH24:MI');
+  END IF;
+
+  IF NEW.dia IS NOT NULL THEN
+    NEW.dia := public.normalizar_dia_semana(NEW.dia);
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_turnos_preencher_horas ON public.turnos;
+CREATE TRIGGER trg_turnos_preencher_horas
+  BEFORE INSERT OR UPDATE ON public.turnos
+  FOR EACH ROW EXECUTE FUNCTION public.fn_turnos_preencher_horas();
 
 -- 1.6 Tabela de reservas (vinculadas ao turno e à empresa)
 CREATE TABLE IF NOT EXISTS public.reservas (
@@ -598,7 +738,7 @@ DROP POLICY IF EXISTS "asaas_webhooks_log_select_superadmin" ON public.asaas_web
 -- 4. RPCS CRÍTICAS DO CORE (PL/PGSQL COM SECURITY DEFINER)
 -- ============================================================
 
--- 4.1 RPC: reservar_vaga (com concorrência FOR UPDATE, WhatsApp, E-mail, equipe autorizada, vínculo de aparelho e anti-spoofing)
+-- 4.1 RPC: reservar_vaga (com advisory lock, conflito de horário, cotas, FOR UPDATE, WhatsApp, E-mail, equipe autorizada, vínculo de aparelho e anti-spoofing)
 DROP FUNCTION IF EXISTS public.reservar_vaga(UUID, TEXT, TEXT);
 DROP FUNCTION IF EXISTS public.reservar_vaga(UUID, TEXT, TEXT, TEXT);
 DROP FUNCTION IF EXISTS public.reservar_vaga(UUID, TEXT, TEXT, TEXT, TEXT);
@@ -619,26 +759,104 @@ DECLARE
   v_capacidade        INT;
   v_atual             INT;
   v_empresa_id        UUID;
+  v_ponto_id          UUID;
+  v_ponto_nome        TEXT;
   v_ponto_ativo       BOOLEAN;
+  v_dia_norm          TEXT;
+  v_horario_alvo      TEXT;
+  v_novo_inicio       TIME;
+  v_novo_fim          TIME;
+  v_novo_ini_min      INT;
+  v_novo_fim_min      INT;
   v_status            TEXT;
   v_exigir_cadastro   BOOLEAN;
   v_tipo_validacao    TEXT;
+  v_bloquear_conflito BOOLEAN;
+  v_limite_semana     INT;
+  v_limite_dia        INT;
+  v_limite_ponto      INT;
+  v_cotas_pontos_ids  UUID[];
+  v_ponto_tem_cota    BOOLEAN;
   v_zap_limpo         TEXT;
   v_email_limpo       TEXT;
+  v_zap_busca         TEXT;
+  v_email_busca       TEXT;
   v_membro_id         UUID;
   v_nome_oficial      TEXT;
   v_device_cadastrado TEXT;
+  v_membro_zap        TEXT;
+  v_membro_email      TEXT;
   v_nome_existente    TEXT;
   v_nome_final        TEXT;
+  v_lock_keys         TEXT[];
+  v_lock_key          TEXT;
+  v_conflito_ponto    TEXT;
+  v_conflito_horario  TEXT;
+  v_conflito_dia      TEXT;
+  v_qtd_semana        INT := 0;
+  v_qtd_dia           INT := 0;
+  v_qtd_ponto         INT := 0;
 BEGIN
   -- Validação de device_id
   IF trim(COALESCE(p_device_id, '')) = '' THEN
     RAISE EXCEPTION 'Dispositivo não identificado. Atualize a página e tente novamente.';
   END IF;
 
+  -- Identifica a empresa do turno antes do advisory lock para evitar deadlock entre locks
+  SELECT empresa_id INTO v_empresa_id
+  FROM public.turnos
+  WHERE id = p_turno_id;
+
+  IF v_empresa_id IS NULL THEN
+    RAISE EXCEPTION 'Turno não encontrado.';
+  END IF;
+
+  -- Normaliza o WhatsApp (apenas dígitos, removendo DDI 55 de 12 ou 13 dígitos)
+  v_zap_limpo := regexp_replace(COALESCE(p_corretor_whatsapp, ''), '[^0-9]', '', 'g');
+  IF length(v_zap_limpo) IN (12, 13) AND v_zap_limpo LIKE '55%' THEN
+    v_zap_limpo := substr(v_zap_limpo, 3);
+  END IF;
+
+  -- Normaliza E-mail
+  v_email_limpo := lower(trim(COALESCE(p_corretor_email, '')));
+  v_nome_final := trim(COALESCE(p_corretor_nome, ''));
+
+  -- 0. Advisory Lock transacional ordenado por identificador do colaborador na empresa
+  v_lock_keys := ARRAY[v_empresa_id::text || ':dev:' || trim(p_device_id)];
+  IF v_zap_limpo <> '' THEN
+    v_lock_keys := array_append(v_lock_keys, v_empresa_id::text || ':zap:' || v_zap_limpo);
+  END IF;
+  IF v_email_limpo <> '' THEN
+    v_lock_keys := array_append(v_lock_keys, v_empresa_id::text || ':mail:' || v_email_limpo);
+  END IF;
+
+  FOR v_lock_key IN
+    SELECT DISTINCT k FROM unnest(v_lock_keys) AS k ORDER BY k ASC
+  LOOP
+    PERFORM pg_advisory_xact_lock(hashtext(v_lock_key));
+  END LOOP;
+
   -- 1. Trava o turno contra concorrência simultânea (Race Condition)
-  SELECT t.capacidade, t.empresa_id, COALESCE(p.ativo, true)
-  INTO v_capacidade, v_empresa_id, v_ponto_ativo
+  SELECT
+    t.capacidade,
+    t.empresa_id,
+    t.ponto_id,
+    public.normalizar_dia_semana(t.dia),
+    t.horario,
+    COALESCE(t.hora_inicio, (SELECT eh.hora_inicio FROM public.extrair_horarios_turno(t.horario) eh LIMIT 1)),
+    COALESCE(t.hora_fim,    (SELECT eh.hora_fim    FROM public.extrair_horarios_turno(t.horario) eh LIMIT 1)),
+    COALESCE(p.ativo, true),
+    p.nome
+  INTO
+    v_capacidade,
+    v_empresa_id,
+    v_ponto_id,
+    v_dia_norm,
+    v_horario_alvo,
+    v_novo_inicio,
+    v_novo_fim,
+    v_ponto_ativo,
+    v_ponto_nome
   FROM public.turnos t
   JOIN public.pontos p ON p.id = t.ponto_id
   WHERE t.id = p_turno_id
@@ -652,15 +870,25 @@ BEGIN
     RAISE EXCEPTION 'Este ponto de escala está pausado no momento.';
   END IF;
 
-  -- 2. Valida o status da empresa e configurações de equipe
+  -- 2. Valida o status da empresa, configurações de equipe e regras inteligentes de escala
   SELECT 
     status, 
     COALESCE(exigir_cadastro_previo, false),
-    COALESCE(tipo_validacao_equipe, 'whatsapp')
+    COALESCE(tipo_validacao_equipe, 'whatsapp'),
+    COALESCE(bloquear_conflito_horario, false),
+    limite_vagas_semana,
+    limite_vagas_dia,
+    limite_vagas_ponto,
+    cotas_pontos_ids
   INTO 
     v_status, 
     v_exigir_cadastro,
-    v_tipo_validacao
+    v_tipo_validacao,
+    v_bloquear_conflito,
+    v_limite_semana,
+    v_limite_dia,
+    v_limite_ponto,
+    v_cotas_pontos_ids
   FROM public.empresas
   WHERE id = v_empresa_id;
 
@@ -670,17 +898,6 @@ BEGIN
     RAISE EXCEPTION 'Esta empresa está inativa no momento.';
   END IF;
 
-  -- Normaliza o WhatsApp (apenas dígitos, removendo DDI 55 de 12 ou 13 dígitos)
-  v_zap_limpo := regexp_replace(COALESCE(p_corretor_whatsapp, ''), '[^0-9]', '', 'g');
-  IF length(v_zap_limpo) IN (12, 13) AND v_zap_limpo LIKE '55%' THEN
-    v_zap_limpo := substr(v_zap_limpo, 3);
-  END IF;
-
-  -- Normaliza E-mail
-  v_email_limpo := lower(trim(COALESCE(p_corretor_email, '')));
-
-  v_nome_final := trim(p_corretor_nome);
-
   -- 3. Proteção contra invasores (Equipe Autorizada da Empresa com Vínculo de Aparelho)
   IF v_exigir_cadastro THEN
     IF v_tipo_validacao = 'whatsapp' THEN
@@ -688,12 +905,12 @@ BEGIN
         RAISE EXCEPTION 'O WhatsApp é obrigatório para garantir vaga nesta empresa.';
       END IF;
 
-      SELECT id, nome, device_id 
-      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
+      SELECT id, nome, device_id, whatsapp, email
+      INTO v_membro_id, v_nome_oficial, v_device_cadastrado, v_membro_zap, v_membro_email
       FROM public.equipe_corretores
       WHERE empresa_id = v_empresa_id
         AND ativo = true
-        AND regexp_replace(regexp_replace(whatsapp, '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
+        AND regexp_replace(regexp_replace(COALESCE(whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo
       LIMIT 1;
 
     ELSIF v_tipo_validacao = 'email' THEN
@@ -701,8 +918,8 @@ BEGIN
         RAISE EXCEPTION 'O E-mail corporativo é obrigatório para garantir vaga nesta empresa.';
       END IF;
 
-      SELECT id, nome, device_id 
-      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
+      SELECT id, nome, device_id, whatsapp, email
+      INTO v_membro_id, v_nome_oficial, v_device_cadastrado, v_membro_zap, v_membro_email
       FROM public.equipe_corretores
       WHERE empresa_id = v_empresa_id
         AND ativo = true
@@ -714,8 +931,8 @@ BEGIN
         RAISE EXCEPTION 'WhatsApp e E-mail corporativo são obrigatórios para garantir vaga nesta empresa.';
       END IF;
 
-      SELECT id, nome, device_id 
-      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
+      SELECT id, nome, device_id, whatsapp, email
+      INTO v_membro_id, v_nome_oficial, v_device_cadastrado, v_membro_zap, v_membro_email
       FROM public.equipe_corretores
       WHERE empresa_id = v_empresa_id
         AND ativo = true
@@ -723,8 +940,8 @@ BEGIN
         AND lower(trim(COALESCE(email, ''))) = v_email_limpo
       LIMIT 1;
     ELSE
-      SELECT id, nome, device_id 
-      INTO v_membro_id, v_nome_oficial, v_device_cadastrado
+      SELECT id, nome, device_id, whatsapp, email
+      INTO v_membro_id, v_nome_oficial, v_device_cadastrado, v_membro_zap, v_membro_email
       FROM public.equipe_corretores
       WHERE empresa_id = v_empresa_id
         AND ativo = true
@@ -762,6 +979,17 @@ BEGIN
       RAISE EXCEPTION 'Informe seu nome completo para reservar uma vaga.';
     END IF;
   END IF;
+
+  v_zap_busca := COALESCE(
+    NULLIF(v_zap_limpo, ''),
+    NULLIF(regexp_replace(regexp_replace(COALESCE(v_membro_zap, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g'), ''),
+    ''
+  );
+  v_email_busca := COALESCE(
+    NULLIF(v_email_limpo, ''),
+    NULLIF(lower(trim(COALESCE(v_membro_email, ''))), ''),
+    ''
+  );
 
   -- 4. Anti-Spoofing: Impede que o mesmo WhatsApp ou E-mail seja utilizado por nomes diferentes
   IF v_zap_limpo <> '' THEN
@@ -805,15 +1033,116 @@ BEGIN
     WHERE turno_id = p_turno_id
       AND (
         device_id = p_device_id
-        OR (v_zap_limpo <> '' AND regexp_replace(regexp_replace(COALESCE(corretor_whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_limpo)
-        OR (v_email_limpo <> '' AND lower(trim(COALESCE(corretor_email, ''))) = v_email_limpo)
+        OR (v_zap_busca <> '' AND regexp_replace(regexp_replace(COALESCE(corretor_whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_busca)
+        OR (v_email_busca <> '' AND lower(trim(COALESCE(corretor_email, ''))) = v_email_busca)
         OR (lower(trim(corretor_nome)) = lower(trim(v_nome_final)))
       )
   ) THEN
     RAISE EXCEPTION 'Você já possui uma vaga reservada neste horário.';
   END IF;
 
-  -- 7. Insere a reserva vinculando automaticamente a empresa, device_id, whatsapp e email
+  -- 7. Feature 1: Bloqueio de Conflito de Horário (turnos simultâneos ou sobrepostos no mesmo dia)
+  IF v_bloquear_conflito AND v_novo_inicio IS NOT NULL AND v_novo_fim IS NOT NULL THEN
+    v_novo_ini_min := EXTRACT(HOUR FROM v_novo_inicio)::int * 60 + EXTRACT(MINUTE FROM v_novo_inicio)::int;
+    v_novo_fim_min := EXTRACT(HOUR FROM v_novo_fim)::int * 60 + EXTRACT(MINUTE FROM v_novo_fim)::int;
+    IF v_novo_fim_min <= v_novo_ini_min THEN
+      v_novo_fim_min := v_novo_fim_min + 1440;
+    END IF;
+
+    SELECT
+      p2.nome,
+      t2.horario,
+      public.normalizar_dia_semana(t2.dia)
+    INTO
+      v_conflito_ponto,
+      v_conflito_horario,
+      v_conflito_dia
+    FROM public.reservas r2
+    JOIN public.turnos t2 ON t2.id = r2.turno_id
+    JOIN public.pontos p2 ON p2.id = t2.ponto_id
+    CROSS JOIN LATERAL (
+      SELECT
+        COALESCE(t2.hora_inicio, (SELECT eh.hora_inicio FROM public.extrair_horarios_turno(t2.horario) eh LIMIT 1)) AS hi,
+        COALESCE(t2.hora_fim,    (SELECT eh.hora_fim    FROM public.extrair_horarios_turno(t2.horario) eh LIMIT 1)) AS hf
+    ) h2
+    WHERE r2.empresa_id = v_empresa_id
+      AND p2.ativo = true
+      AND t2.id <> p_turno_id
+      AND public.normalizar_dia_semana(t2.dia) = v_dia_norm
+      AND h2.hi IS NOT NULL
+      AND h2.hf IS NOT NULL
+      AND (
+        r2.device_id = p_device_id
+        OR (v_zap_busca <> '' AND regexp_replace(regexp_replace(COALESCE(r2.corretor_whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_busca)
+        OR (v_email_busca <> '' AND lower(trim(COALESCE(r2.corretor_email, ''))) = v_email_busca)
+      )
+      AND (
+        (EXTRACT(HOUR FROM h2.hi)::int * 60 + EXTRACT(MINUTE FROM h2.hi)::int) < v_novo_fim_min
+        AND (
+          CASE
+            WHEN (EXTRACT(HOUR FROM h2.hf)::int * 60 + EXTRACT(MINUTE FROM h2.hf)::int) <= (EXTRACT(HOUR FROM h2.hi)::int * 60 + EXTRACT(MINUTE FROM h2.hi)::int)
+            THEN (EXTRACT(HOUR FROM h2.hf)::int * 60 + EXTRACT(MINUTE FROM h2.hf)::int) + 1440
+            ELSE (EXTRACT(HOUR FROM h2.hf)::int * 60 + EXTRACT(MINUTE FROM h2.hf)::int)
+          END
+        ) > v_novo_ini_min
+      )
+    LIMIT 1;
+
+    IF v_conflito_ponto IS NOT NULL THEN
+      RAISE EXCEPTION 'Conflito de horário: você já está escalado em % das % na %.',
+        v_conflito_ponto, v_conflito_horario, v_conflito_dia;
+    END IF;
+  END IF;
+
+  -- 8. Feature 2: Cotas / Limites Justos por Colaborador ("Anti-Monopólio")
+  v_ponto_tem_cota := (
+    v_cotas_pontos_ids IS NULL
+    OR cardinality(v_cotas_pontos_ids) = 0
+    OR v_ponto_id = ANY(v_cotas_pontos_ids)
+  );
+
+  IF v_ponto_tem_cota AND (v_limite_semana IS NOT NULL OR v_limite_dia IS NOT NULL OR v_limite_ponto IS NOT NULL) THEN
+    SELECT
+      COUNT(*),
+      COUNT(*) FILTER (WHERE public.normalizar_dia_semana(t2.dia) = v_dia_norm),
+      COUNT(*) FILTER (WHERE t2.ponto_id = v_ponto_id)
+    INTO
+      v_qtd_semana,
+      v_qtd_dia,
+      v_qtd_ponto
+    FROM public.reservas r2
+    JOIN public.turnos t2 ON t2.id = r2.turno_id
+    JOIN public.pontos p2 ON p2.id = t2.ponto_id
+    WHERE r2.empresa_id = v_empresa_id
+      AND p2.ativo = true
+      AND (
+        v_cotas_pontos_ids IS NULL
+        OR cardinality(v_cotas_pontos_ids) = 0
+        OR t2.ponto_id = ANY(v_cotas_pontos_ids)
+      )
+      AND (
+        r2.device_id = p_device_id
+        OR (v_zap_busca <> '' AND regexp_replace(regexp_replace(COALESCE(r2.corretor_whatsapp, ''), '[^0-9]', '', 'g'), '^55(?=[0-9]{10,11}$)', '', 'g') = v_zap_busca)
+        OR (v_email_busca <> '' AND lower(trim(COALESCE(r2.corretor_email, ''))) = v_email_busca)
+      );
+
+    IF v_limite_semana IS NOT NULL AND v_qtd_semana >= v_limite_semana THEN
+      RAISE EXCEPTION 'Limite de vagas na semana atingido (%/%). Cancele outra vaga para reservar esta.',
+        v_qtd_semana, v_limite_semana;
+    END IF;
+
+    IF v_limite_dia IS NOT NULL AND v_qtd_dia >= v_limite_dia THEN
+      RAISE EXCEPTION 'Limite de vagas na % atingido (%/%).',
+        v_dia_norm, v_qtd_dia, v_limite_dia;
+    END IF;
+
+    IF v_limite_ponto IS NOT NULL AND v_qtd_ponto >= v_limite_ponto THEN
+      RAISE EXCEPTION 'Limite por ponto atingido em "%" (%/%).',
+        v_ponto_nome, v_qtd_ponto, v_limite_ponto;
+    END IF;
+  END IF;
+
+  -- 9. Insere a reserva vinculando automaticamente a empresa, device_id, whatsapp e email
   INSERT INTO public.reservas (
     turno_id,
     corretor_nome,
@@ -826,7 +1155,7 @@ BEGIN
     v_nome_final,
     p_device_id,
     v_empresa_id,
-    NULLIF(trim(p_corretor_whatsapp), ''),
+    NULLIF(trim(COALESCE(p_corretor_whatsapp, '')), ''),
     NULLIF(v_email_limpo, '')
   );
 
@@ -889,7 +1218,9 @@ BEGIN
       id, nome, slug, codigo_escala, logo_url, cor_primaria, plano, status,
       exigir_cadastro_previo, tipo_validacao_equipe, termos,
       msg_whatsapp_geral, rodape_whatsapp_geral, copia_whatsapp_geral_ativa,
-      ocultar_nomes_escala, created_at
+      ocultar_nomes_escala,
+      bloquear_conflito_horario, limite_vagas_semana, limite_vagas_dia, limite_vagas_ponto,
+      cotas_pontos_ids, created_at
     INTO v_empresa
     FROM public.empresas
     WHERE codigo_escala = v_raw
@@ -907,7 +1238,9 @@ BEGIN
         id, nome, slug, codigo_escala, logo_url, cor_primaria, plano, status,
         exigir_cadastro_previo, tipo_validacao_equipe, termos,
         msg_whatsapp_geral, rodape_whatsapp_geral, copia_whatsapp_geral_ativa,
-        ocultar_nomes_escala, created_at
+        ocultar_nomes_escala,
+        bloquear_conflito_horario, limite_vagas_semana, limite_vagas_dia, limite_vagas_ponto,
+        cotas_pontos_ids, created_at
       INTO v_empresa
       FROM public.empresas
       WHERE lower(slug) = v_slug
@@ -982,6 +1315,8 @@ BEGIN
           'ponto_id', t.ponto_id,
           'dia', t.dia,
           'horario', t.horario,
+          'hora_inicio', t.hora_inicio,
+          'hora_fim', t.hora_fim,
           'capacidade', t.capacidade,
           'ordem', t.ordem,
           'created_at', t.created_at
@@ -2186,6 +2521,73 @@ BEGIN
 END;
 $$;
 
+-- 4.22 RPC: atualizar_regras_escala (Fase 15 - Bloqueio de Conflito de Horário e Cotas Anti-Monopólio)
+DROP FUNCTION IF EXISTS public.atualizar_regras_escala(UUID, BOOLEAN, INT, INT, INT);
+DROP FUNCTION IF EXISTS public.atualizar_regras_escala(UUID, BOOLEAN, INT, INT, INT, UUID[]);
+
+CREATE OR REPLACE FUNCTION public.atualizar_regras_escala(
+  p_empresa_id        UUID,
+  p_bloquear_conflito BOOLEAN,
+  p_limite_semana     INT DEFAULT NULL,
+  p_limite_dia        INT DEFAULT NULL,
+  p_limite_ponto      INT DEFAULT NULL,
+  p_cotas_pontos_ids  UUID[] DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_empresa          RECORD;
+  v_pontos_filtrados UUID[] := NULL;
+BEGIN
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
+    RAISE EXCEPTION 'Acesso negado: Apenas administradores autenticados podem alterar as regras da escala.';
+  END IF;
+
+  IF p_limite_semana IS NOT NULL AND p_limite_semana < 1 THEN
+    RAISE EXCEPTION 'O limite semanal deve ser de pelo menos 1 vaga (ou nulo para ilimitado).';
+  END IF;
+
+  IF p_limite_dia IS NOT NULL AND p_limite_dia < 1 THEN
+    RAISE EXCEPTION 'O limite diário deve ser de pelo menos 1 vaga (ou nulo para ilimitado).';
+  END IF;
+
+  IF p_limite_ponto IS NOT NULL AND p_limite_ponto < 1 THEN
+    RAISE EXCEPTION 'O limite por local deve ser de pelo menos 1 vaga (ou nulo para ilimitado).';
+  END IF;
+
+  IF p_cotas_pontos_ids IS NOT NULL THEN
+    SELECT array_agg(id ORDER BY ordem ASC)
+    INTO v_pontos_filtrados
+    FROM public.pontos
+    WHERE empresa_id = p_empresa_id
+      AND id = ANY(p_cotas_pontos_ids);
+
+    IF v_pontos_filtrados IS NULL OR cardinality(v_pontos_filtrados) = 0 THEN
+      RAISE EXCEPTION 'Selecione pelo menos um ponto válido ou escolha "Todos os pontos".';
+    END IF;
+  END IF;
+
+  UPDATE public.empresas
+  SET
+    bloquear_conflito_horario = COALESCE(p_bloquear_conflito, false),
+    limite_vagas_semana       = p_limite_semana,
+    limite_vagas_dia          = p_limite_dia,
+    limite_vagas_ponto        = p_limite_ponto,
+    cotas_pontos_ids          = v_pontos_filtrados
+  WHERE id = p_empresa_id
+  RETURNING * INTO v_empresa;
+
+  IF v_empresa.id IS NULL THEN
+    RAISE EXCEPTION 'Empresa não encontrada.';
+  END IF;
+
+  RETURN to_jsonb(v_empresa);
+END;
+$$;
+
 -- ============================================================
 -- 8. PERMISSÕES E PRIVILÉGIOS GRANULARES (GRANTS / REVOKES)
 -- ============================================================
@@ -2206,6 +2608,9 @@ FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, anon;
 
 REVOKE ALL ON FUNCTION public.gerar_codigo_escala() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.normalizar_dia_semana(TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.extrair_horarios_turno(TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.fn_turnos_preencher_horas() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.fn_sync_escala_empresa() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.handle_new_auth_user() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.is_superadmin(UUID) FROM PUBLIC, anon, authenticated;
@@ -2229,6 +2634,7 @@ REVOKE ALL ON FUNCTION public.remover_corretor_equipe(UUID, UUID) FROM PUBLIC, a
 REVOKE ALL ON FUNCTION public.atualizar_termos_empresa(UUID, JSONB) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.atualizar_whatsapp_ponto(UUID, UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.atualizar_whatsapp_empresa(UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.atualizar_regras_escala(UUID, BOOLEAN, INT, INT, INT, UUID[]) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.vincular_usuario_empresa(TEXT, UUID, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.desvincular_usuario_empresa(UUID, UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_gestores_empresa(UUID) FROM PUBLIC, anon, authenticated;
@@ -2258,6 +2664,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
 TO authenticated;
 
 GRANT EXECUTE ON FUNCTION public.gerar_codigo_escala() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.normalizar_dia_semana(TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.extrair_horarios_turno(TEXT) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_superadmin(UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.has_empresa_role(UUID, TEXT[], UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_minhas_empresas() TO authenticated, service_role;
@@ -2274,6 +2682,7 @@ GRANT EXECUTE ON FUNCTION public.remover_corretor_equipe(UUID, UUID) TO authenti
 GRANT EXECUTE ON FUNCTION public.atualizar_termos_empresa(UUID, JSONB) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.atualizar_whatsapp_ponto(UUID, UUID, TEXT, TEXT) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.atualizar_whatsapp_empresa(UUID, TEXT, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.atualizar_regras_escala(UUID, BOOLEAN, INT, INT, INT, UUID[]) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.vincular_usuario_empresa(TEXT, UUID, TEXT) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.desvincular_usuario_empresa(UUID, UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_gestores_empresa(UUID) TO authenticated, service_role;

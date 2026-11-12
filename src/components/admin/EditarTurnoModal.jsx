@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Pencil, X, Check, AlertTriangle } from 'lucide-react'
+import { Pencil, X, Check, AlertTriangle, Clock, RotateCcw } from 'lucide-react'
 import { formatarNomeDia } from '../../lib/diasSemana'
 import { supabase } from '../../lib/supabaseClient'
+import { isMissingColumnError } from '../../lib/supabasePublicHelper'
+import {
+  normalizarTimeInput,
+  normalizarTimeSql,
+  parseHorarioTexto,
+  formatarHorarioTurno,
+  cruzaMeiaNoite,
+} from '../../lib/horarioHelper'
 
 export default function EditarTurnoModal({
   modalEditarTurno,
@@ -10,14 +18,39 @@ export default function EditarTurnoModal({
   onDataChanged,
   showToast,
 }) {
+  const [editHoraInicio, setEditHoraInicio] = useState('')
+  const [editHoraFim, setEditHoraFim] = useState('')
   const [editHorario, setEditHorario] = useState('')
+  const [personalizarTexto, setPersonalizarTexto] = useState(false)
   const [editCapacidade, setEditCapacidade] = useState(2)
   const [salvandoTurno, setSalvandoTurno] = useState(false)
 
   useEffect(() => {
     if (modalEditarTurno) {
-      setEditHorario(modalEditarTurno.horario || '')
+      let ini = normalizarTimeInput(modalEditarTurno.hora_inicio)
+      let fim = normalizarTimeInput(modalEditarTurno.hora_fim)
+      const textoOriginal = (modalEditarTurno.horario || '').trim()
+
+      if (!ini || !fim) {
+        const parsed = parseHorarioTexto(textoOriginal)
+        if (parsed) {
+          ini = parsed.horaInicio
+          fim = parsed.horaFim
+        }
+      }
+
+      setEditHoraInicio(ini)
+      setEditHoraFim(fim)
+      setEditHorario(textoOriginal)
       setEditCapacidade(modalEditarTurno.capacidade || 2)
+
+      // Se não foi possível extrair horários ou o rótulo contém texto extra (ex: "Plantão Manhã"),
+      // mantém o campo de texto visível para o usuário editar livremente
+      const padraoAuto = formatarHorarioTurno(ini, fim)
+      const temTextoDiferente = Boolean(
+        !ini || !fim || (textoOriginal && padraoAuto && textoOriginal !== padraoAuto && !/^(\d{1,2})([:h.]\d{0,2})?\s*(às|as|a|até|ate|-|–|—|~|\/)\s*(\d{1,2})([:h.]\d{0,2})?\s*(h|hs|hr|hrs)?$/i.test(textoOriginal))
+      )
+      setPersonalizarTexto(temTextoDiferente)
     }
   }, [modalEditarTurno])
 
@@ -40,20 +73,46 @@ export default function EditarTurnoModal({
     }
   }, [modalEditarTurno, salvandoTurno, onClose])
 
+  const horarioGerado = formatarHorarioTurno(editHoraInicio, editHoraFim)
+  const horarioFinal = personalizarTexto
+    ? editHorario.trim() || horarioGerado
+    : horarioGerado || editHorario.trim()
+  const horasIguais = Boolean(editHoraInicio && editHoraFim && editHoraInicio === editHoraFim)
+  const viraMadrugada = Boolean(
+    editHoraInicio && editHoraFim && !horasIguais && cruzaMeiaNoite(editHoraInicio, editHoraFim)
+  )
+  const horasIncompletas = Boolean((editHoraInicio && !editHoraFim) || (!editHoraInicio && editHoraFim))
+
   const handleConfirmEditarTurno = async (e) => {
     e.preventDefault()
-    if (!modalEditarTurno || !editHorario.trim()) return
+    if (!modalEditarTurno || !horarioFinal || horasIguais || horasIncompletas) return
 
     const novaCap = Math.max(1, parseInt(editCapacidade, 10) || 1)
     setSalvandoTurno(true)
     try {
-      const { error } = await supabase
+      const baseUpdate = {
+        horario: horarioFinal,
+        capacidade: novaCap,
+      }
+
+      const updateComHoras = {
+        ...baseUpdate,
+        hora_inicio: normalizarTimeSql(editHoraInicio),
+        hora_fim: normalizarTimeSql(editHoraFim),
+      }
+
+      let { error } = await supabase
         .from('turnos')
-        .update({
-          horario: editHorario.trim(),
-          capacidade: novaCap,
-        })
+        .update(updateComHoras)
         .eq('id', modalEditarTurno.turnoId)
+
+      if (error && isMissingColumnError(error)) {
+        const fallbackRes = await supabase
+          .from('turnos')
+          .update(baseUpdate)
+          .eq('id', modalEditarTurno.turnoId)
+        error = fallbackRes.error
+      }
 
       if (error) throw error
 
@@ -108,23 +167,107 @@ export default function EditarTurnoModal({
         </div>
 
         <form onSubmit={handleConfirmEditarTurno} className="space-y-4">
-          {/* Horário */}
-          <div>
-            <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
-              Horário do Turno:
-            </label>
-            <input
-              type="text"
-              value={editHorario}
-              onChange={(e) => setEditHorario(e.target.value)}
-              placeholder="Ex: 08:00 às 12:00"
-              className="input-field text-base font-medium"
-              autoFocus
-              required
-            />
-            <p className="text-[11px] text-gray-500 mt-1">
-              Ex: "08:00 às 12:00", "13h às 17h", "Plantão Manhã"
-            </p>
+          {/* Seleção de Hora Início e Hora Fim */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-xs font-semibold text-gray-300 mb-1.5 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-brand-400" />
+                  Hora Início
+                </label>
+                <input
+                  type="time"
+                  value={editHoraInicio}
+                  onChange={(e) => setEditHoraInicio(e.target.value)}
+                  className="input-field text-sm sm:text-base font-medium"
+                  autoFocus
+                  required={!personalizarTexto}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-300 mb-1.5 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-brand-400" />
+                  Hora Fim
+                </label>
+                <input
+                  type="time"
+                  value={editHoraFim}
+                  onChange={(e) => setEditHoraFim(e.target.value)}
+                  className="input-field text-sm sm:text-base font-medium"
+                  required={!personalizarTexto}
+                />
+              </div>
+            </div>
+
+            {horasIguais && (
+              <p className="text-[11px] text-red-500 dark:text-red-400 font-medium">
+                A hora de fim deve ser diferente da hora de início.
+              </p>
+            )}
+
+            {horasIncompletas && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                Preencha tanto a hora de início quanto a de fim para validar conflitos de horário.
+              </p>
+            )}
+
+            {viraMadrugada && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                Turno noturno: encerra às {editHoraFim} (virada de madrugada).
+              </p>
+            )}
+
+            {/* Texto exibido na escala */}
+            {personalizarTexto ? (
+              <div className="pt-1 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-300">
+                    Texto Exibido na Escala:
+                  </label>
+                  {horarioGerado && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPersonalizarTexto(false)
+                        setEditHorario(horarioGerado)
+                      }}
+                      className="text-[11px] text-brand-500 dark:text-brand-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      Usar automático
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={editHorario}
+                  onChange={(e) => setEditHorario(e.target.value)}
+                  placeholder={horarioGerado || 'Ex: 08:00 às 12:00'}
+                  className="input-field text-sm font-medium"
+                  required
+                />
+              </div>
+            ) : (
+              horarioGerado && (
+                <div className="flex items-center justify-between text-[11px] text-gray-500 pt-0.5">
+                  <span>
+                    Exibição: <strong className="text-gray-300">{horarioGerado}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditHorario(horarioGerado)
+                      setPersonalizarTexto(true)
+                    }}
+                    className="text-brand-500 dark:text-brand-400 hover:underline inline-flex items-center gap-1 font-medium"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Personalizar rótulo
+                  </button>
+                </div>
+              )
+            )}
           </div>
 
           {/* Capacidade */}
@@ -168,7 +311,7 @@ export default function EditarTurnoModal({
             </button>
             <button
               type="submit"
-              disabled={salvandoTurno || !editHorario.trim()}
+              disabled={salvandoTurno || !horarioFinal || horasIguais || horasIncompletas}
               className="btn-primary flex-1 py-3 text-sm flex items-center justify-center gap-2"
             >
               {salvandoTurno ? (
@@ -190,4 +333,3 @@ export default function EditarTurnoModal({
     document.body
   )
 }
-

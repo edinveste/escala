@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Clock, Users, CheckCircle2, XCircle, User, Lock } from 'lucide-react'
+import { Clock, Users, CheckCircle2, XCircle, User, Lock, AlertTriangle } from 'lucide-react'
 
 export default function TurnoCard({
   turno,
@@ -13,6 +13,7 @@ export default function TurnoCard({
   acaoVaga,
   acaoCancelar,
   ocultarNomes = false,
+  bloqueioRegra = null,
 }) {
   const vagasOcupadas = reservas.length
   const vagasTotal = turno.capacidade
@@ -116,6 +117,24 @@ export default function TurnoCard({
         </div>
       )}
 
+      {/* Aviso visual de Conflito de Horário ou Limite/Cota Atingida */}
+      {!minhaReserva && !esgotado && bloqueioRegra?.bloqueado && (
+        <div
+          className={`mb-3 px-3 py-2 rounded-xl border text-xs flex items-start gap-2 ${
+            bloqueioRegra.tipo === 'conflito'
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+              : 'bg-surface-700/80 border-surface-500/70 text-gray-300'
+          }`}
+        >
+          {bloqueioRegra.tipo === 'conflito' ? (
+            <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
+          ) : (
+            <Lock className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+          )}
+          <span className="leading-snug font-medium">{bloqueioRegra.motivo}</span>
+        </div>
+      )}
+
       {/* Botão de ação */}
       {minhaReserva ? (
         <button
@@ -132,6 +151,19 @@ export default function TurnoCard({
         >
           <Users className="w-4.5 h-4.5" />
           Esgotado
+        </button>
+      ) : bloqueioRegra?.bloqueado ? (
+        <button
+          disabled
+          className="btn-ghost w-full flex items-center justify-center gap-2 text-sm opacity-75 cursor-not-allowed border border-surface-600"
+          title={bloqueioRegra.motivo}
+        >
+          {bloqueioRegra.tipo === 'conflito' ? (
+            <AlertTriangle className="w-4.5 h-4.5 text-amber-500 dark:text-amber-400" />
+          ) : (
+            <Lock className="w-4.5 h-4.5" />
+          )}
+          {bloqueioRegra.labelCurta || 'Indisponível'}
         </button>
       ) : (
         <button

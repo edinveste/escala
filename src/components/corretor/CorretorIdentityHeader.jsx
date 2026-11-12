@@ -1,8 +1,9 @@
 import { AlertCircle, Pencil } from 'lucide-react'
+import CorretorRegrasBanner from './CorretorRegrasBanner'
 
 /**
  * Cabeçalho de identificação do colaborador com saudação,
- * alerta contextual de bloqueio por cadastro não autorizado e botão de edição de perfil.
+ * barra discreta de cotas/regras ativas e alerta contextual de autorização.
  */
 export default function CorretorIdentityHeader({
   corretorNome,
@@ -11,16 +12,31 @@ export default function CorretorIdentityHeader({
   cadastroNaoAutorizado,
   onEditarPerfil,
   termos,
+  resumoColaborador,
+  selectedPontoId = null,
 }) {
-  if (!corretorNome) return null
+  const temCotasVisiveis = Boolean(
+    resumoColaborador?.regras?.temAlgumaCota &&
+      (!selectedPontoId || (resumoColaborador?.pontoTemCota?.(selectedPontoId) ?? true))
+  )
+  if (!corretorNome && !temCotasVisiveis) return null
 
   return (
     <div className="mb-4 px-1 space-y-2">
-      <div className="flex items-center gap-1.5 text-sm text-gray-400">
-        <span>
-          Olá, <strong className="text-gray-200 dark:text-gray-100 font-semibold">{corretorNome}</strong> 👋
-        </span>
-      </div>
+      {corretorNome && (
+        <div className="flex items-center gap-1.5 text-sm text-gray-400">
+          <span>
+            Olá, <strong className="text-gray-200 dark:text-gray-100 font-semibold">{corretorNome}</strong> 👋
+          </span>
+        </div>
+      )}
+
+      {temCotasVisiveis && (
+        <CorretorRegrasBanner
+          resumoColaborador={resumoColaborador}
+          selectedPontoId={selectedPontoId}
+        />
+      )}
 
       {cadastroNaoAutorizado && (
         <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2.5 text-xs text-red-300 animate-scale-in shadow-sm">

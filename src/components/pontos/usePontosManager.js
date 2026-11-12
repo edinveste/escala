@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabaseClient'
+import { isMissingColumnError } from '../../lib/supabasePublicHelper'
+import { normalizarTimeSql, parseHorarioTexto } from '../../lib/horarioHelper'
 import { useConfirm } from '../ConfirmModal'
 
 /**
@@ -217,7 +219,7 @@ export function usePontosManager({
 
         const turnosOrigem = turnos.filter((t) => t.ponto_id === pontoOrigem.id)
         if (turnosOrigem.length > 0) {
-          const novosTurnos = turnosOrigem.map((t) => ({
+          const novosTurnosSemHoras = turnosOrigem.map((t) => ({
             ponto_id: novoPonto.id,
             dia: t.dia,
             horario: t.horario,
@@ -225,7 +227,21 @@ export function usePontosManager({
             ordem: t.ordem,
             ...(empresaId ? { empresa_id: empresaId } : {}),
           }))
-          const { error: erroTurnos } = await supabase.from('turnos').insert(novosTurnos)
+
+          const novosTurnos = turnosOrigem.map((t, idx) => {
+            const parsed = (!t.hora_inicio || !t.hora_fim) ? parseHorarioTexto(t.horario) : null
+            return {
+              ...novosTurnosSemHoras[idx],
+              hora_inicio: normalizarTimeSql(t.hora_inicio || parsed?.horaInicio),
+              hora_fim: normalizarTimeSql(t.hora_fim || parsed?.horaFim),
+            }
+          })
+
+          let { error: erroTurnos } = await supabase.from('turnos').insert(novosTurnos)
+          if (erroTurnos && isMissingColumnError(erroTurnos)) {
+            const fallbackRes = await supabase.from('turnos').insert(novosTurnosSemHoras)
+            erroTurnos = fallbackRes.error
+          }
           if (erroTurnos) throw erroTurnos
         }
 

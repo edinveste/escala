@@ -99,6 +99,8 @@ export default function AdminTurnoCard({
               onEditarTurno?.({
                 turnoId: turno.id,
                 horario: turno.horario,
+                hora_inicio: turno.hora_inicio || null,
+                hora_fim: turno.hora_fim || null,
                 capacidade: turno.capacidade,
                 dia,
                 pontoNome: ponto.nome,

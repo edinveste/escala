@@ -155,6 +155,8 @@ e:\Escala\
 ├── supabase_migration_fase7_validacao_email.sql # Script de migração Fase 7: Validação Flexível por E-mail Corporativo
 ├── supabase_migration_fase8_vinculo_aparelho.sql # Script de migração Fase 8: Trava Estrita de Aparelho (device_id_vinculado)
 ├── supabase_migration_fase9_editar_colaborador.sql # Script de migração Fase 9: Edição Segura de Colaboradores (RPC)
+├── supabase_migration_fase14_blindagem_seguranca.sql # Script de migração Fase 14: Blindagem RLS/RPCs, Realtime sem PII e Remoção do PIN Legado
+├── supabase_migration_fase15_regras_escala.sql # Script de migração Fase 15: Bloqueio de Conflito de Horário & Cotas Anti-Monopólio
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -178,6 +180,8 @@ e:\Escala\
     │   ├── supabaseClient.js    # Instância do createClient configurada
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
     │   ├── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
+    │   ├── horarioHelper.js     # Parsing de horários legados, detecção de conflitos e cálculo de cotas
+    │   ├── supabasePublicHelper.js # Utilitários de execução pública segura (JWT expirado e fallbacks)
     │   ├── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
     │   └── demoData.js          # Mock data e persistência local da escala demonstrativa sandbox (/demo)
     └── components/
@@ -194,7 +198,8 @@ e:\Escala\
         │   └── VocabularioModal.jsx          # Modal orquestrador enxuto com backdrop e ações
         ├── CorretorView.jsx     # Tela pública orquestradora do corretor (modularizada e enxuta)
         ├── corretor/            # Submódulos e componentes isolados da visão do corretor
-        │   ├── CorretorIdentityHeader.jsx # Saudação, alerta de autorização e correção de dados
+        │   ├── CorretorIdentityHeader.jsx # Saudação, resumo de cotas/regras e alerta de autorização
+        │   ├── CorretorRegrasBanner.jsx   # Barra discreta com saldo de cotas e regras ativas
         │   ├── CorretorCopyFooter.jsx     # Barra fixa inferior com botão de copiar escala (WhatsApp)
         │   ├── PontoSelectorView.jsx      # Tela de seleção de ponto com contagem de turnos e vagas
         │   ├── PontoTurnosView.jsx        # Tela de turnos do ponto com navegação, cabeçalho e dias
@@ -238,6 +243,9 @@ e:\Escala\
         │   ├── LayoutPreferencesCard.jsx  # Card para alternar modo de navegação (Abas vs Visão Contínua)
         │   ├── LinkSeguroManager.jsx      # Gerenciador de link seguro anti-espionagem (12 chars) com redefinição
         │   ├── VocabularioCard.jsx        # Card de atalho para customização de vocabulário e nicho
+        │   ├── RegrasEscalaCard.jsx       # Card de configuração de bloqueio de conflito e cotas anti-monopólio
+        │   ├── CotaStepperField.jsx       # Controle stepper touch-friendly de cota numérica ou Ilimitado
+        │   ├── CotasPontosDropdown.jsx    # Menu suspenso multi-seleção para aplicar cotas a todos ou a pontos específicos
         │   ├── AdminSenhaCard.jsx         # Card de alteração da senha de contingência/admin
         │   ├── AdminTabEscala.jsx         # Submódulo da aba/seção de escala e turnos (com QuickLink, Stats, Form, Lista e Zona de Perigo)
         │   ├── AdminTabEquipe.jsx         # Submódulo da aba/seção de equipe e gestores
@@ -1248,6 +1256,26 @@ npm run build
      - `TurnoCard.jsx` e `DiaAcordeonItem.jsx` compatíveis com `eh_minha` (RPC pública) e `device_id` (gestor/demo).
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros (`vite build`).
+
+---
+
+## 36. Regras Inteligentes de Escala: Bloqueio de Conflito de Horário & Cotas Anti-Monopólio (Fase 15) — Novembro/2026
+- **Contexto e Objetivos**:
+  1. **Bloqueio de Conflito de Horário**: Impedir que um colaborador reserve dois turnos que se sobrepõem no mesmo dia (mesmo em pontos de captação diferentes).
+  2. **Cotas / Limites Justos ("Anti-Monopólio")**: Permitir configurar limites máximos de reservas por colaborador na empresa (`limite_vagas_semana`, `limite_vagas_dia`, `limite_vagas_ponto`).
+- **Arquitetura Implementada**:
+  1. **Migração SQL Idempotente (`supabase_migration_fase15_regras_escala.sql` + `supabase_schema.sql`)**:
+     - Colunas `hora_inicio TIME` e `hora_fim TIME` em `public.turnos`, com funções `normalizar_dia_semana`, `extrair_horarios_turno`, backfill idempotente de formatos legados (ex: `"8 as 10 hs"`, `"11:30 às 14hrs"`) e trigger `trg_turnos_preencher_horas`.
+     - Colunas `bloquear_conflito_horario`, `limite_vagas_semana`, `limite_vagas_dia`, `limite_vagas_ponto` e `cotas_pontos_ids` em `public.empresas`, expostas em `get_empresa_publica` (e `hora_inicio`/`hora_fim` em `get_escala_publica`).
+     - RPC administrativa segura `atualizar_regras_escala` exigindo `auth.uid() IS NOT NULL AND has_empresa_role(..., ARRAY['admin'])`.
+     - RPC `reservar_vaga` blindada com `pg_advisory_xact_lock` ordenado por identificadores do colaborador (`device_id`, WhatsApp e E-mail) antes de `FOR UPDATE OF t`, tratando virada de meia-noite e lançando exceções amigáveis.
+  2. **Frontend Modularizado & Fallbacks Seguros**:
+     - `src/lib/horarioHelper.js`: parsing legado, normalização `TIME`, interseção de intervalos (inclusive virada de meia-noite) e `calcularResumoColaborador`.
+     - `FormAddTurno.jsx`, `EditarTurnoModal.jsx`, `DuplicarDiaModal.jsx` e `usePontosManager.js`: seleção limpa de **Hora Início** e **Hora Fim** com fallback automático caso a migração SQL ainda não tenha sido aplicada.
+     - `RegrasEscalaCard.jsx` + `CotaStepperField.jsx` + `CotasPontosDropdown.jsx` em `AdminTabConfiguracoes.jsx`: painel mobile-first para o administrador configurar bloqueio de conflito, cotas e seleção de pontos (todos ou específicos).
+     - `CorretorRegrasBanner.jsx`, `DiaAcordeonItem.jsx`, `TurnoCard.jsx` e `useColaborador.js`: barra discreta de saldo de cotas, bloqueio visual preventivo no card e toasts contextuais claros.
+     - `demoData.js` e `useDemoEscala.js`: paridade completa no modo demonstração `/demo` sem tocar no banco.
+
 
 
 

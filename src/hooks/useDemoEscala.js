@@ -8,6 +8,7 @@ import {
   salvarReservasDemo,
 } from '../lib/demoData'
 import { obterTermos } from '../lib/vocabularioHelper'
+import { calcularResumoColaborador } from '../lib/horarioHelper'
 
 // Gera um UUID v4 simples para rastreamento de aparelho no modo demonstração
 function generateUUID() {
@@ -96,7 +97,21 @@ export function useDemoEscala() {
         return
       }
 
-      // 3. Insere a nova reserva na memória e no localStorage
+      // 3. Verifica regras inteligentes da demonstração (conflito de horário + cotas)
+      const resumo = calcularResumoColaborador({
+        empresa: DEMO_EMPRESA,
+        pontos: DEMO_PONTOS,
+        turnos: DEMO_TURNOS,
+        reservas,
+        deviceId,
+      })
+      const bloqueio = resumo.analisarTurno(turnoAlvo)
+      if (bloqueio.bloqueado) {
+        showToast(bloqueio.motivo, 'warning')
+        return
+      }
+
+      // 4. Insere a nova reserva na memória e no localStorage
       const novaReserva = {
         id: `demo-res-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         empresa_id: DEMO_EMPRESA.id,

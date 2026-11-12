@@ -8,6 +8,8 @@ import {
   formatarNomeDia,
 } from '../../lib/diasSemana'
 import { supabase } from '../../lib/supabaseClient'
+import { isMissingColumnError } from '../../lib/supabasePublicHelper'
+import { normalizarTimeSql, parseHorarioTexto } from '../../lib/horarioHelper'
 
 const DIAS_OPCOES = DIAS_SEMANA
 
@@ -81,20 +83,34 @@ export default function DuplicarDiaModal({
     setDuplicando(true)
     try {
       const novosTurnos = []
+      const novosTurnosSemHoras = []
       for (const dia of diasDestino) {
         for (const t of modalDuplicar.turnos) {
-          novosTurnos.push({
+          const parsed = (!t.hora_inicio || !t.hora_fim) ? parseHorarioTexto(t.horario) : null
+          const horaInicioSql = normalizarTimeSql(t.hora_inicio || parsed?.horaInicio)
+          const horaFimSql = normalizarTimeSql(t.hora_fim || parsed?.horaFim)
+          const base = {
             ponto_id: modalDuplicar.pontoId,
             dia: formatarNomeDia(dia),
             horario: t.horario,
             capacidade: t.capacidade,
             ordem: t.ordem,
             ...(empresaId ? { empresa_id: empresaId } : {}),
+          }
+          novosTurnosSemHoras.push(base)
+          novosTurnos.push({
+            ...base,
+            hora_inicio: horaInicioSql,
+            hora_fim: horaFimSql,
           })
         }
       }
 
-      const { error } = await supabase.from('turnos').insert(novosTurnos)
+      let { error } = await supabase.from('turnos').insert(novosTurnos)
+      if (error && isMissingColumnError(error)) {
+        const fallbackRes = await supabase.from('turnos').insert(novosTurnosSemHoras)
+        error = fallbackRes.error
+      }
       if (error) throw error
 
       showToast?.(

@@ -86,6 +86,15 @@ export function useColaborador({ empresa, showToast, confirm }) {
       }
 
       if (
+        msg.includes('Conflito de horário') ||
+        msg.includes('Limite de vagas') ||
+        msg.includes('Limite por ponto')
+      ) {
+        showToast?.(msg, 'warning')
+        return
+      }
+
+      if (
         msg.includes('Acesso temporariamente suspenso') ||
         msg.includes('inativa') ||
         msg.includes('pausado')

@@ -19,6 +19,7 @@ export default function PontoSelectorView({
   onCopiar,
   copied = false,
   podeCopiar = true,
+  resumoColaborador = null,
 }) {
   if (pontos.length === 0) {
     return (
@@ -40,7 +41,7 @@ export default function PontoSelectorView({
 
   return (
     <>
-      {/* Identificação do participante com suporte a edição */}
+      {/* Identificação do participante com suporte a edição e resumo de regras */}
       <CorretorIdentityHeader
         corretorNome={corretorNome}
         corretorWhatsapp={corretorWhatsapp}
@@ -48,6 +49,7 @@ export default function PontoSelectorView({
         cadastroNaoAutorizado={cadastroNaoAutorizado}
         onEditarPerfil={onEditarPerfil}
         termos={termos}
+        resumoColaborador={resumoColaborador}
       />
 
       <div className="mb-4 px-1">
@@ -66,6 +68,11 @@ export default function PontoSelectorView({
         {pontos.map((ponto) => {
           const info = vagasPorPonto[ponto.id] || {}
           const temVagas = info.vagasLivres > 0
+          const cotaRestritaNestePonto = Boolean(
+            resumoColaborador?.regras?.temAlgumaCota &&
+            resumoColaborador?.regras?.cotasPontosIds &&
+            resumoColaborador?.pontoTemCota?.(ponto.id)
+          )
 
           return (
             <button
@@ -82,7 +89,7 @@ export default function PontoSelectorView({
                   <h3 className="font-semibold text-gray-100 text-[15px] truncate">
                     {ponto.nome}
                   </h3>
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
                     <span className="text-xs text-gray-500">
                       {info.totalTurnos || 0} turno{info.totalTurnos !== 1 ? 's' : ''}
                     </span>
@@ -97,6 +104,11 @@ export default function PontoSelectorView({
                         {temVagas
                           ? `${info.vagasLivres} vaga${info.vagasLivres !== 1 ? 's' : ''} livre${info.vagasLivres !== 1 ? 's' : ''}`
                           : 'Lotado'}
+                      </span>
+                    )}
+                    {cotaRestritaNestePonto && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-500/20">
+                        Com limite
                       </span>
                     )}
                   </div>

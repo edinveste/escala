@@ -157,6 +157,7 @@ export default function AdminView({
           {activeTab === 'configuracoes' && (
             <AdminTabConfiguracoes
               empresa={empresa}
+              pontos={pontos}
               onEmpresaUpdated={onEmpresaUpdated}
               showToast={showToast}
               isFullAdmin={isFullAdmin}
@@ -174,6 +175,7 @@ export default function AdminView({
         <div className="space-y-3 animate-fade-in">
           <AdminTabConfiguracoes
             empresa={empresa}
+            pontos={pontos}
             onEmpresaUpdated={onEmpresaUpdated}
             showToast={showToast}
             isFullAdmin={isFullAdmin}
