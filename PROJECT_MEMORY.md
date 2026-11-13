@@ -1353,9 +1353,9 @@ npm run build
   - O formato `.ics` e botões individuais em cada card foram removidos por causarem atrito e ruído visual, sendo substituídos por duas ações principais no topo: **Google Agenda** e **Baixar em PDF**.
 - **Arquitetura e Soluções Implementadas**:
   1. `src/lib/agendaPdfHelper.js`:
-     - Módulo utilitário de geração de documento PDF/impressão corporativo e de alta definição.
-     - `gerarHtmlAgendaPdf`: Gera folha formatada com cabeçalho (empresa, data/hora de emissão), dados do colaborador, quantidade de vagas e tabela estruturada (Dia/Data, Horário em badge, Local/Ponto).
-     - `baixarAgendaPdf`: Aciona a impressão nativa via `iframe` oculto que abre o diálogo nativo do navegador com suporte direto a *"Salvar como PDF"* tanto no computador quanto no celular (Android/iOS).
+     - Geração binária direta de arquivo `.pdf` vetorial utilizando `jsPDF` e `jspdf-autotable`.
+     - **Dynamic Import (Code-Splitting)**: Os módulos do `jsPDF` são baixados sob demanda apenas quando o usuário clica em *"Baixar Agenda em PDF"*, mantendo o bundle inicial da aplicação 100% leve.
+     - Gera layout corporativo de alta definição (cabeçalho, logo/nome da empresa, data de emissão, cartão do colaborador, tabela zebrada azul/cinza e rodapé) e dispara o download direto do arquivo `minha-agenda-[empresa].pdf`, garantindo funcionamento 100% confiável em celulares (Android, iOS e navegadores internos do WhatsApp/Instagram).
   2. `src/lib/icsHelper.js`:
      - Mantido `gerarGoogleCalendarUrl` para abertura direta de eventos no Google Agenda com dados preenchidos.
   3. `src/lib/horarioHelper.js`:

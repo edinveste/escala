@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Calendar,
   X,
@@ -27,6 +27,8 @@ export default function MinhaAgendaModal({
   showToast,
   termos = {},
 }) {
+  const [gerandoPdf, setGerandoPdf] = useState(false)
+
   // Ordena os turnos cronologicamente por dia e ordem/horário
   const turnosOrdenados = useMemo(() => {
     return [...turnosReservados].sort((a, b) => {
@@ -37,22 +39,26 @@ export default function MinhaAgendaModal({
   }, [turnosReservados])
 
   // Baixar agenda formatada em PDF
-  const handleBaixarPdf = () => {
+  const handleBaixarPdf = async () => {
     if (turnosOrdenados.length === 0) {
       showToast?.('Nenhum horário reservado para exportar.', 'warning')
       return
     }
 
     try {
-      baixarAgendaPdf({
+      setGerandoPdf(true)
+      showToast?.('Gerando PDF da sua agenda... 📄', 'info')
+      await baixarAgendaPdf({
         turnos: turnosOrdenados,
         empresa,
         corretorNome,
       })
-      showToast?.('Gerando PDF da sua agenda... 📄', 'success')
+      showToast?.('PDF baixado com sucesso! ✅', 'success')
     } catch (err) {
       console.error('Erro ao gerar PDF:', err)
       showToast?.('Erro ao gerar PDF da agenda.', 'error')
+    } finally {
+      setGerandoPdf(false)
     }
   }
 
@@ -107,10 +113,11 @@ export default function MinhaAgendaModal({
             <button
               type="button"
               onClick={handleBaixarPdf}
-              className="btn-primary w-full py-2.5 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all min-h-[44px]"
+              disabled={gerandoPdf}
+              className="btn-primary w-full py-2.5 px-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all min-h-[44px] disabled:opacity-60"
             >
               <FileText className="w-4 h-4" />
-              <span>Baixar Agenda em PDF</span>
+              <span>{gerandoPdf ? 'Gerando PDF...' : 'Baixar Agenda em PDF'}</span>
             </button>
           </div>
         )}
