@@ -21,6 +21,7 @@ export default function PontoSelectorView({
   copied = false,
   podeCopiar = true,
   resumoColaborador = null,
+  onAbrirAgenda = null,
 }) {
   if (pontos.length === 0) {
     return (
@@ -51,6 +52,7 @@ export default function PontoSelectorView({
         onEditarPerfil={onEditarPerfil}
         termos={termos}
         resumoColaborador={resumoColaborador}
+        onAbrirAgenda={onAbrirAgenda}
       />
 
       <div className="mb-4 px-1">

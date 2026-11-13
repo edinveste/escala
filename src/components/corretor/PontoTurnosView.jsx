@@ -34,6 +34,7 @@ export default function PontoTurnosView({
   resumoColaborador = null,
   escalaBloqueadaPorAgendamento = false,
   escalaAbreEm = null,
+  onAbrirAgenda = null,
 }) {
   return (
     <>
@@ -73,6 +74,7 @@ export default function PontoTurnosView({
         termos={termos}
         resumoColaborador={resumoColaborador}
         selectedPontoId={selectedPonto?.id}
+        onAbrirAgenda={onAbrirAgenda}
       />
 
       {turnosFiltrados.length === 0 ? (

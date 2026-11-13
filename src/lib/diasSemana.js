@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient'
+import { supabase } from './supabaseClient.js'
 
 /**
  * Constantes e utilitários para dias da semana completos.

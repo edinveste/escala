@@ -1343,3 +1343,32 @@ npm run build
        - Botão *"Liberar Agora"* e botão *"Alterar Horário"* / *"Programar Abertura"* movidos para a área expandida com espaçamento adequado, touch targets confortáveis (min-h: 40px) e sem espremer o cabeçalho.
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros (`vite build`).
+
+---
+
+## 42. "Minha Agenda" Consolidada: Google Agenda e Baixar em PDF — Novembro/2026
+- **Contexto e Necessidade do Usuário**:
+  - Na visão pública (`PontoSelectorView.jsx` e `PontoTurnosView.jsx`), o colaborador precisava navegar ponto por ponto e abrir dia por dia para lembrar em quais turnos estava escalado.
+  - Havia a necessidade de uma visualização consolidada de todas as vagas garantidas na semana, com atalhos rápidos e sem poluição visual.
+  - O formato `.ics` e botões individuais em cada card foram removidos por causarem atrito e ruído visual, sendo substituídos por duas ações principais no topo: **Google Agenda** e **Baixar em PDF**.
+- **Arquitetura e Soluções Implementadas**:
+  1. `src/lib/agendaPdfHelper.js`:
+     - Módulo utilitário de geração de documento PDF/impressão corporativo e de alta definição.
+     - `gerarHtmlAgendaPdf`: Gera folha formatada com cabeçalho (empresa, data/hora de emissão), dados do colaborador, quantidade de vagas e tabela estruturada (Dia/Data, Horário em badge, Local/Ponto).
+     - `baixarAgendaPdf`: Aciona a impressão nativa via `iframe` oculto que abre o diálogo nativo do navegador com suporte direto a *"Salvar como PDF"* tanto no computador quanto no celular (Android/iOS).
+  2. `src/lib/icsHelper.js`:
+     - Mantido `gerarGoogleCalendarUrl` para abertura direta de eventos no Google Agenda com dados preenchidos.
+  3. `src/lib/horarioHelper.js`:
+     - `calcularResumoColaborador` inclui `reservaId: r.id` e `dataReserva: r.created_at` em `turnosReservados`, viabilizando cancelamento de vagas direto da lista consolidada.
+  4. `src/components/corretor/MinhaAgendaCard.jsx`:
+     - Card compacto e moderno inserido no topo da escala (`CorretorIdentityHeader.jsx`).
+     - Exibe badge com contagem de turnos garantidos (ex: *"4 horários"*), preview do próximo horário cronológico e botão de toque rápido *"Ver horários"*.
+  5. `src/components/corretor/MinhaAgendaModal.jsx`:
+     - Modal responsivo e touch-friendly (Bottom Sheet no mobile com cantos arredondados, backdrop blur e scroll suave).
+     - **Topo Fixo com Botão Único de PDF**:
+       - Botão **`Baixar Agenda em PDF`**: aciona geração instantânea do PDF da agenda da semana com folha formatada profissional para salvar ou imprimir.
+     - **Cards de Horários com Ação Direta no Google Agenda**:
+       - Cada card exibe Dia e Data (ex: `SEGUNDA-FEIRA (09/11)`), Horário (`14 as 16 hs`), Local (`Extra Belenzinho`), botão de lixeira no topo para cancelar a vaga e botão **`Adicionar ao Google Agenda`** na base do card para abrir aquele evento específico diretamente no Google Calendar sem misturar abas.
+- **Validação e Testes**:
+  - Testes automatizados executados via Node.js validando geração de HTML para PDF e links do Google Agenda.
+  - `npm run build` executado com sucesso e zero erros (`vite build`).

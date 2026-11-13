@@ -1,8 +1,10 @@
 import { AlertCircle, Pencil } from 'lucide-react'
 import CorretorRegrasBanner from './CorretorRegrasBanner'
+import MinhaAgendaCard from './MinhaAgendaCard'
 
 /**
  * Cabeçalho de identificação do colaborador com saudação,
+ * card consolidado de "Minha Agenda" (Google Agenda e PDF),
  * barra discreta de cotas/regras ativas e alerta contextual de autorização.
  */
 export default function CorretorIdentityHeader({
@@ -14,21 +16,33 @@ export default function CorretorIdentityHeader({
   termos,
   resumoColaborador,
   selectedPontoId = null,
+  onAbrirAgenda = null,
 }) {
   const temCotasVisiveis = Boolean(
     resumoColaborador?.regras?.temAlgumaCota &&
       (!selectedPontoId || (resumoColaborador?.pontoTemCota?.(selectedPontoId) ?? true))
   )
-  if (!corretorNome && !temCotasVisiveis) return null
+  const temVagasReservadas = Boolean(resumoColaborador?.turnosReservados?.length > 0)
+
+  if (!corretorNome && !temCotasVisiveis && !temVagasReservadas) return null
 
   return (
-    <div className="mb-4 px-1 space-y-2">
+    <div className="mb-4 px-1 space-y-2.5">
       {corretorNome && (
         <div className="flex items-center gap-1.5 text-sm text-gray-400">
           <span>
             Olá, <strong className="text-gray-200 dark:text-gray-100 font-semibold">{corretorNome}</strong> 👋
           </span>
         </div>
+      )}
+
+      {/* Card de Minha Agenda Consolidada com Exportação para Calendário */}
+      {temVagasReservadas && onAbrirAgenda && (
+        <MinhaAgendaCard
+          turnosReservados={resumoColaborador.turnosReservados}
+          onAbrirAgenda={onAbrirAgenda}
+          termos={termos}
+        />
       )}
 
       {temCotasVisiveis && (

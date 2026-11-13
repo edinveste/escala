@@ -1,4 +1,4 @@
-import { formatarNomeDia } from './diasSemana'
+import { formatarNomeDia } from './diasSemana.js'
 
 /**
  * Normaliza um valor de hora (ex: "08:00:00", "8:00", "08:00") para "HH:MM"
@@ -241,6 +241,8 @@ export function calcularResumoColaborador({
 
     turnosReservados.push({
       ...turno,
+      reservaId: r.id,
+      dataReserva: r.created_at,
       pontoNome: ponto.nome,
     })
 

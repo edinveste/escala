@@ -6,6 +6,7 @@ import { obterAberturaPonto, calcularStatusGeralPontos } from '../lib/aberturaHe
 import { useDiasAcordeon } from './corretor/useDiasAcordeon'
 import { gerarTextoEscala, copiarTextoParaClipboard } from './corretor/escalaTextoHelper'
 import { CountdownTimerBanner } from './corretor/countdown'
+import MinhaAgendaModal from './corretor/MinhaAgendaModal'
 import PontoSelectorView from './corretor/PontoSelectorView'
 import PontoTurnosView from './corretor/PontoTurnosView'
 
@@ -32,6 +33,7 @@ export default function CorretorView({
   const [copied, setCopied] = useState(false)
   const [selectedPontoId, setSelectedPontoId] = useState(null)
   const [aberturaConcluidaLocal, setAberturaConcluidaLocal] = useState(false)
+  const [showAgendaModal, setShowAgendaModal] = useState(false)
   const termos = useMemo(() => obterTermos(empresa), [empresa])
 
   // Ponto atualmente selecionado
@@ -241,6 +243,7 @@ export default function CorretorView({
           copied={copied}
           podeCopiar={podeCopiarGeral}
           resumoColaborador={resumoColaborador}
+          onAbrirAgenda={() => setShowAgendaModal(true)}
         />
       ) : (
         <PontoTurnosView
@@ -270,8 +273,21 @@ export default function CorretorView({
           resumoColaborador={resumoColaborador}
           escalaBloqueadaPorAgendamento={pontoBloqueadoPorAgendamento}
           escalaAbreEm={infoAberturaPonto.dataAbertura}
+          onAbrirAgenda={() => setShowAgendaModal(true)}
         />
       )}
+
+      {/* Modal de Minha Agenda Consolidada e Exportação (.ics) */}
+      <MinhaAgendaModal
+        isOpen={showAgendaModal}
+        onClose={() => setShowAgendaModal(false)}
+        turnosReservados={resumoColaborador?.turnosReservados || []}
+        empresa={empresa}
+        corretorNome={corretorNome}
+        onCancelar={onCancelar}
+        showToast={showToast}
+        termos={termos}
+      />
     </>
   )
 }

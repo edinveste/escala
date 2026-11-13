@@ -216,6 +216,7 @@ e:\Escala\
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
     │   ├── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
     │   ├── horarioHelper.js     # Parsing de horários legados, detecção de conflitos e cálculo de cotas
+    │   ├── icsHelper.js         # Exportação RFC 5545 iCalendar (.ics) e links web para Google/Apple/Outlook Calendar
     │   ├── aberturaHelper.js    # Resolução de datas de abertura por escopo (ponto, empresa, termos) e cálculo de status
     │   ├── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
     │   └── demoData.js          # Mock data e persistência local da escala demonstrativa sandbox (/demo)
@@ -240,6 +241,8 @@ e:\Escala\
         │   │   ├── CountdownTimerBanner.jsx # Banner informativo de abertura programada e destravamento
         │   │   └── index.js
         │   ├── CorretorIdentityHeader.jsx # Saudação, resumo de cotas/regras e alerta de autorização
+        │   ├── MinhaAgendaCard.jsx        # Card de Minha Agenda compacta no topo com contagem e atalho
+        │   ├── MinhaAgendaModal.jsx       # Modal de visualização consolidada dos horários e exportação (.ics)
         │   ├── CorretorRegrasBanner.jsx   # Barra discreta com saldo de cotas e regras ativas
         │   ├── CorretorCopyFooter.jsx     # Barra fixa inferior com botão de copiar escala (WhatsApp)
         │   ├── PontoSelectorView.jsx      # Tela de seleção de ponto com contagem de turnos e vagas
