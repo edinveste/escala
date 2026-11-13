@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS public.empresas (
   limite_vagas_dia           INT DEFAULT NULL CHECK (limite_vagas_dia IS NULL OR limite_vagas_dia >= 1),
   limite_vagas_ponto         INT DEFAULT NULL CHECK (limite_vagas_ponto IS NULL OR limite_vagas_ponto >= 1),
   cotas_pontos_ids           UUID[] DEFAULT NULL,
+  escala_abre_em             TIMESTAMPTZ DEFAULT NULL,
+  escala_abre_pontos_ids     UUID[] DEFAULT NULL,
   created_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -109,6 +111,7 @@ CREATE TABLE IF NOT EXISTS public.pontos (
   cabecalho_whatsapp    TEXT,
   rodape_whatsapp       TEXT,
   copia_whatsapp_ativa  BOOLEAN NOT NULL DEFAULT true,
+  escala_abre_em        TIMESTAMPTZ DEFAULT NULL,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -774,9 +777,13 @@ DECLARE
   v_bloquear_conflito BOOLEAN;
   v_limite_semana     INT;
   v_limite_dia        INT;
-  v_limite_ponto      INT;
-  v_cotas_pontos_ids  UUID[];
-  v_ponto_tem_cota    BOOLEAN;
+  v_limite_ponto           INT;
+  v_cotas_pontos_ids       UUID[];
+  v_ponto_abre_em          TIMESTAMPTZ;
+  v_empresa_abre_em        TIMESTAMPTZ;
+  v_empresa_abre_pontos    UUID[];
+  v_data_efetiva_abertura  TIMESTAMPTZ := NULL;
+  v_ponto_tem_cota         BOOLEAN;
   v_zap_limpo         TEXT;
   v_email_limpo       TEXT;
   v_zap_busca         TEXT;
@@ -802,13 +809,50 @@ BEGIN
     RAISE EXCEPTION 'Dispositivo não identificado. Atualize a página e tente novamente.';
   END IF;
 
-  -- Identifica a empresa do turno antes do advisory lock para evitar deadlock entre locks
-  SELECT empresa_id INTO v_empresa_id
+  -- Identifica a empresa e o ponto do turno antes do advisory lock para evitar deadlock entre locks
+  SELECT empresa_id, ponto_id INTO v_empresa_id, v_ponto_id
   FROM public.turnos
   WHERE id = p_turno_id;
 
   IF v_empresa_id IS NULL THEN
     RAISE EXCEPTION 'Turno não encontrado.';
+  END IF;
+
+  -- ─── BLINDAGEM DE ABERTURA PROGRAMADA (GLOBAL, GRUPO OU INDIVIDUAL) ───────────
+  SELECT escala_abre_em INTO v_ponto_abre_em
+  FROM public.pontos
+  WHERE id = v_ponto_id;
+
+  SELECT status, escala_abre_em, escala_abre_pontos_ids
+  INTO v_status, v_empresa_abre_em, v_empresa_abre_pontos
+  FROM public.empresas
+  WHERE id = v_empresa_id;
+
+  IF v_status = 'bloqueado' THEN
+    RAISE EXCEPTION 'Acesso temporariamente suspenso: A escala desta empresa está com pendência cadastral ou financeira. Fale com seu coordenador.';
+  ELSIF v_status = 'inativo' THEN
+    RAISE EXCEPTION 'Esta empresa está inativa no momento.';
+  END IF;
+
+  -- Prioridade 1: Agendamento individual do ponto
+  IF v_ponto_abre_em IS NOT NULL THEN
+    v_data_efetiva_abertura := v_ponto_abre_em;
+  -- Prioridade 2: Agendamento da empresa (se o ponto estiver no escopo)
+  ELSIF v_empresa_abre_em IS NOT NULL THEN
+    IF v_empresa_abre_pontos IS NULL
+       OR cardinality(v_empresa_abre_pontos) = 0
+       OR v_ponto_id = ANY(v_empresa_abre_pontos) THEN
+      v_data_efetiva_abertura := v_empresa_abre_em;
+    ELSE
+      v_data_efetiva_abertura := NULL;
+    END IF;
+  ELSE
+    v_data_efetiva_abertura := NULL;
+  END IF;
+
+  IF v_data_efetiva_abertura IS NOT NULL AND clock_timestamp() < v_data_efetiva_abertura THEN
+    RAISE EXCEPTION 'A escala deste local ainda não está aberta para reservas. Abertura programada para %', 
+      to_char(v_data_efetiva_abertura AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY às HH24:MI');
   END IF;
 
   -- Normaliza o WhatsApp (apenas dígitos, removendo DDI 55 de 12 ou 13 dígitos)
@@ -1220,7 +1264,7 @@ BEGIN
       msg_whatsapp_geral, rodape_whatsapp_geral, copia_whatsapp_geral_ativa,
       ocultar_nomes_escala,
       bloquear_conflito_horario, limite_vagas_semana, limite_vagas_dia, limite_vagas_ponto,
-      cotas_pontos_ids, created_at
+      cotas_pontos_ids, escala_abre_em, escala_abre_pontos_ids, created_at
     INTO v_empresa
     FROM public.empresas
     WHERE codigo_escala = v_raw
@@ -1240,7 +1284,7 @@ BEGIN
         msg_whatsapp_geral, rodape_whatsapp_geral, copia_whatsapp_geral_ativa,
         ocultar_nomes_escala,
         bloquear_conflito_horario, limite_vagas_semana, limite_vagas_dia, limite_vagas_ponto,
-        cotas_pontos_ids, created_at
+        cotas_pontos_ids, escala_abre_em, escala_abre_pontos_ids, created_at
       INTO v_empresa
       FROM public.empresas
       WHERE lower(slug) = v_slug
@@ -1299,6 +1343,7 @@ BEGIN
           'cabecalho_whatsapp', p.cabecalho_whatsapp,
           'rodape_whatsapp', p.rodape_whatsapp,
           'copia_whatsapp_ativa', p.copia_whatsapp_ativa,
+          'escala_abre_em', p.escala_abre_em,
           'created_at', p.created_at
         )
         ORDER BY p.ordem ASC
@@ -2588,6 +2633,78 @@ BEGIN
 END;
 $$;
 
+-- 4.8 RPC Administrativa: Agendamento de Abertura da Escala com Realtime (Global, Grupo ou Ponto Individual)
+DROP FUNCTION IF EXISTS public.atualizar_agendamento_escala(UUID, TIMESTAMPTZ);
+DROP FUNCTION IF EXISTS public.atualizar_agendamento_escala(UUID, TIMESTAMPTZ, UUID[]);
+DROP FUNCTION IF EXISTS public.atualizar_agendamento_escala(UUID, TIMESTAMPTZ, UUID[], UUID);
+
+CREATE OR REPLACE FUNCTION public.atualizar_agendamento_escala(
+  p_empresa_id UUID,
+  p_abre_em    TIMESTAMPTZ DEFAULT NULL,
+  p_pontos_ids UUID[] DEFAULT NULL,
+  p_ponto_id   UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_empresa          RECORD;
+  v_pontos_filtrados UUID[] := NULL;
+BEGIN
+  IF auth.uid() IS NULL OR NOT public.has_empresa_role(p_empresa_id, ARRAY['admin']) THEN
+    RAISE EXCEPTION 'Acesso negado: Apenas administradores autenticados podem agendar a abertura da escala.';
+  END IF;
+
+  IF p_abre_em IS NOT NULL AND p_abre_em <= clock_timestamp() THEN
+    RAISE EXCEPTION 'A data de abertura programada deve ser futura ou nula para liberação imediata.';
+  END IF;
+
+  -- Cenário A: Agendamento individual para um ponto específico
+  IF p_ponto_id IS NOT NULL THEN
+    UPDATE public.pontos
+    SET escala_abre_em = p_abre_em
+    WHERE id = p_ponto_id
+      AND empresa_id = p_empresa_id;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Ponto de captação não encontrado nesta empresa.';
+    END IF;
+
+  -- Cenário B: Agendamento geral ou para grupo de pontos selecionados
+  ELSE
+    IF p_pontos_ids IS NOT NULL AND cardinality(p_pontos_ids) > 0 THEN
+      SELECT array_agg(id ORDER BY ordem ASC)
+      INTO v_pontos_filtrados
+      FROM public.pontos
+      WHERE empresa_id = p_empresa_id
+        AND id = ANY(p_pontos_ids);
+    END IF;
+
+    UPDATE public.empresas
+    SET
+      escala_abre_em         = p_abre_em,
+      escala_abre_pontos_ids = v_pontos_filtrados
+    WHERE id = p_empresa_id
+    RETURNING * INTO v_empresa;
+
+    IF v_empresa.id IS NULL THEN
+      RAISE EXCEPTION 'Empresa não encontrada.';
+    END IF;
+  END IF;
+
+  -- Notificação Realtime imediata via escala_sync
+  INSERT INTO public.escala_sync (empresa_id, updated_at)
+  VALUES (p_empresa_id, now())
+  ON CONFLICT (empresa_id) DO UPDATE
+  SET updated_at = now();
+
+  SELECT * INTO v_empresa FROM public.empresas WHERE id = p_empresa_id;
+  RETURN to_jsonb(v_empresa);
+END;
+$$;
+
 -- ============================================================
 -- 8. PERMISSÕES E PRIVILÉGIOS GRANULARES (GRANTS / REVOKES)
 -- ============================================================
@@ -2635,6 +2752,7 @@ REVOKE ALL ON FUNCTION public.atualizar_termos_empresa(UUID, JSONB) FROM PUBLIC,
 REVOKE ALL ON FUNCTION public.atualizar_whatsapp_ponto(UUID, UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.atualizar_whatsapp_empresa(UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.atualizar_regras_escala(UUID, BOOLEAN, INT, INT, INT, UUID[]) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.atualizar_agendamento_escala(UUID, TIMESTAMPTZ, UUID[], UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.vincular_usuario_empresa(TEXT, UUID, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.desvincular_usuario_empresa(UUID, UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.get_gestores_empresa(UUID) FROM PUBLIC, anon, authenticated;
@@ -2683,6 +2801,7 @@ GRANT EXECUTE ON FUNCTION public.atualizar_termos_empresa(UUID, JSONB) TO authen
 GRANT EXECUTE ON FUNCTION public.atualizar_whatsapp_ponto(UUID, UUID, TEXT, TEXT) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.atualizar_whatsapp_empresa(UUID, TEXT, TEXT) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.atualizar_regras_escala(UUID, BOOLEAN, INT, INT, INT, UUID[]) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.atualizar_agendamento_escala(UUID, TIMESTAMPTZ, UUID[], UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.vincular_usuario_empresa(TEXT, UUID, TEXT) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.desvincular_usuario_empresa(UUID, UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_gestores_empresa(UUID) TO authenticated, service_role;

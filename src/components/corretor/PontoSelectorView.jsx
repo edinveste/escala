@@ -1,6 +1,7 @@
-import { MapPin, Store } from 'lucide-react'
+import { MapPin, Store, Lock } from 'lucide-react'
 import CorretorIdentityHeader from './CorretorIdentityHeader'
 import CorretorCopyFooter from './CorretorCopyFooter'
+import { obterAberturaPonto, formatarDataAberturaCurta } from '../../lib/aberturaHelper'
 
 /**
  * Visualização pública inicial do colaborador para seleção do ponto de escala.
@@ -73,6 +74,7 @@ export default function PontoSelectorView({
             resumoColaborador?.regras?.cotasPontosIds &&
             resumoColaborador?.pontoTemCota?.(ponto.id)
           )
+          const abertura = obterAberturaPonto(ponto, empresa)
 
           return (
             <button
@@ -82,18 +84,30 @@ export default function PontoSelectorView({
               className="card w-full text-left hover:border-brand-500/40 hover:bg-surface-700/50 transition-all duration-200 active:scale-[0.98]"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20 flex-shrink-0">
-                  <MapPin className="w-5 h-5 text-brand-400" />
+                <div
+                  className={`p-2.5 rounded-xl border flex-shrink-0 ${
+                    abertura.estaAgendado
+                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                      : 'bg-brand-500/10 border-brand-500/20 text-brand-400'
+                  }`}
+                >
+                  <MapPin className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-100 text-[15px] truncate">
                     {ponto.nome}
                   </h3>
-                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  <div className="flex items-center gap-2.5 mt-1 flex-wrap">
                     <span className="text-xs text-gray-500">
                       {info.totalTurnos || 0} turno{info.totalTurnos !== 1 ? 's' : ''}
                     </span>
-                    {info.totalCapacidade > 0 && (
+
+                    {abertura.estaAgendado ? (
+                      <span className="text-[11px] font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                        <Lock className="w-3 h-3" />
+                        Abre {formatarDataAberturaCurta(abertura.dataAbertura)}
+                      </span>
+                    ) : info.totalCapacidade > 0 ? (
                       <span
                         className={`text-xs font-medium ${
                           temVagas
@@ -105,7 +119,8 @@ export default function PontoSelectorView({
                           ? `${info.vagasLivres} vaga${info.vagasLivres !== 1 ? 's' : ''} livre${info.vagasLivres !== 1 ? 's' : ''}`
                           : 'Lotado'}
                       </span>
-                    )}
+                    ) : null}
+
                     {cotaRestritaNestePonto && (
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-700 dark:text-brand-300 border border-brand-500/20">
                         Com limite
@@ -115,15 +130,24 @@ export default function PontoSelectorView({
                 </div>
 
                 {/* Indicador visual de disponibilidade */}
-                <div
-                  className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                    info.totalCapacidade === 0
-                      ? 'bg-gray-600'
-                      : temVagas
-                      ? 'bg-emerald-400 animate-pulse-soft'
-                      : 'bg-red-500'
-                  }`}
-                />
+                {abertura.estaAgendado ? (
+                  <div
+                    className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-500 flex-shrink-0"
+                    title={`Abertura programada: ${formatarDataAberturaCurta(abertura.dataAbertura)}`}
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                  </div>
+                ) : (
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                      info.totalCapacidade === 0
+                        ? 'bg-gray-600'
+                        : temVagas
+                        ? 'bg-emerald-400 animate-pulse-soft'
+                        : 'bg-red-500'
+                    }`}
+                  />
+                )}
               </div>
             </button>
           )

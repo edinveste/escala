@@ -14,7 +14,7 @@ import {
 import { DEMO_EMPRESA } from '../lib/demoData'
 
 const PUBLIC_EMPRESA_COLUMNS =
-  'id, nome, slug, codigo_escala, logo_url, cor_primaria, plano, status, exigir_cadastro_previo, tipo_validacao_equipe, termos, msg_whatsapp_geral, rodape_whatsapp_geral, copia_whatsapp_geral_ativa, ocultar_nomes_escala, created_at'
+  'id, nome, slug, codigo_escala, logo_url, cor_primaria, plano, status, exigir_cadastro_previo, tipo_validacao_equipe, termos, msg_whatsapp_geral, rodape_whatsapp_geral, copia_whatsapp_geral_ativa, ocultar_nomes_escala, bloquear_conflito_horario, limite_vagas_semana, limite_vagas_dia, limite_vagas_ponto, cotas_pontos_ids, escala_abre_em, created_at'
 
 const TenantContext = createContext(null)
 
@@ -309,9 +309,16 @@ export function TenantProvider({ children }) {
     [carregarEmpresa]
   )
 
-  const refreshEmpresa = useCallback(() => {
-    return carregarEmpresa(identifier)
-  }, [identifier, carregarEmpresa])
+  const refreshEmpresa = useCallback(
+    (novaEmpresa) => {
+      if (novaEmpresa && typeof novaEmpresa === 'object' && novaEmpresa.id) {
+        setEmpresa((prev) => ({ ...prev, ...novaEmpresa }))
+        return Promise.resolve(novaEmpresa)
+      }
+      return carregarEmpresa(identifier)
+    },
+    [identifier, carregarEmpresa]
+  )
 
   return (
     <TenantContext.Provider

@@ -22,6 +22,8 @@ export default function DiaAcordeonItem({
   termos = {},
   ocultarNomes = false,
   resumoColaborador = null,
+  escalaBloqueadaPorAgendamento = false,
+  escalaAbreEm = null,
 }) {
   const totalCapacidadeDia = turnosDoDia.reduce((sum, t) => sum + t.capacidade, 0)
   const totalReservadosDia = turnosDoDia.reduce(
@@ -120,6 +122,8 @@ export default function DiaAcordeonItem({
               acaoCancelar={termos.acaoCancelar}
               ocultarNomes={ocultarNomes}
               bloqueioRegra={resumoColaborador?.analisarTurno?.(turno) || null}
+              escalaBloqueadaPorAgendamento={escalaBloqueadaPorAgendamento}
+              escalaAbreEm={escalaAbreEm}
             />
           ))}
         </div>

@@ -1,9 +1,11 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import { formatarNomeDia, compararDias } from '../lib/diasSemana'
 import { obterTermos } from '../lib/vocabularioHelper'
 import { calcularResumoColaborador } from '../lib/horarioHelper'
+import { obterAberturaPonto, calcularStatusGeralPontos } from '../lib/aberturaHelper'
 import { useDiasAcordeon } from './corretor/useDiasAcordeon'
 import { gerarTextoEscala, copiarTextoParaClipboard } from './corretor/escalaTextoHelper'
+import { CountdownTimerBanner } from './corretor/countdown'
 import PontoSelectorView from './corretor/PontoSelectorView'
 import PontoTurnosView from './corretor/PontoTurnosView'
 
@@ -29,6 +31,7 @@ export default function CorretorView({
 }) {
   const [copied, setCopied] = useState(false)
   const [selectedPontoId, setSelectedPontoId] = useState(null)
+  const [aberturaConcluidaLocal, setAberturaConcluidaLocal] = useState(false)
   const termos = useMemo(() => obterTermos(empresa), [empresa])
 
   // Ponto atualmente selecionado
@@ -36,6 +39,53 @@ export default function CorretorView({
     () => pontos.find((p) => p.id === selectedPontoId),
     [pontos, selectedPontoId]
   )
+
+  // Status de Abertura Programada do ponto selecionado
+  const infoAberturaPonto = useMemo(() => {
+    if (!selectedPonto) return { estaAgendado: false, dataAbertura: null }
+    return obterAberturaPonto(selectedPonto, empresa)
+  }, [selectedPonto, empresa])
+
+  // Status de abertura consolidado de todos os pontos ativos
+  const statusGeralAbertura = useMemo(() => {
+    return calcularStatusGeralPontos(pontos, empresa)
+  }, [pontos, empresa])
+
+  // Menor data de abertura entre os pontos agendados
+  const menorDataAberturaGeral = useMemo(() => {
+    if (!statusGeralAbertura.pontosAgendados.length) return null
+    const timestamps = statusGeralAbertura.pontosAgendados
+      .map((item) => new Date(item.dataAbertura).getTime())
+      .filter((t) => !isNaN(t))
+    if (!timestamps.length) return null
+    return new Date(Math.min(...timestamps)).toISOString()
+  }, [statusGeralAbertura])
+
+  // Reset de destravamento ao alternar de ponto ou atualizar horários
+  useEffect(() => {
+    setAberturaConcluidaLocal(false)
+  }, [selectedPontoId, infoAberturaPonto.dataAbertura, empresa?.escala_abre_em])
+
+  // Bloqueio efetivo para o ponto aberto no momento
+  const pontoBloqueadoPorAgendamento = useMemo(() => {
+    if (!infoAberturaPonto.estaAgendado || aberturaConcluidaLocal) return false
+    const targetMs = new Date(infoAberturaPonto.dataAbertura).getTime()
+    return !isNaN(targetMs) && targetMs > Date.now()
+  }, [infoAberturaPonto, aberturaConcluidaLocal])
+
+  // Bloqueio geral quando todos os pontos estão agendados
+  const todosPontosBloqueados = useMemo(() => {
+    if (!statusGeralAbertura.todosAgendados || aberturaConcluidaLocal || !menorDataAberturaGeral) {
+      return false
+    }
+    const targetMs = new Date(menorDataAberturaGeral).getTime()
+    return !isNaN(targetMs) && targetMs > Date.now()
+  }, [statusGeralAbertura, aberturaConcluidaLocal, menorDataAberturaGeral])
+
+  const handleAberturaFinalizada = useCallback(() => {
+    setAberturaConcluidaLocal(true)
+    showToast?.('🎉 Escala liberada! As reservas estão abertas.', 'success')
+  }, [showToast])
 
   // Turnos filtrados pelo ponto selecionado
   const turnosFiltrados = useMemo(
@@ -157,55 +207,71 @@ export default function CorretorView({
     selectedPonto?.copia_whatsapp_ativa !== false &&
     empresa?.termos?.copiaWhatsappPontos?.[selectedPontoId] !== false
 
-  // Se nenhum ponto foi selecionado, exibe a lista de pontos
-  if (!selectedPontoId) {
-    return (
-      <PontoSelectorView
-        pontos={pontos}
-        vagasPorPonto={vagasPorPonto}
-        termos={termos}
-        empresa={empresa}
-        corretorNome={corretorNome}
-        corretorWhatsapp={corretorWhatsapp}
-        corretorEmail={corretorEmail}
-        cadastroNaoAutorizado={cadastroNaoAutorizado}
-        onEditarPerfil={onEditarPerfil}
-        onSelectPonto={setSelectedPontoId}
-        onCopiar={handleCopiar}
-        copied={copied}
-        podeCopiar={podeCopiarGeral}
-        resumoColaborador={resumoColaborador}
-      />
-    )
-  }
-
-  // Visualização detalhada dos turnos do ponto selecionado
   return (
-    <PontoTurnosView
-      selectedPonto={selectedPonto}
-      turnosFiltrados={turnosFiltrados}
-      turnosPorDia={turnosPorDia}
-      reservasPorTurno={reservasPorTurno}
-      diasOrdenados={diasOrdenados}
-      isDiaAberto={isDiaAberto}
-      toggleDia={toggleDia}
-      toggleTodosDias={toggleTodosDias}
-      algumDiaExpandido={algumDiaExpandido}
-      deviceId={deviceId}
-      corretorNome={corretorNome}
-      corretorWhatsapp={corretorWhatsapp}
-      corretorEmail={corretorEmail}
-      cadastroNaoAutorizado={cadastroNaoAutorizado}
-      onEditarPerfil={onEditarPerfil}
-      onVoltar={() => setSelectedPontoId(null)}
-      onReservar={onReservar}
-      onCancelar={onCancelar}
-      onCopiar={handleCopiar}
-      copied={copied}
-      podeCopiar={podeCopiarPonto}
-      termos={termos}
-      ocultarNomes={Boolean(empresa?.ocultar_nomes_escala || empresa?.termos?.ocultarNomesEscala)}
-      resumoColaborador={resumoColaborador}
-    />
+    <>
+      {/* Banner de contagem regressiva para todos os pontos (quando nenhum ponto selecionado e todos agendados) */}
+      {!selectedPontoId && todosPontosBloqueados && (
+        <CountdownTimerBanner
+          targetDate={menorDataAberturaGeral}
+          onFinish={handleAberturaFinalizada}
+        />
+      )}
+
+      {/* Banner de contagem regressiva específico do ponto aberto */}
+      {selectedPontoId && pontoBloqueadoPorAgendamento && (
+        <CountdownTimerBanner
+          targetDate={infoAberturaPonto.dataAbertura}
+          onFinish={handleAberturaFinalizada}
+        />
+      )}
+
+      {!selectedPontoId ? (
+        <PontoSelectorView
+          pontos={pontos}
+          vagasPorPonto={vagasPorPonto}
+          termos={termos}
+          empresa={empresa}
+          corretorNome={corretorNome}
+          corretorWhatsapp={corretorWhatsapp}
+          corretorEmail={corretorEmail}
+          cadastroNaoAutorizado={cadastroNaoAutorizado}
+          onEditarPerfil={onEditarPerfil}
+          onSelectPonto={setSelectedPontoId}
+          onCopiar={handleCopiar}
+          copied={copied}
+          podeCopiar={podeCopiarGeral}
+          resumoColaborador={resumoColaborador}
+        />
+      ) : (
+        <PontoTurnosView
+          selectedPonto={selectedPonto}
+          turnosFiltrados={turnosFiltrados}
+          turnosPorDia={turnosPorDia}
+          reservasPorTurno={reservasPorTurno}
+          diasOrdenados={diasOrdenados}
+          isDiaAberto={isDiaAberto}
+          toggleDia={toggleDia}
+          toggleTodosDias={toggleTodosDias}
+          algumDiaExpandido={algumDiaExpandido}
+          deviceId={deviceId}
+          corretorNome={corretorNome}
+          corretorWhatsapp={corretorWhatsapp}
+          corretorEmail={corretorEmail}
+          cadastroNaoAutorizado={cadastroNaoAutorizado}
+          onEditarPerfil={onEditarPerfil}
+          onVoltar={() => setSelectedPontoId(null)}
+          onReservar={onReservar}
+          onCancelar={onCancelar}
+          onCopiar={handleCopiar}
+          copied={copied}
+          podeCopiar={podeCopiarPonto}
+          termos={termos}
+          ocultarNomes={Boolean(empresa?.ocultar_nomes_escala || empresa?.termos?.ocultarNomesEscala)}
+          resumoColaborador={resumoColaborador}
+          escalaBloqueadaPorAgendamento={pontoBloqueadoPorAgendamento}
+          escalaAbreEm={infoAberturaPonto.dataAbertura}
+        />
+      )}
+    </>
   )
 }

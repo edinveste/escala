@@ -1320,3 +1320,26 @@ npm run build
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros (`vite build`).
 
+
+---
+
+## 41. Padronização e Refatoração Visual do Card de Abertura Programada — Novembro/2026
+- **Contexto e Causa Raiz do Problema**:
+  - O card de Abertura Programada (`AgendamentoAberturaCard.jsx`) na aba de Configurações do painel administrativo apresentava distribuição visual desproporcional e elementos comprimidos:
+    - O título principal e o badge de status agendado continham textos longos em caixa alta (`AGENDADA (2 PONTOS DE CAPTAÇÃO SELECIONADOS)`), que quebravam em múltiplas linhas devido à compressão exercida pelos botões fixados à direita.
+    - O card não seguia o padrão de altura compacta e acordeon retrátil com chevron rotativo (`v` / `^`) adotado pelo card irmão `RegrasEscalaCard.jsx`.
+- **Soluções Implementadas**:
+  1. `src/components/admin/abertura/AgendamentoAberturaCard.jsx`:
+     - **Padrão Retrátil (Expand/Collapse)**: Implementado cabeçalho clicável com chevron (`ChevronDown`) rotativo de 180°, mantendo a mesma altura uniforme, tokens semânticos (`card bg-surface-800/90 border-surface-600 space-y-3`) e espaçamentos dos demais cards da tela (`min-h-[44px]`).
+     - **Distribuição Visual Limpa e Sem Quebras**:
+       - Título conciso: *"Abertura Programada"* com ícone `CalendarClock`.
+       - Badge inteligente e compacto: exibe *"Agendada (2 locais)"*, *"Agendada (Geral)"* ou *"Aberta"*, evitando quebras de linha em telas estreitas.
+       - Subtítulo em linha única truncada: resume a data de abertura e a contagem regressiva ativa (ex: *"Abertura em Sex (13/11) às 21:45 • Faltam 10:54:46"*).
+     - **Painel Expandido Detalhado**:
+       - Quando agendada: exibe painel com Data Completa de Liberação, Escopo completo com nomes dos locais selecionados, contador de contagem regressiva com dígitos monoespaçados (`CountdownBadge`) e nota informativa da trava automática.
+       - Quando locais individuais agendados: lista com tags e horários de cada ponto programado.
+       - Quando aberta: orientação de funcionamento da trava e contagem regressiva.
+     - **Barra de Ações Ampla e Touch-Friendly**:
+       - Botão *"Liberar Agora"* e botão *"Alterar Horário"* / *"Programar Abertura"* movidos para a área expandida com espaçamento adequado, touch targets confortáveis (min-h: 40px) e sem espremer o cabeçalho.
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros (`vite build`).

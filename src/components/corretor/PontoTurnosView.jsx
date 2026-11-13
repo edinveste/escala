@@ -32,6 +32,8 @@ export default function PontoTurnosView({
   termos = {},
   ocultarNomes = false,
   resumoColaborador = null,
+  escalaBloqueadaPorAgendamento = false,
+  escalaAbreEm = null,
 }) {
   return (
     <>
@@ -129,6 +131,8 @@ export default function PontoTurnosView({
               termos={termos}
               ocultarNomes={ocultarNomes}
               resumoColaborador={resumoColaborador}
+              escalaBloqueadaPorAgendamento={escalaBloqueadaPorAgendamento}
+              escalaAbreEm={escalaAbreEm}
             />
           ))}
         </div>

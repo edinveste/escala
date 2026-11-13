@@ -59,6 +59,8 @@ export default function AdminView({
     setShowModalVocabulario,
     showModalWhatsapp,
     setShowModalWhatsapp,
+    showModalAgendamento,
+    setShowModalAgendamento,
   } = useAdminView({
     pontos,
     turnos,
@@ -149,6 +151,7 @@ export default function AdminView({
                 isFullAdmin={isFullAdmin}
                 termos={termos}
                 onAbrirModalWhatsapp={(pontoId) => setShowModalWhatsapp(pontoId)}
+                onAbrirModalAbertura={(pontoId) => setShowModalAgendamento(pontoId || true)}
               />
             </div>
           )}
@@ -159,6 +162,7 @@ export default function AdminView({
               empresa={empresa}
               pontos={pontos}
               onEmpresaUpdated={onEmpresaUpdated}
+              onDataChanged={onDataChanged}
               showToast={showToast}
               isFullAdmin={isFullAdmin}
               termos={termos}
@@ -177,6 +181,7 @@ export default function AdminView({
             empresa={empresa}
             pontos={pontos}
             onEmpresaUpdated={onEmpresaUpdated}
+            onDataChanged={onDataChanged}
             showToast={showToast}
             isFullAdmin={isFullAdmin}
             termos={termos}
@@ -209,6 +214,7 @@ export default function AdminView({
             isFullAdmin={isFullAdmin}
             termos={termos}
             onAbrirModalWhatsapp={(pontoId) => setShowModalWhatsapp(pontoId)}
+            onAbrirModalAbertura={(pontoId) => setShowModalAgendamento(pontoId || true)}
           />
 
           <AdminTabEscala
@@ -253,6 +259,8 @@ export default function AdminView({
         onCloseVocabulario={() => setShowModalVocabulario(false)}
         showModalWhatsapp={showModalWhatsapp}
         onCloseWhatsapp={() => setShowModalWhatsapp(false)}
+        showModalAgendamento={showModalAgendamento}
+        onCloseAgendamento={() => setShowModalAgendamento(false)}
         pontos={pontos}
         empresaId={empresaId}
         empresa={empresa}

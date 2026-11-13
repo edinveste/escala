@@ -1,6 +1,28 @@
 import { useMemo } from 'react'
 import { Clock, Users, CheckCircle2, XCircle, User, Lock, AlertTriangle } from 'lucide-react'
 
+function formatarHoraAberturaCurta(isoDate) {
+  if (!isoDate) return 'Abre em breve'
+  try {
+    const d = new Date(isoDate)
+    if (isNaN(d.getTime())) return 'Abre em breve'
+    const agora = new Date()
+    const mesmoDia =
+      d.getDate() === agora.getDate() &&
+      d.getMonth() === agora.getMonth() &&
+      d.getFullYear() === agora.getFullYear()
+
+    const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    if (mesmoDia) {
+      return `Abre às ${hora}`
+    }
+    const diaMes = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    return `Abre ${diaMes} às ${hora}`
+  } catch {
+    return 'Abre em breve'
+  }
+}
+
 export default function TurnoCard({
   turno,
   reservas,
@@ -14,6 +36,8 @@ export default function TurnoCard({
   acaoCancelar,
   ocultarNomes = false,
   bloqueioRegra = null,
+  escalaBloqueadaPorAgendamento = false,
+  escalaAbreEm = null,
 }) {
   const vagasOcupadas = reservas.length
   const vagasTotal = turno.capacidade
@@ -151,6 +175,15 @@ export default function TurnoCard({
         >
           <Users className="w-4.5 h-4.5" />
           Esgotado
+        </button>
+      ) : escalaBloqueadaPorAgendamento ? (
+        <button
+          disabled
+          className="btn-ghost w-full flex items-center justify-center gap-2 text-sm opacity-85 cursor-not-allowed border border-surface-600/80 bg-surface-700/50 text-gray-300 font-medium transition-all"
+          title="Abertura programada: as reservas serão liberadas automaticamente no segundo exato agendado."
+        >
+          <Lock className="w-4 h-4 text-amber-500 dark:text-amber-400 flex-shrink-0" />
+          <span>{formatarHoraAberturaCurta(escalaAbreEm)}</span>
         </button>
       ) : bloqueioRegra?.bloqueado ? (
         <button

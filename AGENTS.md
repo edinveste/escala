@@ -60,6 +60,7 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
    - `limite_vagas_dia` (int nullable, cota diária máxima por colaborador)
    - `limite_vagas_ponto` (int nullable, cota máxima por ponto/local por colaborador)
    - `cotas_pontos_ids` (uuid[] nullable, lista de pontos sujeitos às cotas; `NULL` = todos os pontos)
+   - `escala_abre_em` (timestamptz nullable, data/hora futura de abertura programada das reservas; `NULL` = aberta imediatamente)
    - `created_at` (timestamptz)
 2. **`perfis`** (Perfis de Usuários Supabase Auth):
    - `id` (uuid, PK REFERENCES `auth.users.id` ON DELETE CASCADE)
@@ -112,9 +113,12 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
 ### RPCs Críticas (PostgreSQL):
 - **`reservar_vaga(p_turno_id, p_corretor_nome, p_device_id, p_corretor_whatsapp DEFAULT NULL, p_corretor_email DEFAULT NULL)`**:
   - Serializa requisições simultâneas do mesmo colaborador via `pg_advisory_xact_lock` e trava o turno com `FOR UPDATE OF t`.
+  - Valida blindagem anti-bypass de abertura programada (`escala_abre_em` futuro bloqueia reservas antes do segundo exato com mensagem amigável no fuso America/Sao_Paulo).
   - Se `exigir_cadastro_previo` estiver ativo na empresa, valida estritamente contra `equipe_corretores` e vincula o `device_id`.
   - Valida bloqueio de conflito de horário (mesmo dia normalizado em qualquer ponto ativo, tratando virada de meia-noite e fallback via `extrair_horarios_turno`) e cotas (`limite_vagas_semana`, `limite_vagas_dia`, `limite_vagas_ponto`).
   - Insere a reserva vinculando automaticamente `empresa_id`, `device_id`, WhatsApp e E-mail.
+- **`atualizar_agendamento_escala(p_empresa_id, p_abre_em DEFAULT NULL, p_pontos_ids DEFAULT NULL, p_ponto_id DEFAULT NULL)`** (Fase 16):
+  - Exige `auth.uid() IS NOT NULL` e papel `'admin'` ou `'gestor'` na empresa para configurar data/hora de abertura futura ou `NULL` para liberar imediatamente. Suporta escopo Global (`NULL`), seleção de pontos (`p_pontos_ids UUID[]`) ou ponto individual (`p_ponto_id UUID` atualiza `pontos.escala_abre_em`). Quando `p_abre_em IS NULL`, limpa automaticamente `termos` (`escala_abre_em`, `escala_abre_pontos_ids`, `aberturaPontos`) e zera `pontos.escala_abre_em`. Notifica em tempo real via `escala_sync`.
 - **`atualizar_regras_escala(p_empresa_id, p_bloquear_conflito, p_limite_semana, p_limite_dia, p_limite_ponto, p_cotas_pontos_ids)`** (Fase 15):
   - Exige `auth.uid() IS NOT NULL` e papel `'admin'` na empresa para configurar bloqueio de conflitos, cotas e o escopo de pontos (`NULL` = todos, ou array de UUIDs).
 - **`cancelar_vaga(p_reserva_id, p_device_id)`**:
@@ -186,6 +190,7 @@ e:\Escala\
 ├── supabase_migration_fase13_onboarding_empresa.sql # Script de migração Fase 13: Onboarding Multi-Tenant, Nome da Empresa no Cadastro & Erradicação de Superadmin
 ├── supabase_migration_fase14_blindagem_seguranca.sql # Script de migração Fase 14: Blindagem RLS/RPCs, Realtime sem PII e Remoção do PIN Legado
 ├── supabase_migration_fase15_regras_escala.sql # Script de migração Fase 15: Bloqueio de Conflito de Horário & Cotas Anti-Monopólio
+├── supabase_migration_fase16_abertura_programada.sql # Script de migração Fase 16: Abertura Programada com Contagem Regressiva e Destravamento Automático
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -211,6 +216,7 @@ e:\Escala\
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
     │   ├── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
     │   ├── horarioHelper.js     # Parsing de horários legados, detecção de conflitos e cálculo de cotas
+    │   ├── aberturaHelper.js    # Resolução de datas de abertura por escopo (ponto, empresa, termos) e cálculo de status
     │   ├── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
     │   └── demoData.js          # Mock data e persistência local da escala demonstrativa sandbox (/demo)
     └── components/
@@ -228,6 +234,11 @@ e:\Escala\
         │   └── VocabularioModal.jsx          # Modal orquestrador enxuto com backdrop e ações
         ├── CorretorView.jsx     # Tela pública orquestradora do corretor (modularizada e enxuta)
         ├── corretor/            # Submódulos e componentes isolados da visão do corretor
+        │   ├── countdown/                 # Submódulos de contagem regressiva da escala pública (Fase 16)
+        │   │   ├── useCountdown.js          # Hook de timer 1s com suporte a callback onFinish
+        │   │   ├── CountdownBadge.jsx       # Mini card com algarismos tabulares monoespaçados anti-tremores
+        │   │   ├── CountdownTimerBanner.jsx # Banner informativo de abertura programada e destravamento
+        │   │   └── index.js
         │   ├── CorretorIdentityHeader.jsx # Saudação, resumo de cotas/regras e alerta de autorização
         │   ├── CorretorRegrasBanner.jsx   # Barra discreta com saldo de cotas e regras ativas
         │   ├── CorretorCopyFooter.jsx     # Barra fixa inferior com botão de copiar escala (WhatsApp)
@@ -287,6 +298,12 @@ e:\Escala\
         │   ├── RegrasEscalaCard.jsx       # Card de configuração de bloqueio de conflito de horários e cotas anti-monopólio
         │   ├── CotaStepperField.jsx       # Controle stepper touch-friendly de cota numérica ou Ilimitado
         │   ├── CotasPontosDropdown.jsx    # Menu suspenso multi-seleção para aplicar cotas a todos os pontos ou pontos específicos
+        │   ├── abertura/                  # Submódulos de Abertura Programada com Contagem Regressiva (Fase 16)
+        │   │   ├── useAgendamentoAbertura.js # Hook com suporte a escopo Global, Seleção e Individual, com 3-tier fallback
+        │   │   ├── AgendamentoAberturaCard.jsx # Card na aba de Configurações com status ao vivo, escopo e destravamento
+        │   │   ├── AgendamentoModal.jsx      # Modal com datetime-local touch-friendly, seletor de pontos e atalhos
+        │   │   ├── AberturaPontosSelector.jsx # Seletor touch-friendly de escopo de pontos (todos vs selecionados)
+        │   │   └── index.js
         │   ├── VocabularioCard.jsx        # Card de atalho para customização de vocabulário e nicho
         │   ├── whatsapp/                  # Submódulos isolados de customização do WhatsApp
         │   │   ├── useWhatsappConfig.js     # Hook de lógica, tags, preview e persistência multi-alvo (pontos e geral)

@@ -23,6 +23,7 @@ export default function PontosManager({
   isFullAdmin = true,
   termos = {},
   onAbrirModalWhatsapp,
+  onAbrirModalAbertura,
 }) {
   const {
     listaPontos,
@@ -76,6 +77,8 @@ export default function PontosManager({
           onDuplicar={abrirModalDuplicarPonto}
           onLimparEscala={onLimparEscala}
           onConfigWhatsapp={(ponto) => onAbrirModalWhatsapp?.(ponto.id)}
+          onAgendarAbertura={(pontoId) => onAbrirModalAbertura?.(pontoId)}
+          empresa={empresa}
         />
       </div>
 

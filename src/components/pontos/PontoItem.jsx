@@ -11,14 +11,18 @@ import {
   Trash2,
   MoreVertical,
   MessageSquare,
+  CalendarClock,
+  Clock,
 } from 'lucide-react'
 import PontoMobileMenu from './PontoMobileMenu'
+import { obterAberturaPonto, formatarDataAberturaCurta } from '../../lib/aberturaHelper'
 
 export default function PontoItem({
   ponto,
   index,
   qtdTurnos = 0,
   info = {},
+  empresa = null,
   isFullAdmin = true,
   onToggleAtivo,
   onRename,
@@ -26,12 +30,14 @@ export default function PontoItem({
   onDuplicar,
   onLimparEscala,
   onConfigWhatsapp,
+  onAgendarAbertura,
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [editingNome, setEditingNome] = useState(ponto.nome)
   const [menuMobileAberto, setMenuMobileAberto] = useState(false)
 
   const temVagas = (info.vagasLivres || 0) > 0
+  const infoAbertura = obterAberturaPonto(ponto, empresa)
 
   const handleStartEditing = () => {
     setEditingNome(ponto.nome)
@@ -121,6 +127,12 @@ export default function PontoItem({
                     : 'Lotado'}
                 </span>
               )}
+              {infoAbertura.estaAgendado && (
+                <span className="text-[11px] font-semibold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 inline-flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Abre {formatarDataAberturaCurta(infoAbertura.dataAbertura)}
+                </span>
+              )}
               <span className="text-[11px] font-semibold text-gray-400 bg-surface-800/80 px-1.5 py-0.5 rounded border border-surface-600/40">
                 #{index + 1}
               </span>
@@ -150,6 +162,25 @@ export default function PontoItem({
             {/* Ações Destrutivas / Estruturais (Apenas Administrador) */}
             {isFullAdmin && (
               <>
+                {onAgendarAbertura && (
+                  <button
+                    type="button"
+                    onClick={onAgendarAbertura}
+                    className={`p-2 rounded-lg transition-colors ${
+                      infoAbertura.estaAgendado
+                        ? 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'
+                        : 'hover:bg-amber-500/10 text-gray-400 hover:text-amber-400'
+                    }`}
+                    title={
+                      infoAbertura.estaAgendado
+                        ? `Abertura programada: ${formatarDataAberturaCurta(infoAbertura.dataAbertura)} (clique para alterar)`
+                        : 'Programar data e hora de abertura para este ponto'
+                    }
+                  >
+                    <CalendarClock className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
                 {onConfigWhatsapp && (
                   <button
                     type="button"
@@ -241,6 +272,7 @@ export default function PontoItem({
                 onLimparEscala={onLimparEscala}
                 onDelete={onDelete}
                 onConfigWhatsapp={onConfigWhatsapp}
+                onAgendarAbertura={onAgendarAbertura}
               />
             </div>
           )}

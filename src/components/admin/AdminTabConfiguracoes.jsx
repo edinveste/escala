@@ -2,6 +2,7 @@ import LinkSeguroManager from './LinkSeguroManager'
 import EmpresaNomeCard from './EmpresaNomeCard'
 import EscalaPrivacidadeCard from './EscalaPrivacidadeCard'
 import RegrasEscalaCard from './RegrasEscalaCard'
+import AgendamentoAberturaCard from './abertura/AgendamentoAberturaCard'
 import VocabularioCard from './VocabularioCard'
 import WhatsappConfigCard from './whatsapp/WhatsappConfigCard'
 
@@ -14,6 +15,7 @@ export default function AdminTabConfiguracoes({
   empresa,
   pontos = [],
   onEmpresaUpdated,
+  onDataChanged,
   showToast,
   isFullAdmin,
   termos,
@@ -51,6 +53,16 @@ export default function AdminTabConfiguracoes({
         showToast={showToast}
         isFullAdmin={isFullAdmin}
         termos={termos}
+      />
+
+      <AgendamentoAberturaCard
+        empresa={empresa}
+        pontos={pontos}
+        termos={termos}
+        onEmpresaUpdated={onEmpresaUpdated}
+        onDataChanged={onDataChanged}
+        showToast={showToast}
+        isFullAdmin={isFullAdmin}
       />
 
       <WhatsappConfigCard

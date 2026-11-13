@@ -42,7 +42,7 @@ export function ConfirmProvider({ children }) {
           confirmText={modalConfig.confirmText || 'Apagar tudo'}
           cancelText={modalConfig.cancelText || 'Cancelar'}
           badge={modalConfig.badge}
-          variant={modalConfig.variant || 'danger'}
+          variant={modalConfig.variant || modalConfig.type || 'danger'}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
         />

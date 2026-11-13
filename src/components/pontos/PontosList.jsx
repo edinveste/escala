@@ -8,6 +8,7 @@ export default function PontosList({
   setListaPontos,
   turnosPorPonto = {},
   vagasPorPonto = {},
+  empresa = null,
   isFullAdmin = true,
   salvarNovaOrdem,
   onToggleAtivo,
@@ -16,6 +17,7 @@ export default function PontosList({
   onDuplicar,
   onLimparEscala,
   onConfigWhatsapp,
+  onAgendarAbertura,
 }) {
   const listRef = useRef(null)
   const sortableRef = useRef(null)
@@ -95,6 +97,8 @@ export default function PontosList({
               onDuplicar={() => onDuplicar(ponto, qtdTurnos)}
               onLimparEscala={() => onLimparEscala(ponto.id)}
               onConfigWhatsapp={() => onConfigWhatsapp?.(ponto)}
+              onAgendarAbertura={() => onAgendarAbertura?.(ponto.id)}
+              empresa={empresa}
             />
           )
         })}

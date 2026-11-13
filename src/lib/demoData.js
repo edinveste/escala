@@ -20,6 +20,7 @@ export const DEMO_EMPRESA = {
   limite_vagas_dia: 2,
   limite_vagas_ponto: 2,
   cotas_pontos_ids: null,
+  escala_abre_em: null,
   termos: {
     preset: 'imobiliaria',
   },
