@@ -1,23 +1,22 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
-import { supabase } from '../../../lib/supabaseClient'
-import {
-  processarTagsWhatsapp,
-  obterCabecalhoPadrao,
-  obterRodapePadrao,
-} from '../../corretor/escalaTextoHelper'
-import { inserirTextoNoCursor } from './whatsappTextHelper'
+import { useState, useCallback, useMemo, useRef } from 'react'
+import { useWhatsappDrafts } from './useWhatsappDrafts'
+import { useTextareaCursor } from './useTextareaCursor'
+import { useWhatsappVisibility } from './useWhatsappVisibility'
+import { persistirWhatsappConfiguracoes } from './whatsappService'
+import { gerarTextoPreviewWhatsapp } from './whatsappPreviewHelper'
 
-const MODELO_SUGERIDO_GERAL = `🛑🛑🛑 ATENÇÃO EQUIPE 🛑🛑🛑
-📋 ESCALA DE CAPTAÇÃO — {empresa}
-
-Fiquem atentos aos seus horários e regras:
-👉 Cada turno conta com {capacidade}
-👉 Garanta sua vaga exclusivamente pelo link oficial do app`
-
-const MODELO_RODAPE_GERAL = `⚠️ IMPORTANTE:
-• Em caso de imprevisto, libere sua vaga com antecedência pelo app.
-• Pontualidade e respeito à escala são fundamentais. Boa captação a todos! 🚀`
-
+/**
+ * Hook orquestrador (Facade) de personalização do WhatsApp da escala.
+ *
+ * Compõe submódulos especializados:
+ * - `useWhatsappDrafts`: buffer em memória, alvos e troca sem perda de dados
+ * - `useTextareaCursor`: seleção, scroll e inserção inteligente no cursor
+ * - `useWhatsappVisibility`: visibilidade dos botões de cópia no painel e escala
+ * - `whatsappService`: persistência atômica no Supabase e contingência JSONB
+ * - `whatsappPreviewHelper`: formatação e tags do balão ao vivo
+ *
+ * Mantém 100% de compatibilidade com os consumidores da interface.
+ */
 export function useWhatsappConfig({
   isOpen = true,
   empresa,
@@ -28,464 +27,84 @@ export function useWhatsappConfig({
   showToast,
   onClose,
 }) {
-  const [alvoId, setAlvoId] = useState(initialAlvoId || 'geral')
-  const [cabecalho, setCabecalho] = useState('')
-  const [rodape, setRodape] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const cabecalhoRef = useRef(null)
-  const rodapeRef = useRef(null)
-  const selectionsRef = useRef({ cabecalho: null, rodape: null })
-  const pendingSelectionRef = useRef({ cabecalho: null, rodape: null })
-  const scrollRestoreRef = useRef({ cabecalho: null, rodape: null })
-
-  const limparSelecoes = useCallback(() => {
-    selectionsRef.current = { cabecalho: null, rodape: null }
-    pendingSelectionRef.current = { cabecalho: null, rodape: null }
-    scrollRestoreRef.current = { cabecalho: null, rodape: null }
+  // Ponte estável para resetar cursores sem acoplamento circular
+  const onClearSelectionsRef = useRef(null)
+  const handleClearSelections = useCallback(() => {
+    onClearSelectionsRef.current?.()
   }, [])
 
-  // Dicionário de rascunhos em memória para cada alvo (geral ou ponto individual)
-  // Estrutura: { [id]: { cabecalho: string, rodape: string, modificado: boolean } }
-  const [drafts, setDrafts] = useState({})
+  // 1. Gestão de rascunhos, buffer multi-alvo e textos ativos
+  const {
+    alvoId,
+    pontoAtual,
+    cabecalho,
+    setCabecalho,
+    rodape,
+    setRodape,
+    drafts,
+    mudarAlvo,
+    restaurarPadrao,
+  } = useWhatsappDrafts({
+    isOpen,
+    initialAlvoId,
+    empresa,
+    pontos,
+    onClearSelections: handleClearSelections,
+    showToast,
+  })
 
-  // Ponto atualmente selecionado (se não for 'geral')
-  const pontoAtual = useMemo(
-    () => (alvoId !== 'geral' ? pontos.find((p) => p.id === alvoId) : null),
-    [alvoId, pontos]
+  // 2. Manipulação de seleção, inserção no cursor e scroll dos textareas
+  const {
+    cabecalhoRef,
+    rodapeRef,
+    limparSelecoes,
+    registrarSelecao,
+    inserirTag,
+    inserirEmoji,
+  } = useTextareaCursor({
+    cabecalho,
+    rodape,
+    setCabecalho,
+    setRodape,
+  })
+
+  onClearSelectionsRef.current = limparSelecoes
+
+  // 3. Controle de visibilidade dos botões de cópia (Geral e Pontos)
+  const {
+    isCopiaGeralAtiva,
+    isCopiaPontoAtiva,
+    alternarCopiaGeral,
+    alternarCopiaPonto,
+  } = useWhatsappVisibility({
+    empresa,
+    pontos,
+    onEmpresaUpdated,
+    onDataChanged,
+    showToast,
+  })
+
+  // 4. Pré-visualização ao vivo do WhatsApp
+  const textoPreview = useMemo(
+    () =>
+      gerarTextoPreviewWhatsapp({
+        cabecalho,
+        rodape,
+        empresa,
+        pontoAtual,
+        alvoId,
+      }),
+    [cabecalho, rodape, empresa, pontoAtual, alvoId]
   )
 
-  // Obtém o valor salvo original no banco ou no JSONB empresas.termos
-  const getValorSalvo = useCallback(
-    (idDoAlvo) => {
-      if (idDoAlvo === 'geral') {
-        return {
-          cabecalho: empresa?.msg_whatsapp_geral || empresa?.termos?.msgWhatsappGeral || '',
-          rodape: empresa?.rodape_whatsapp_geral || empresa?.termos?.rodapeWhatsappGeral || '',
-        }
-      }
-      const p = pontos.find((item) => item.id === idDoAlvo)
-      return {
-        cabecalho: p?.cabecalho_whatsapp || empresa?.termos?.whatsappPontos?.[idDoAlvo]?.cabecalho || '',
-        rodape: p?.rodape_whatsapp || empresa?.termos?.whatsappPontos?.[idDoAlvo]?.rodape || '',
-      }
-    },
-    [empresa, pontos]
-  )
-
-  // Ao montar, abrir o modal ou mudar initialAlvoId, inicializa os campos com valores salvos ou padrões
-  useEffect(() => {
-    if (!isOpen) return
-    const id = initialAlvoId || 'geral'
-    setAlvoId(id)
-    const inicial = getValorSalvo(id)
-    const pAtual = id !== 'geral' ? pontos.find((p) => p.id === id) : null
-
-    const cabPadrao = obterCabecalhoPadrao({ alvoId: id, ponto: pAtual, empresa })
-    const rodPadrao = obterRodapePadrao({ empresa })
-
-    setCabecalho(inicial.cabecalho?.trim() ? inicial.cabecalho : cabPadrao)
-    setRodape(inicial.rodape?.trim() ? inicial.rodape : rodPadrao)
-    setDrafts({})
-    limparSelecoes()
-  }, [isOpen, initialAlvoId, getValorSalvo, pontos, empresa, limparSelecoes])
-
-  // Troca de alvo com buffer de rascunho: preserva as edições do alvo anterior
-  const mudarAlvo = useCallback(
-    (novoAlvoId) => {
-      if (novoAlvoId === alvoId) return
-
-      limparSelecoes()
-
-      setDrafts((prev) => {
-        const valorOriginalAtual = getValorSalvo(alvoId)
-        const pAtual = alvoId !== 'geral' ? pontos.find((p) => p.id === alvoId) : null
-        const cabPadraoAtual = obterCabecalhoPadrao({ alvoId, ponto: pAtual, empresa })
-        const rodPadraoAtual = obterRodapePadrao({ empresa })
-
-        const valorBaseCab = valorOriginalAtual.cabecalho || cabPadraoAtual
-        const valorBaseRod = valorOriginalAtual.rodape || rodPadraoAtual
-
-        const foiModificado =
-          prev[alvoId]?.modificado ||
-          cabecalho !== valorBaseCab ||
-          rodape !== valorBaseRod
-
-        const novosDrafts = {
-          ...prev,
-          [alvoId]: {
-            cabecalho,
-            rodape,
-            modificado: foiModificado,
-          },
-        }
-
-        // Recupera o rascunho do novo alvo ou o valor salvo original ou o padrão inicial
-        const novoPonto = novoAlvoId !== 'geral' ? pontos.find((p) => p.id === novoAlvoId) : null
-        const dadosNovoSalvo = getValorSalvo(novoAlvoId)
-        const novoCabPadrao = obterCabecalhoPadrao({ alvoId: novoAlvoId, ponto: novoPonto, empresa })
-        const novoRodPadrao = obterRodapePadrao({ empresa })
-
-        const dadosNovo = novosDrafts[novoAlvoId] || {
-          cabecalho: dadosNovoSalvo.cabecalho?.trim() ? dadosNovoSalvo.cabecalho : novoCabPadrao,
-          rodape: dadosNovoSalvo.rodape?.trim() ? dadosNovoSalvo.rodape : novoRodPadrao,
-        }
-
-        setCabecalho(dadosNovo.cabecalho || '')
-        setRodape(dadosNovo.rodape || '')
-
-        return novosDrafts
-      })
-
-      setAlvoId(novoAlvoId)
-    },
-    [alvoId, cabecalho, rodape, getValorSalvo, pontos, empresa, limparSelecoes]
-  )
-
-  // Atualiza cabeçalho sincronizando o rascunho do alvo ativo
-  const handleSetCabecalho = useCallback(
-    (novoValor) => {
-      setCabecalho((prevVal) => {
-        const val = typeof novoValor === 'function' ? novoValor(prevVal) : novoValor
-        setDrafts((prevDrafts) => ({
-          ...prevDrafts,
-          [alvoId]: {
-            cabecalho: val,
-            rodape: prevDrafts[alvoId]?.rodape ?? rodape,
-            modificado: true,
-          },
-        }))
-        return val
-      })
-    },
-    [alvoId, rodape]
-  )
-
-  // Atualiza rodapé sincronizando o rascunho do alvo ativo
-  const handleSetRodape = useCallback(
-    (novoValor) => {
-      setRodape((prevVal) => {
-        const val = typeof novoValor === 'function' ? novoValor(prevVal) : novoValor
-        setDrafts((prevDrafts) => ({
-          ...prevDrafts,
-          [alvoId]: {
-            cabecalho: prevDrafts[alvoId]?.cabecalho ?? cabecalho,
-            rodape: val,
-            modificado: true,
-          },
-        }))
-        return val
-      })
-    },
-    [alvoId, cabecalho]
-  )
-
-  // ─── Status de Visibilidade do Botão Copiar da Escala ───────────
-  const isCopiaGeralAtiva = useMemo(() => {
-    return (
-      empresa?.copia_whatsapp_geral_ativa !== false &&
-      empresa?.termos?.copiaWhatsappGeralAtiva !== false
-    )
-  }, [empresa])
-
-  const isCopiaPontoAtiva = useCallback(
-    (pId) => {
-      const p = pontos.find((item) => item.id === pId)
-      return (
-        p?.copia_whatsapp_ativa !== false &&
-        empresa?.termos?.copiaWhatsappPontos?.[pId] !== false
-      )
-    },
-    [pontos, empresa]
-  )
-
-  // ─── Alternar Visibilidade do Botão Copiar da Escala Geral ───────
-  const alternarCopiaGeral = useCallback(
-    async (e) => {
-      e?.stopPropagation?.()
-      if (!empresa?.id) return
-
-      const statusAtual = isCopiaGeralAtiva
-      const novoStatus = !statusAtual
-
-      try {
-        const novosTermos = {
-          ...(empresa.termos || {}),
-          copiaWhatsappGeralAtiva: novoStatus,
-        }
-
-        const payload = {
-          copia_whatsapp_geral_ativa: novoStatus,
-          termos: novosTermos,
-        }
-
-        const { error } = await supabase
-          .from('empresas')
-          .update(payload)
-          .eq('id', empresa.id)
-
-        if (error) {
-          await supabase
-            .from('empresas')
-            .update({ termos: novosTermos })
-            .eq('id', empresa.id)
-        }
-
-        onEmpresaUpdated?.({
-          ...empresa,
-          copia_whatsapp_geral_ativa: novoStatus,
-          termos: novosTermos,
-        })
-
-        showToast?.(
-          novoStatus
-            ? 'Botão de copiar Escala Geral liberado aos corretores! 👁️'
-            : 'Botão de copiar Escala Geral ocultado aos corretores. 🙈',
-          novoStatus ? 'success' : 'info'
-        )
-      } catch (err) {
-        console.error('Erro ao alternar cópia da escala geral:', err)
-        showToast?.('Erro ao atualizar visibilidade da cópia.', 'error')
-      }
-    },
-    [empresa, isCopiaGeralAtiva, onEmpresaUpdated, showToast]
-  )
-
-  // ─── Alternar Visibilidade do Botão Copiar de um Ponto ───────────
-  const alternarCopiaPonto = useCallback(
-    async (pontoId, e) => {
-      e?.stopPropagation?.()
-      const ponto = pontos.find((p) => p.id === pontoId)
-      if (!ponto) return
-
-      const statusAtual = isCopiaPontoAtiva(pontoId)
-      const novoStatus = !statusAtual
-
-      // Atualização otimista em memória
-      ponto.copia_whatsapp_ativa = novoStatus
-
-      try {
-        const { error } = await supabase
-          .from('pontos')
-          .update({ copia_whatsapp_ativa: novoStatus })
-          .eq('id', pontoId)
-
-        if (error) {
-          const novosTermos = {
-            ...(empresa?.termos || {}),
-            copiaWhatsappPontos: {
-              ...(empresa?.termos?.copiaWhatsappPontos || {}),
-              [pontoId]: novoStatus,
-            },
-          }
-          await supabase
-            .from('empresas')
-            .update({ termos: novosTermos })
-            .eq('id', empresa?.id)
-
-          onEmpresaUpdated?.({
-            ...empresa,
-            termos: novosTermos,
-          })
-        }
-
-        showToast?.(
-          novoStatus
-            ? `Botão de copiar escala de "${ponto.nome}" liberado aos corretores! 👁️`
-            : `Botão de copiar escala de "${ponto.nome}" ocultado aos corretores. 🙈`,
-          novoStatus ? 'success' : 'info'
-        )
-
-        onDataChanged?.()
-      } catch (err) {
-        console.error('Erro ao alternar cópia do ponto:', err)
-        showToast?.('Erro ao atualizar visibilidade da cópia do ponto.', 'error')
-      }
-    },
-    [pontos, isCopiaPontoAtiva, empresa, onEmpresaUpdated, onDataChanged, showToast]
-  )
-
-  // Registra a posição atual do cursor/seleção de um campo para sobreviver à perda de foco
-  const registrarSelecao = useCallback((campo, target) => {
-    if (!target) return
-    selectionsRef.current[campo] = {
-      start: target.selectionStart ?? 0,
-      end: target.selectionEnd ?? 0,
-    }
-  }, [])
-
-  // Obtém a seleção viva do elemento focado ou o último cursor registrado do campo
-  const obterSelecaoAtual = useCallback((campo) => {
-    const ref = campo === 'cabecalho' ? cabecalhoRef.current : rodapeRef.current
-    if (ref && document.activeElement === ref) {
-      return {
-        start: ref.selectionStart ?? 0,
-        end: ref.selectionEnd ?? 0,
-      }
-    }
-    return selectionsRef.current[campo]
-  }, [])
-
-  // Restaura foco, scroll e posição do cursor após o React atualizar o valor controlado
-  const aplicarCursorPendente = useCallback((campo) => {
-    const pos = pendingSelectionRef.current[campo]
-    const el = campo === 'cabecalho' ? cabecalhoRef.current : rodapeRef.current
-    if (pos === null || !el) return
-
-    pendingSelectionRef.current[campo] = null
-    const savedScroll = scrollRestoreRef.current[campo]
-    scrollRestoreRef.current[campo] = null
-
-    if (document.activeElement !== el) {
-      el.focus()
-    }
-    if (savedScroll !== null) {
-      el.scrollTop = savedScroll
-    }
-    el.setSelectionRange(pos, pos)
-  }, [])
-
-  useLayoutEffect(() => {
-    aplicarCursorPendente('cabecalho')
-  }, [cabecalho, aplicarCursorPendente])
-
-  useLayoutEffect(() => {
-    aplicarCursorPendente('rodape')
-  }, [rodape, aplicarCursorPendente])
-
-  // Insere texto (tag ou emoji) na posição exata do cursor do campo selecionado
-  const inserirNoCampo = useCallback(
-    (textoParaInserir, campo = 'cabecalho', { espacamentoInteligente = false } = {}) => {
-      const isCabecalho = campo === 'cabecalho'
-      const textoAtual = isCabecalho ? cabecalho : rodape
-      const el = isCabecalho ? cabecalhoRef.current : rodapeRef.current
-      const selecao = obterSelecaoAtual(campo)
-
-      if (el) {
-        scrollRestoreRef.current[campo] = el.scrollTop
-      }
-
-      const { novoTexto, novaPosicaoCursor } = inserirTextoNoCursor(
-        textoAtual,
-        textoParaInserir,
-        selecao,
-        { espacamentoInteligente }
-      )
-
-      selectionsRef.current[campo] = {
-        start: novaPosicaoCursor,
-        end: novaPosicaoCursor,
-      }
-
-      if (novoTexto === textoAtual) {
-        if (el) {
-          if (document.activeElement !== el) el.focus()
-          el.setSelectionRange(novaPosicaoCursor, novaPosicaoCursor)
-        }
-        return
-      }
-
-      pendingSelectionRef.current[campo] = novaPosicaoCursor
-
-      if (isCabecalho) {
-        handleSetCabecalho(novoTexto)
-      } else {
-        handleSetRodape(novoTexto)
-      }
-    },
-    [cabecalho, rodape, obterSelecaoAtual, handleSetCabecalho, handleSetRodape]
-  )
-
-  // Inserir tag no cursor ou ao final do campo
-  const inserirTag = useCallback(
-    (tag, campo = 'cabecalho') => {
-      inserirNoCampo(tag, campo, { espacamentoInteligente: true })
-    },
-    [inserirNoCampo]
-  )
-
-  // Inserir emoji diretamente no campo selecionado
-  const inserirEmoji = useCallback(
-    (emoji, campo = 'cabecalho') => {
-      inserirNoCampo(emoji, campo, { espacamentoInteligente: false })
-    },
-    [inserirNoCampo]
-  )
-
-  // Restaura para o padrão automático do sistema para o alvo atual
-  const restaurarPadrao = useCallback(() => {
-    const cabPadrao = obterCabecalhoPadrao({ alvoId, ponto: pontoAtual, empresa })
-    const rodPadrao = obterRodapePadrao({ empresa })
-    limparSelecoes()
-    handleSetCabecalho(cabPadrao)
-    handleSetRodape(rodPadrao)
-    showToast?.('Campos restaurados com o modelo padrão do sistema! ✨', 'info')
-  }, [alvoId, pontoAtual, empresa, limparSelecoes, handleSetCabecalho, handleSetRodape, showToast])
-
-  // Gera texto de exemplo para a prévia ao vivo
-  const textoPreview = useMemo(() => {
-    const nomeEmp = (empresa?.nome || 'Minha Imobiliária').toUpperCase()
-    const linkExemplo = window.location.origin
-    const nomePonto = pontoAtual ? pontoAtual.nome.toUpperCase() : 'TODOS OS PONTOS'
-
-    let txt = ''
-    if (cabecalho.trim()) {
-      txt += processarTagsWhatsapp(cabecalho, {
-        empresaNome: nomeEmp,
-        pontoNome: nomePonto,
-        capacidade: '2 por horário',
-        shareUrl: linkExemplo,
-      })
-      txt += '\n\n'
-    } else {
-      const padrao = obterCabecalhoPadrao({ alvoId, ponto: pontoAtual, empresa })
-      txt += processarTagsWhatsapp(padrao, {
-        empresaNome: nomeEmp,
-        pontoNome: nomePonto,
-        capacidade: '2 por horário',
-        shareUrl: linkExemplo,
-      })
-      txt += '\n\n'
-    }
-
-    if (!pontoAtual && !cabecalho.toLowerCase().includes('plantão principal') && !cabecalho.toLowerCase().includes('ponto')) {
-      txt += `📍 *PLANTÃO PRINCIPAL*\n\n`
-    }
-
-    txt += `📅 *SEGUNDA-FEIRA*\n\n`
-    txt += `🕐 08:00 às 10:00\n   → CARLOS SILVA / MARIANA SOUZA\n`
-    txt += `🕐 10:00 às 12:00\n   → _vago_\n\n`
-
-    // Linha separadora única antes do rodapé (sem segunda linha separando)
-    txt += `━━━━━━━━━━━━━━━━━━\n`
-
-    if (rodape.trim()) {
-      txt += processarTagsWhatsapp(rodape, {
-        empresaNome: nomeEmp,
-        pontoNome: nomePonto,
-        capacidade: '2 por horário',
-        shareUrl: linkExemplo,
-      })
-    } else {
-      const padraoRod = obterRodapePadrao({ empresa })
-      txt += processarTagsWhatsapp(padraoRod, {
-        empresaNome: nomeEmp,
-        pontoNome: nomePonto,
-        capacidade: '2 por horário',
-        shareUrl: linkExemplo,
-      })
-    }
-
-    return txt
-  }, [cabecalho, rodape, empresa, pontoAtual, alvoId])
-
-  // Salvar no Supabase — persiste de forma individual cada opção que foi editada
+  // 5. Orquestração de salvamento no Supabase
   const salvarConfiguracao = useCallback(async () => {
     if (!empresa?.id) return
 
     setSaving(true)
     try {
-      // 1. Consolida todos os rascunhos, incluindo o alvo que está aberto no momento
       const draftsFinais = {
         ...drafts,
         [alvoId]: {
@@ -495,7 +114,6 @@ export function useWhatsappConfig({
         },
       }
 
-      // Identifica todos os alvos que possuem alterações
       const alvosParaSalvar = Object.keys(draftsFinais).filter(
         (id) => draftsFinais[id]?.modificado !== false
       )
@@ -505,100 +123,13 @@ export function useWhatsappConfig({
         return
       }
 
-      let payloadGeral = null
-      const whatsappPontosMap = {}
-      const promessas = []
+      const { payloadGeral, novosTermos } = await persistirWhatsappConfiguracoes({
+        empresa,
+        pontos,
+        draftsFinais,
+        alvosParaSalvar,
+      })
 
-      for (const id of alvosParaSalvar) {
-        const item = draftsFinais[id]
-        const cabTexto = item.cabecalho?.trim() || null
-        const rodTexto = item.rodape?.trim() || null
-
-        if (id === 'geral') {
-          payloadGeral = {
-            msg_whatsapp_geral: cabTexto,
-            rodape_whatsapp_geral: rodTexto,
-          }
-
-          promessas.push(
-            (async () => {
-              const { error: updateErr } = await supabase
-                .from('empresas')
-                .update(payloadGeral)
-                .eq('id', empresa.id)
-
-              if (updateErr) {
-                await supabase.rpc('atualizar_whatsapp_empresa', {
-                  p_empresa_id: empresa.id,
-                  p_cabecalho: payloadGeral.msg_whatsapp_geral,
-                  p_rodape: payloadGeral.rodape_whatsapp_geral,
-                })
-              }
-            })()
-          )
-        } else {
-          // Ponto individual de captação
-          const payloadPonto = {
-            cabecalho_whatsapp: cabTexto,
-            rodape_whatsapp: rodTexto,
-          }
-
-          whatsappPontosMap[id] = {
-            cabecalho: cabTexto,
-            rodape: rodTexto,
-          }
-
-          // Atualiza o objeto do ponto em memória imediatamente
-          const pIndex = pontos.findIndex((p) => p.id === id)
-          if (pIndex !== -1) {
-            pontos[pIndex].cabecalho_whatsapp = cabTexto
-            pontos[pIndex].rodape_whatsapp = rodTexto
-          }
-
-          promessas.push(
-            (async () => {
-              const { error: updateErr } = await supabase
-                .from('pontos')
-                .update(payloadPonto)
-                .eq('id', id)
-
-              if (updateErr) {
-                await supabase.rpc('atualizar_whatsapp_ponto', {
-                  p_ponto_id: id,
-                  p_empresa_id: empresa.id,
-                  p_cabecalho: payloadPonto.cabecalho_whatsapp,
-                  p_rodape: payloadPonto.rodape_whatsapp,
-                })
-              }
-            })()
-          )
-        }
-      }
-
-      // Executa as atualizações de todos os pontos alterados
-      await Promise.allSettled(promessas)
-
-      // Salva também no JSONB empresas.termos como blindagem de contingência
-      const novosTermos = {
-        ...(empresa?.termos || {}),
-        whatsappPontos: {
-          ...(empresa?.termos?.whatsappPontos || {}),
-          ...whatsappPontosMap,
-        },
-        ...(payloadGeral
-          ? {
-              msgWhatsappGeral: payloadGeral.msg_whatsapp_geral,
-              rodapeWhatsappGeral: payloadGeral.rodape_whatsapp_geral,
-            }
-          : {}),
-      }
-
-      await supabase
-        .from('empresas')
-        .update({ termos: novosTermos })
-        .eq('id', empresa.id)
-
-      // Atualiza o contexto da empresa em memória
       onEmpresaUpdated?.({
         ...empresa,
         ...(payloadGeral || {}),
@@ -647,9 +178,9 @@ export function useWhatsappConfig({
     mudarAlvo,
     drafts,
     cabecalho,
-    setCabecalho: handleSetCabecalho,
+    setCabecalho,
     rodape,
-    setRodape: handleSetRodape,
+    setRodape,
     saving,
     inserirTag,
     inserirEmoji,

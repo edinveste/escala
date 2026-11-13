@@ -1280,3 +1280,43 @@ npm run build
 
 
 
+
+  3. **Validação de Build**:
+     - `npm run build` executado com sucesso e zero erros (`vite build`).
+
+---
+
+## 37. Sincronização de Datas do Calendário no Texto do WhatsApp (Opção A) — Novembro/2026
+- **Contexto e UX/UI**:
+  - No WhatsApp, o emoji nativo `📅` (Unicode `U+1F4C5`) exibe graficamente a folha de calendário fixa com `"24 FEB"` em homenagem à data de fundação do WhatsApp (24/02/2009).
+  - Essa limitação visual do aplicativo WhatsApp causava estranheza aos corretores e gestores, pois todos os dias da semana (Segunda a Domingo) pareciam fixados em 24 de fevereiro.
+- **Solução Implementada (Opção A)**:
+  - Adicionadas funções utilitárias em `src/lib/diasSemana.js` (`obterSegundaFeiraReferencia`, `obterDataDoDiaSemana`, `formatarDataDdMm`, `formatarDiaComData`).
+  - Cálculo inteligente de ciclo semanal:
+    - De Segunda a Sábado: a escala refere-se ao ciclo semanal corrente (Segunda-feira mais recente até Domingo).
+    - No Domingo: caso a escala contenha dias anteriores (Segunda a Sábado), projeta automaticamente para a nova semana que começa no dia seguinte (Segunda-feira). Se contiver apenas Domingo, refere-se ao domingo atual.
+    - Suporta virada de mês, anos bissextos e transição de ano com segurança nativa de `Date`.
+    - Sanitização contra duplicação de datas caso o dia já contenha formato `(DD/MM)`.
+  - Integração em `src/components/corretor/escalaTextoHelper.js`:
+    - Ao gerar o texto para cópia no WhatsApp, cada dia é formatado como: `📅 *SEGUNDA-FEIRA (DD/MM)*`.
+  - Integração em `src/components/admin/whatsapp/useWhatsappConfig.js`:
+    - A bolha de pré-visualização em tempo real no painel do administrador também exibe a data real calculada da semana, mantendo 100% de coerência visual.
+- **Validação de Build**:
+  - Testes automatizados executados via Node.js validando todos os cenários (dias úteis, domingos, virada de mês e escala completa).
+  - `npm run build` executado com sucesso e zero erros (`vite build`).
+
+---
+
+## 38. Modularização e Composição de Hooks do WhatsApp (`src/components/admin/whatsapp/`) — Novembro/2026
+- **Contexto e Problema de Arquitetura**:
+  - O hook `useWhatsappConfig.js` possuía 666 linhas concentrando cinco responsabilidades completamente distintas em um bloco monolítico: controle de seleção/cursor de múltiplos textareas com restauração de scroll após re-render, buffer em memória de rascunhos para múltiplos alvos com chaveamento sem perda de dados, status e mutações de visibilidade dos botões de cópia no painel e na visão pública, interpolação de tags e formatação da bolha de prévia ao vivo, e camada assíncrona de I/O no Supabase com fallbacks em RPCs e JSONB.
+- **Estrutura Modular Implementada (`Hook Composition & Clean Architecture`)**:
+  1. `useTextareaCursor.js`: Sub-hook responsável pelo tracking de seleções de cursor (`selectionStart`/`selectionEnd`), scroll restoration pós-render via `useLayoutEffect`, e despacho de inserção inteligente de tags e emojis no cursor preservando foco.
+  2. `useWhatsappDrafts.js`: Sub-hook responsável pelo estado ativo (`alvoId`, `pontoAtual`), carregamento de valores salvos/padrões, mapa de rascunhos em memória (`drafts`), chaveamento suave entre alvos com preservação de alterações e restauração de modelos padrão do sistema.
+  3. `useWhatsappVisibility.js`: Sub-hook responsável pelo controle de visibilidade (ativo/inativo) do botão de cópia do WhatsApp na Escala Geral e por Ponto individual, com persistência e fallback no Supabase.
+  4. `whatsappService.js`: Módulo de serviço assíncrono puro (`persistirWhatsappConfiguracoes`) para gravação no Supabase (`empresas`, `pontos`, RPCs de contingência e JSONB de blindagem), isolando 100% o I/O de dados fora dos hooks.
+  5. `whatsappPreviewHelper.js`: Função utilitária pura (`gerarTextoPreviewWhatsapp`) de interpolação e formatação do texto da prévia do balão com tags, dados da empresa, pontos e datas calculadas.
+  6. `useWhatsappConfig.js`: Hook orquestrador (Facade) enxuto reduzido de 666 linhas para ~170 linhas (~75% de redução), compondo os submódulos e mantendo 100% de compatibilidade retroativa com `WhatsappConfigModal.jsx` (zero breaking changes).
+- **Validação de Build**:
+  - `npm run build` executado com sucesso e zero erros (`vite build`).
+

@@ -1,4 +1,4 @@
-import { formatarNomeDia, compararDias } from '../../lib/diasSemana'
+import { formatarNomeDia, compararDias, formatarDiaComData } from '../../lib/diasSemana'
 import { obterTermos } from '../../lib/vocabularioHelper'
 
 /**
@@ -145,7 +145,8 @@ export function gerarTextoEscala({
     const ocultarNomes = Boolean(empresa?.ocultar_nomes_escala || empresa?.termos?.ocultarNomesEscala)
 
     for (const dia of diasOrd) {
-      texto += `📅 *${dia}*\n\n`
+      const diaComData = formatarDiaComData(dia, { diasNaEscala: diasOrd })
+      texto += `📅 *${diaComData}*\n\n`
       for (const turno of porDia[dia]) {
         const reservasTurno = reservasPorTurno[turno.id] || []
         const nomes = reservasTurno
