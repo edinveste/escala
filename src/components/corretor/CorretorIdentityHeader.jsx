@@ -18,6 +18,7 @@ export default function CorretorIdentityHeader({
   selectedPontoId = null,
   onAbrirAgenda = null,
   mostrarBotaoAgenda = true,
+  mostrarSaudacao = true,
   acoesDireita = null,
 }) {
   const temCotasVisiveis = Boolean(
@@ -27,15 +28,18 @@ export default function CorretorIdentityHeader({
   const totalVagas = resumoColaborador?.turnosReservados?.length || 0
   const temVagasReservadas = totalVagas > 0
   const podeMostrarBotao = Boolean(mostrarBotaoAgenda && temVagasReservadas && onAbrirAgenda)
+  const podeMostrarLinhaTopo = Boolean(
+    (mostrarSaudacao && corretorNome) || podeMostrarBotao || acoesDireita
+  )
 
-  if (!corretorNome && !temCotasVisiveis && !temVagasReservadas && !acoesDireita) return null
+  if (!podeMostrarLinhaTopo && !temCotasVisiveis && !cadastroNaoAutorizado) return null
 
   return (
-    <div className="mb-4 px-1 space-y-2.5">
+    <div className="mb-3 px-1 space-y-2.5">
       {/* Linha com Saudação ao Colaborador e Ações na Mesma Linha */}
-      {(corretorNome || podeMostrarBotao || acoesDireita) && (
+      {podeMostrarLinhaTopo && (
         <div className="flex items-center justify-between gap-1.5 sm:gap-2.5 flex-nowrap min-w-0">
-          {corretorNome ? (
+          {mostrarSaudacao && corretorNome ? (
             <div className="flex items-center gap-1 text-xs sm:text-sm text-gray-400 min-w-0 flex-1 overflow-hidden">
               <span
                 className="truncate block max-w-full select-none"
