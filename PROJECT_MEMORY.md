@@ -1694,3 +1694,31 @@ npm run build
      - Totalmente integrado ao `FormAddPonto.jsx`, `PontoItem.jsx` (modo edição inline) e `DuplicarPontoModal.jsx`.
 - **Validação**:
   - `npm run build` executado com sucesso e zero advertências/erros.
+
+
+---
+
+## 29. Refinamento de UX: Botão de Horários no Ponto Individual e Agrupamento com Expandir/Recolher (Novembro 2026)
+- **Contexto e Solicitação do Usuário**:
+  - Na visualização do ponto individual (`PontoTurnosView.jsx`), exibir apenas as vagas que o colaborador reservou naquele ponto específico (em vez do total global da semana).
+  - Posicionar o botão de acesso aos horários agendados na mesma linha da barra de ferramentas, ao lado do botão unificado de "Expandir/Recolher todos os dias".
+  - Manter a linha do nome do colaborador (`Olá, {nome} 👋`) limpa e sem duplicações dentro do ponto.
+- **Decisões de Engenharia e Padrões de UX/UI**:
+  1. **Isolamento de Escopo do Ponto (`PontoTurnosView.jsx`)**:
+     - Filtro reativo via `useMemo` calculando `turnosReservadosNestePonto = turnosReservados.filter(t => t.ponto_id === selectedPonto.id)`.
+     - O botão de horários exibe a contagem exata e contextual do ponto: ex: `[ 📅 4 horários › ]`.
+     - Se o colaborador não possuir vagas naquele ponto, o botão não é renderizado, mantendo a interface enxuta.
+  2. **Harmonia da Barra de Controle dos Dias**:
+     - Posicionamento em container flex à direita: `[ 📅 X horários › ]` `[ ⌵ Expandir todos ]`, com alturas idênticas (`min-h-[36px]`), tokens de design do Tailwind e microinterações polidas (`active:scale-95`).
+     - Em `CorretorIdentityHeader.jsx`, prop `mostrarBotaoAgenda={false}` quando invocado em `PontoTurnosView.jsx`, evitando poluição visual.
+  3. **Contexto no Modal de Minha Agenda (`MinhaAgendaModal.jsx`)**:
+     - Recebe prop `pontoAtivo` transmitida por `CorretorView.jsx`.
+     - Quando aberto a partir de um ponto individual, filtra e exibe por padrão apenas as vagas daquele local (`Minha Agenda — {ponto.nome}`).
+     - Caso o colaborador possua vagas em outros pontos da empresa na mesma semana, disponibiliza seletor em tabs sutis no topo: `[ Apenas {ponto.nome} (X) ]` e `[ Todos os locais (Y) ]`, garantindo total autonomia sem atrito.
+     - Botão de exportação em PDF baixa a listagem de horários filtrada de acordo com o escopo ativo.
+- **Validação**:
+  - `npm run build` executado com sucesso e zero erros de compilação.
+
+- **Refinamento Responsivo (Mobile & Desktop)**:
+  - Botão de Expandir/Recolher adaptável: exibe `"Expandir todos"` / `"Recolher todos"` no desktop (breakpoint `sm:`), e de forma compacta `"Expandir"` / `"Recolher"` (sem `"todos"`) exclusivamente no celular via `<span className="hidden sm:inline"> todos</span>`.
+  - Tratamento anti-quebra do nome do colaborador: container flex com `min-w-0 flex-1 overflow-hidden` e texto com `.truncate block whitespace-nowrap`, garantindo reticências automáticas (`...`) e zero quebra para segunda linha em qualquer dispositivo móvel.

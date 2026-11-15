@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   Calendar,
   X,
@@ -13,11 +13,12 @@ import { gerarGoogleCalendarUrl } from '../../lib/icsHelper'
 import { baixarAgendaPdf } from '../../lib/agendaPdfHelper'
 import { obterLinkGoogleMaps } from '../../lib/mapsHelper'
 import GoogleMapsIcon from '../icons/GoogleMapsIcon'
+import AgendaCalendarIcon from '../icons/AgendaCalendarIcon'
 
 /**
- * MinhaAgendaModal — Visualização consolidada de todos os horários do colaborador
- * na semana corrente, com botão fixo para Baixar em PDF no topo e botão do Google Agenda
- * nos cards de horários individuais.
+ * MinhaAgendaModal — Visualização consolidada dos horários do colaborador
+ * na semana corrente ou direcionada ao ponto individual aberto, com botão fixo
+ * para Baixar em PDF no topo e botão do Google Agenda nos cards de horários.
  */
 export default function MinhaAgendaModal({
   isOpen,
@@ -28,17 +29,44 @@ export default function MinhaAgendaModal({
   onCancelar,
   showToast,
   termos = {},
+  pontoAtivo = null,
 }) {
   const [gerandoPdf, setGerandoPdf] = useState(false)
+  const [mostrarApenasPonto, setMostrarApenasPonto] = useState(Boolean(pontoAtivo))
+
+  // Sempre que o modal for aberto ou o pontoAtivo mudar, sincroniza o filtro inicial
+  useEffect(() => {
+    if (isOpen) {
+      setMostrarApenasPonto(Boolean(pontoAtivo))
+    }
+  }, [isOpen, pontoAtivo])
+
+  // Turnos deste ponto específico
+  const turnosDoPonto = useMemo(() => {
+    if (!pontoAtivo?.id) return []
+    return turnosReservados.filter((t) => t.ponto_id === pontoAtivo.id)
+  }, [turnosReservados, pontoAtivo?.id])
+
+  // Turnos exibidos conforme o filtro ativo
+  const turnosFiltrados = useMemo(() => {
+    if (mostrarApenasPonto && pontoAtivo?.id) {
+      return turnosDoPonto
+    }
+    return turnosReservados
+  }, [mostrarApenasPonto, pontoAtivo?.id, turnosDoPonto, turnosReservados])
 
   // Ordena os turnos cronologicamente por dia e ordem/horário
   const turnosOrdenados = useMemo(() => {
-    return [...turnosReservados].sort((a, b) => {
+    return [...turnosFiltrados].sort((a, b) => {
       const cmpDia = compararDias(a.dia, b.dia)
       if (cmpDia !== 0) return cmpDia
       return (a.ordem ?? 0) - (b.ordem ?? 0)
     })
-  }, [turnosReservados])
+  }, [turnosFiltrados])
+
+  const temOutrosPontos = Boolean(
+    pontoAtivo && turnosReservados.length > turnosDoPonto.length
+  )
 
   // Baixar agenda formatada em PDF
   const handleBaixarPdf = async () => {
@@ -82,17 +110,24 @@ export default function MinhaAgendaModal({
         <div className="p-4 sm:p-5 border-b border-surface-700 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="p-2 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 shrink-0">
-              <Calendar className="w-5 h-5" />
+              <AgendaCalendarIcon className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <h2
                 id="minha-agenda-titulo"
                 className="text-base sm:text-lg font-bold text-gray-100 truncate"
               >
-                Minha Agenda da Semana
+                {mostrarApenasPonto && pontoAtivo?.nome
+                  ? `Minha Agenda — ${pontoAtivo.nome}`
+                  : 'Minha Agenda da Semana'}
               </h2>
               <p className="text-xs text-gray-400 truncate mt-0.5">
-                {corretorNome ? `Horários de ${corretorNome}` : 'Seus horários confirmados'} •{' '}
+                {mostrarApenasPonto && pontoAtivo?.nome
+                  ? `Horários em ${pontoAtivo.nome}`
+                  : corretorNome
+                  ? `Horários de ${corretorNome}`
+                  : 'Seus horários confirmados'}{' '}
+                •{' '}
                 <strong className="text-brand-300 font-semibold">{turnosOrdenados.length}</strong>{' '}
                 {turnosOrdenados.length === 1 ? 'vaga garantida' : 'vagas garantidas'}
               </p>
@@ -108,6 +143,34 @@ export default function MinhaAgendaModal({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Seletor de Escopo: Apenas este Ponto vs Todos os Pontos */}
+        {temOutrosPontos && (
+          <div className="px-4 sm:px-5 py-2 border-b border-surface-700/80 bg-surface-850/60 flex items-center gap-2 overflow-x-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => setMostrarApenasPonto(true)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 min-h-[32px] ${
+                mostrarApenasPonto
+                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700 border border-transparent'
+              }`}
+            >
+              Apenas {pontoAtivo.nome} ({turnosDoPonto.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setMostrarApenasPonto(false)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 min-h-[32px] ${
+                !mostrarApenasPonto
+                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-surface-700 border border-transparent'
+              }`}
+            >
+              Todos os locais ({turnosReservados.length})
+            </button>
+          </div>
+        )}
 
         {/* Bloco Fixo no Topo: Baixar em PDF */}
         {turnosOrdenados.length > 0 && (
@@ -128,11 +191,13 @@ export default function MinhaAgendaModal({
         <div className="p-4 sm:p-5 overflow-y-auto space-y-3 flex-1">
           {turnosOrdenados.length === 0 ? (
             <div className="py-12 text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-surface-700 text-gray-500 flex items-center justify-center mx-auto">
-                <Calendar className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-full bg-surface-700 text-gray-400 flex items-center justify-center mx-auto">
+                <AgendaCalendarIcon className="w-6 h-6" />
               </div>
               <p className="text-sm font-semibold text-gray-300">
-                Você ainda não possui vagas reservadas nesta semana.
+                {mostrarApenasPonto && pontoAtivo?.nome
+                  ? `Você não possui vagas reservadas em ${pontoAtivo.nome}.`
+                  : 'Você ainda não possui vagas reservadas nesta semana.'}
               </p>
               <p className="text-xs text-gray-500 max-w-xs mx-auto">
                 Navegue pelos {termos?.pontos?.toLowerCase() || 'locais'} da escala e clique no botão para garantir seus horários.
@@ -142,7 +207,9 @@ export default function MinhaAgendaModal({
             <>
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  Horários Confirmados ({turnosOrdenados.length})
+                  {mostrarApenasPonto && pontoAtivo?.nome
+                    ? `Horários em ${pontoAtivo.nome} (${turnosOrdenados.length})`
+                    : `Horários Confirmados (${turnosOrdenados.length})`}
                 </span>
               </div>
 
@@ -163,7 +230,7 @@ export default function MinhaAgendaModal({
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-brand-300">
-                          <Calendar className="w-3.5 h-3.5 shrink-0 text-brand-400" />
+                          <AgendaCalendarIcon className="w-3.5 h-3.5 shrink-0 text-brand-400" />
                           <span className="truncate">{diaComData}</span>
                         </div>
 

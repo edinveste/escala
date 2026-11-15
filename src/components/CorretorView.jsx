@@ -290,6 +290,7 @@ export default function CorretorView({
         onCancelar={onCancelar}
         showToast={showToast}
         termos={termos}
+        pontoAtivo={selectedPonto}
       />
     </>
   )

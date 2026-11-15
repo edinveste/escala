@@ -1,10 +1,10 @@
-import { AlertCircle, Pencil } from 'lucide-react'
+import { AlertCircle, Pencil, ChevronRight } from 'lucide-react'
+import AgendaCalendarIcon from '../icons/AgendaCalendarIcon'
 import CorretorRegrasBanner from './CorretorRegrasBanner'
-import MinhaAgendaCard from './MinhaAgendaCard'
 
 /**
  * Cabeçalho de identificação do colaborador com saudação,
- * card consolidado de "Minha Agenda" (Google Agenda e PDF),
+ * botão discreto na mesma linha para ver os horários ("Minha Agenda"),
  * barra discreta de cotas/regras ativas e alerta contextual de autorização.
  */
 export default function CorretorIdentityHeader({
@@ -17,32 +17,60 @@ export default function CorretorIdentityHeader({
   resumoColaborador,
   selectedPontoId = null,
   onAbrirAgenda = null,
+  mostrarBotaoAgenda = true,
+  acoesDireita = null,
 }) {
   const temCotasVisiveis = Boolean(
     resumoColaborador?.regras?.temAlgumaCota &&
       (!selectedPontoId || (resumoColaborador?.pontoTemCota?.(selectedPontoId) ?? true))
   )
-  const temVagasReservadas = Boolean(resumoColaborador?.turnosReservados?.length > 0)
+  const totalVagas = resumoColaborador?.turnosReservados?.length || 0
+  const temVagasReservadas = totalVagas > 0
+  const podeMostrarBotao = Boolean(mostrarBotaoAgenda && temVagasReservadas && onAbrirAgenda)
 
-  if (!corretorNome && !temCotasVisiveis && !temVagasReservadas) return null
+  if (!corretorNome && !temCotasVisiveis && !temVagasReservadas && !acoesDireita) return null
 
   return (
     <div className="mb-4 px-1 space-y-2.5">
-      {corretorNome && (
-        <div className="flex items-center gap-1.5 text-sm text-gray-400">
-          <span>
-            Olá, <strong className="text-gray-200 dark:text-gray-100 font-semibold">{corretorNome}</strong> 👋
-          </span>
-        </div>
-      )}
+      {/* Linha com Saudação ao Colaborador e Ações na Mesma Linha */}
+      {(corretorNome || podeMostrarBotao || acoesDireita) && (
+        <div className="flex items-center justify-between gap-1.5 sm:gap-2.5 flex-nowrap min-w-0">
+          {corretorNome ? (
+            <div className="flex items-center gap-1 text-xs sm:text-sm text-gray-400 min-w-0 flex-1 overflow-hidden">
+              <span
+                className="truncate block max-w-full select-none"
+                title={`Olá, ${corretorNome} 👋`}
+              >
+                Olá, <strong className="text-gray-200 dark:text-gray-100 font-semibold">{corretorNome}</strong> 👋
+              </span>
+            </div>
+          ) : (
+            <div />
+          )}
 
-      {/* Card de Minha Agenda Consolidada com Exportação para Calendário */}
-      {temVagasReservadas && onAbrirAgenda && (
-        <MinhaAgendaCard
-          turnosReservados={resumoColaborador.turnosReservados}
-          onAbrirAgenda={onAbrirAgenda}
-          termos={termos}
-        />
+          {/* Ações alinhadas à direita na mesma linha (PC e Celular) */}
+          {acoesDireita ? (
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {acoesDireita}
+            </div>
+          ) : (
+            podeMostrarBotao && (
+              <button
+                type="button"
+                onClick={onAbrirAgenda}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1 rounded-xl bg-brand-500/10 hover:bg-brand-500/20 active:bg-brand-500/25 border border-brand-500/30 hover:border-brand-500/50 text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200 text-xs font-semibold transition-all shadow-sm shrink-0 active:scale-95 group select-none min-h-[32px]"
+                title={`Ver meus ${totalVagas} ${totalVagas === 1 ? 'horário agendado' : 'horários agendados'}`}
+                aria-label={`Ver meus ${totalVagas} ${totalVagas === 1 ? 'horário agendado' : 'horários agendados'}`}
+              >
+                <AgendaCalendarIcon className="w-3.5 h-3.5 text-brand-500 dark:text-brand-400 group-hover:scale-110 transition-transform" />
+                <span>
+                  {totalVagas} {totalVagas === 1 ? 'horário' : 'horários'}
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-brand-500/70 dark:text-brand-400/70 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )
+          )}
+        </div>
       )}
 
       {temCotasVisiveis && (

@@ -1,5 +1,7 @@
-import { ArrowLeft, MapPin, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
+import { useMemo } from 'react'
+import { ArrowLeft, MapPin, Calendar, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react'
 import GoogleMapsIcon from '../icons/GoogleMapsIcon'
+import AgendaCalendarIcon from '../icons/AgendaCalendarIcon'
 import CorretorIdentityHeader from './CorretorIdentityHeader'
 import DiaAcordeonItem from './DiaAcordeonItem'
 import CorretorCopyFooter from './CorretorCopyFooter'
@@ -39,6 +41,15 @@ export default function PontoTurnosView({
   escalaAbreEm = null,
   onAbrirAgenda = null,
 }) {
+  // Vagas reservadas pelo colaborador especificamente neste ponto
+  const turnosReservadosNestePonto = useMemo(() => {
+    const lista = resumoColaborador?.turnosReservados || []
+    if (!selectedPonto?.id) return []
+    return lista.filter((t) => t.ponto_id === selectedPonto.id)
+  }, [resumoColaborador?.turnosReservados, selectedPonto?.id])
+
+  const totalVagasNestePonto = turnosReservadosNestePonto.length
+
   return (
     <>
       {/* Botão voltar + cabeçalho com identificação do ponto */}
@@ -97,7 +108,7 @@ export default function PontoTurnosView({
         </div>
       </div>
 
-      {/* Identificação do participante com suporte a edição e resumo de regras */}
+      {/* Identificação do participante com saudação e ações na mesma linha (Horários deste ponto + Expandir/Recolher) */}
       <CorretorIdentityHeader
         corretorNome={corretorNome}
         corretorWhatsapp={corretorWhatsapp}
@@ -107,7 +118,52 @@ export default function PontoTurnosView({
         termos={termos}
         resumoColaborador={resumoColaborador}
         selectedPontoId={selectedPonto?.id}
-        onAbrirAgenda={onAbrirAgenda}
+        acoesDireita={
+          turnosFiltrados.length > 0 ? (
+            <>
+              {/* Botão com as vagas reservadas APENAS neste ponto */}
+              {totalVagasNestePonto > 0 && onAbrirAgenda && (
+                <button
+                  type="button"
+                  onClick={onAbrirAgenda}
+                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg bg-brand-500/10 hover:bg-brand-500/20 active:bg-brand-500/30 border border-brand-500/30 hover:border-brand-500/50 text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200 text-[11px] font-semibold transition-all shadow-sm shrink-0 active:scale-95 group select-none min-h-[32px] sm:min-h-[36px]"
+                  title={`Ver meus ${totalVagasNestePonto} ${totalVagasNestePonto === 1 ? 'horário agendado' : 'horários agendados'} em ${selectedPonto?.nome || 'neste local'}`}
+                  aria-label={`Ver meus ${totalVagasNestePonto} ${totalVagasNestePonto === 1 ? 'horário agendado' : 'horários agendados'} em ${selectedPonto?.nome || 'neste local'}`}
+                >
+                  <AgendaCalendarIcon className="w-3.5 h-3.5 text-brand-500 dark:text-brand-400 group-hover:scale-110 transition-transform shrink-0" />
+                  <span>
+                    {totalVagasNestePonto} {totalVagasNestePonto === 1 ? 'horário' : 'horários'}
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-brand-500/70 dark:text-brand-400/70 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                </button>
+              )}
+
+              {/* Botão de Expandir / Recolher (no celular: sem a palavra "todos") */}
+              <button
+                type="button"
+                onClick={toggleTodosDias}
+                className="text-[11px] font-medium text-gray-400 hover:text-gray-200 flex items-center gap-1 sm:gap-1.5 bg-surface-800 hover:bg-surface-700 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg transition-colors border border-surface-600/50 min-h-[32px] sm:min-h-[36px] active:scale-95 shrink-0 select-none"
+                title={algumDiaExpandido ? 'Recolher todos os dias' : 'Expandir todos os dias'}
+              >
+                {algumDiaExpandido ? (
+                  <>
+                    <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      Recolher<span className="hidden sm:inline"> todos</span>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      Expandir<span className="hidden sm:inline"> todos</span>
+                    </span>
+                  </>
+                )}
+              </button>
+            </>
+          ) : null
+        }
       />
 
       {turnosFiltrados.length === 0 ? (
@@ -124,31 +180,6 @@ export default function PontoTurnosView({
         </div>
       ) : (
         <div className="space-y-3">
-          {/* Barra de controle / contagem e botão unificado Expandir/Recolher todos */}
-          <div className="flex items-center justify-between px-1 mb-1">
-            <span className="text-xs text-gray-400 font-medium">
-              {diasOrdenados.length} dia{diasOrdenados.length !== 1 ? 's' : ''} com horários
-            </span>
-            <button
-              type="button"
-              onClick={toggleTodosDias}
-              className="text-[11px] font-medium text-gray-400 hover:text-gray-200 flex items-center gap-1.5 bg-surface-800 hover:bg-surface-700 px-2.5 py-1 rounded-lg transition-colors border border-surface-600/50 min-h-[36px]"
-              title={algumDiaExpandido ? 'Recolher todos os dias' : 'Expandir todos os dias'}
-            >
-              {algumDiaExpandido ? (
-                <>
-                  <ChevronUp className="w-3.5 h-3.5" />
-                  <span>Recolher todos</span>
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                  <span>Expandir todos</span>
-                </>
-              )}
-            </button>
-          </div>
-
           {diasOrdenados.map((dia) => (
             <DiaAcordeonItem
               key={dia}
