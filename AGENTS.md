@@ -117,6 +117,8 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
   - Se `exigir_cadastro_previo` estiver ativo na empresa, valida estritamente contra `equipe_corretores` e vincula o `device_id`.
   - Valida bloqueio de conflito de horário (mesmo dia normalizado em qualquer ponto ativo, tratando virada de meia-noite e fallback via `extrair_horarios_turno`) e cotas (`limite_vagas_semana`, `limite_vagas_dia`, `limite_vagas_ponto`).
   - Insere a reserva vinculando automaticamente `empresa_id`, `device_id`, WhatsApp e E-mail.
+- **`renomear_colaborador_escala(p_empresa_id, p_nome_antigo, p_novo_nome, p_device_id DEFAULT NULL, p_reserva_ids UUID[] DEFAULT NULL, p_sincronizar_equipe BOOLEAN DEFAULT TRUE)`** (Fase 17):
+  - Exige `auth.uid() IS NOT NULL` e papel `'admin'` ou `'gestor'` na empresa. Atualiza em lote o nome do colaborador em todas as suas reservas ativas na escala, com opção de sincronização na tabela `equipe_corretores` e disparo de notificação em tempo real via `escala_sync`.
 - **`atualizar_agendamento_escala(p_empresa_id, p_abre_em DEFAULT NULL, p_pontos_ids DEFAULT NULL, p_ponto_id DEFAULT NULL)`** (Fase 16):
   - Exige `auth.uid() IS NOT NULL` e papel `'admin'` ou `'gestor'` na empresa para configurar data/hora de abertura futura ou `NULL` para liberar imediatamente. Suporta escopo Global (`NULL`), seleção de pontos (`p_pontos_ids UUID[]`) ou ponto individual (`p_ponto_id UUID` atualiza `pontos.escala_abre_em`). Quando `p_abre_em IS NULL`, limpa automaticamente `termos` (`escala_abre_em`, `escala_abre_pontos_ids`, `aberturaPontos`) e zera `pontos.escala_abre_em`. Notifica em tempo real via `escala_sync`.
 - **`atualizar_regras_escala(p_empresa_id, p_bloquear_conflito, p_limite_semana, p_limite_dia, p_limite_ponto, p_cotas_pontos_ids)`** (Fase 15):
@@ -191,6 +193,7 @@ e:\Escala\
 ├── supabase_migration_fase14_blindagem_seguranca.sql # Script de migração Fase 14: Blindagem RLS/RPCs, Realtime sem PII e Remoção do PIN Legado
 ├── supabase_migration_fase15_regras_escala.sql # Script de migração Fase 15: Bloqueio de Conflito de Horário & Cotas Anti-Monopólio
 ├── supabase_migration_fase16_abertura_programada.sql # Script de migração Fase 16: Abertura Programada com Contagem Regressiva e Destravamento Automático
+├── supabase_migration_fase17_colaboradores_escala.sql # Script de migração Fase 17: Gestão Consolidada de Colaboradores na Escala e Renomeação em Lote
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -216,7 +219,8 @@ e:\Escala\
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
     │   ├── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
     │   ├── horarioHelper.js     # Parsing de horários legados, detecção de conflitos e cálculo de cotas
-    │   ├── icsHelper.js         # Exportação RFC 5545 iCalendar (.ics) e links web para Google/Apple/Outlook Calendar
+    │   ├── agendaPdfHelper.js   # Geração direta de PDF vetorial via jsPDF sob demanda (dynamic import)
+    │   ├── icsHelper.js         # Geração de links para Google Calendar e resolução de horários
     │   ├── aberturaHelper.js    # Resolução de datas de abertura por escopo (ponto, empresa, termos) e cálculo de status
     │   ├── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
     │   └── demoData.js          # Mock data e persistência local da escala demonstrativa sandbox (/demo)
@@ -242,7 +246,7 @@ e:\Escala\
         │   │   └── index.js
         │   ├── CorretorIdentityHeader.jsx # Saudação, resumo de cotas/regras e alerta de autorização
         │   ├── MinhaAgendaCard.jsx        # Card de Minha Agenda compacta no topo com contagem e atalho
-        │   ├── MinhaAgendaModal.jsx       # Modal de visualização consolidada dos horários e exportação (.ics)
+        │   ├── MinhaAgendaModal.jsx       # Modal de visualização consolidada dos horários com PDF e Google Agenda
         │   ├── CorretorRegrasBanner.jsx   # Barra discreta com saldo de cotas e regras ativas
         │   ├── CorretorCopyFooter.jsx     # Barra fixa inferior com botão de copiar escala (WhatsApp)
         │   ├── PontoSelectorView.jsx      # Tela de seleção de ponto com contagem de turnos e vagas

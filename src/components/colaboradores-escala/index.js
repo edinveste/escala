@@ -1,0 +1,6 @@
+export { default as ColaboradoresEscalaManager } from './ColaboradoresEscalaManager'
+export { default as ColaboradoresEscalaHeader } from './ColaboradoresEscalaHeader'
+export { default as ColaboradorEscalaCard } from './ColaboradorEscalaCard'
+export { default as ColaboradorTurnoItem } from './ColaboradorTurnoItem'
+export { default as EditarNomeEscalaModal } from './EditarNomeEscalaModal'
+export { useColaboradoresEscala } from './useColaboradoresEscala'

@@ -1350,7 +1350,7 @@ npm run build
 - **Contexto e Necessidade do Usuário**:
   - Na visão pública (`PontoSelectorView.jsx` e `PontoTurnosView.jsx`), o colaborador precisava navegar ponto por ponto e abrir dia por dia para lembrar em quais turnos estava escalado.
   - Havia a necessidade de uma visualização consolidada de todas as vagas garantidas na semana, com atalhos rápidos e sem poluição visual.
-  - O formato `.ics` e botões individuais em cada card foram removidos por causarem atrito e ruído visual, sendo substituídos por duas ações principais no topo: **Google Agenda** e **Baixar em PDF**.
+  - O formato `.ics` foi removido por causar atrito e ruído visual, sendo o topo fixo simplificado com a ação principal de **Baixar Agenda em PDF**, e cada card individual recebeu o botão direto de **Adicionar ao Google Agenda** para aquele plantão específico, sem abrir abas concorrentes.
 - **Arquitetura e Soluções Implementadas**:
   1. `src/lib/agendaPdfHelper.js`:
      - Geração binária direta de arquivo `.pdf` vetorial utilizando `jsPDF` e `jspdf-autotable`.
@@ -1371,4 +1371,26 @@ npm run build
        - Cada card exibe Dia e Data (ex: `SEGUNDA-FEIRA (09/11)`), Horário (`14 as 16 hs`), Local (`Extra Belenzinho`), botão de lixeira no topo para cancelar a vaga e botão **`Adicionar ao Google Agenda`** na base do card para abrir aquele evento específico diretamente no Google Calendar sem misturar abas.
 - **Validação e Testes**:
   - Testes automatizados executados via Node.js validando geração de HTML para PDF e links do Google Agenda.
+  - `npm run build` executado com sucesso e zero erros (`vite build`).
+
+---
+
+## 43. Gestão Consolidada de Colaboradores na Escala e Renomeação em Lote — Fase 17 (Novembro/2026)
+- **Contexto e Causa Raiz do Problema**:
+  - Na aba "Equipe", os gestores tinham acesso apenas à lista de membros pré-autorizados (*Proteção Contra Invasores* / `equipe_corretores`) e aos coordenadores/administradores (*RBAC* / `usuarios_empresas`).
+  - Não existia uma visão centralizada das pessoas que estão **efetivamente cadastradas e escaladas nos turnos da semana** (especialmente corretores que agendam de forma autônoma pelo celular em modo aberto).
+  - O gestor precisava clicar ponto a ponto e dia a dia na aba Escala para descobrir em quais turnos uma pessoa estava alocada, e se quisesse padronizar ou corrigir o nome de um colaborador com erro de digitação (ex: "Carlos" para "Carlos Eduardo Silva"), precisava alterar manualmente registro por registro.
+- **Soluções Arquiteturais e Implementação**:
+  1. `supabase_migration_fase17_colaboradores_escala.sql`:
+     - RPC `renomear_colaborador_escala(p_empresa_id, p_nome_antigo, p_novo_nome, p_device_id, p_reserva_ids, p_sincronizar_equipe)` com validação `has_empresa_role`, atualização em lote na tabela `reservas`, sincronização automática opcional na tabela `equipe_corretores` e disparo de evento via `pg_notify('escala_sync')`.
+  2. `src/components/colaboradores-escala/`:
+     - **`useColaboradoresEscala.js`**: Hook de domínio que agrupa reservas em colaboradores únicos por nome normalizado, associando contatos (WhatsApp com link direto, E-mail, Device ID), ordenando os turnos cronologicamente por dia da semana (`DIAS_SEMANA`) e horário (`hora_inicio`). Fornece busca dinâmica (por nome, dia, local ou telefone), métricas de total de colaboradores e vagas preenchidas, e a mutação `renomearColaborador` com fallback resiliente direto no Supabase.
+     - **`ColaboradoresEscalaHeader.jsx`**: Cabeçalho padronizado com ícone `CalendarCheck` em container `sky`, contadores de colaboradores escalados e vagas preenchidas, e botão sanfona (`Recolher Lista` / `Ver Horários`).
+     - **`ColaboradorTurnoItem.jsx`**: Chip individual de turno agendado com badges para Dia da semana (`brand`), Horário (`Clock`) e Local (`MapPin`), além de botão de desmarcação rápida com confirmação (`Trash2`).
+     - **`ColaboradorEscalaCard.jsx`**: Card elegante com avatar de iniciais, nome em destaque com ícone discreto de edição (`Pencil`) imediatamente ao lado para renomeação rápida, badges de contato (WhatsApp clicável, E-mail, ou "Acesso Livre"), etiqueta de quantidade de horários marcados posicionada à direita na área de ações e lista sanfona dos horários agendados na semana.
+     - **`EditarNomeEscalaModal.jsx`**: Modal com backdrop blur, input com foco automático, resumo da quantidade de horários que serão atualizados em lote, opção de sincronização com a equipe autorizada e proteção contra nomes vazios/duplicados.
+     - **`ColaboradoresEscalaManager.jsx`**: Componente orquestrador principal com persistência de sanfona no `localStorage`, barra de busca, seletor de ordenação (A-Z, Z-A, Mais Horários) e botão unificado de ação em lote **"Recolher horários / Expandir horários"** para expandir ou recolher a visualização de horários de todos os colaboradores simultaneamente.
+  3. `src/components/admin/AdminTabEquipe.jsx` e `AdminView.jsx`:
+     - Integrado `ColaboradoresEscalaManager` como o primeiro card de destaque da aba Equipe, recebendo reservas, turnos, pontos e ações de dados em tempo real.
+- **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros (`vite build`).

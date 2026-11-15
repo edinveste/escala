@@ -132,6 +132,11 @@ export default function AdminView({
               currentUserId={user?.id}
               showToast={showToast}
               termos={termos}
+              reservas={reservasValidas || reservas}
+              turnos={turnosValidos || turnos}
+              pontos={pontos}
+              onDataChanged={onDataChanged}
+              onRemoverReserva={handleRemoverReserva}
             />
           )}
 
@@ -199,6 +204,11 @@ export default function AdminView({
             currentUserId={user?.id}
             showToast={showToast}
             termos={termos}
+            reservas={reservasValidas || reservas}
+            turnos={turnosValidos || turnos}
+            pontos={pontos}
+            onDataChanged={onDataChanged}
+            onRemoverReserva={handleRemoverReserva}
           />
 
           <PontosManager
