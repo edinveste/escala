@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { executarPublicoSeguro } from '../lib/supabasePublicHelper'
 
@@ -35,7 +35,14 @@ function readStorage(key) {
  * useColaborador — Hook responsável pela identidade Zero-Atrito do colaborador,
  * persistência em localStorage, controle do modal de identificação e ações de reserva e cancelamento.
  */
-export function useColaborador({ empresa, showToast, confirm }) {
+export function useColaborador({
+  empresa,
+  showToast,
+  confirm,
+  onDataChanged,
+  onOptimisticReserva,
+  onOptimisticCancelar,
+}) {
   // Inicialização síncrona garante deviceId disponível já na 1ª query pública
   const [deviceId] = useState(() => getOrCreateDeviceId())
   const [corretorNome, setCorretorNome] = useState(() => readStorage('escala_corretor_nome'))
@@ -45,6 +52,22 @@ export function useColaborador({ empresa, showToast, confirm }) {
   const [nomeModalError, setNomeModalError] = useState('')
   const [cadastroNaoAutorizado, setCadastroNaoAutorizado] = useState(false)
   const [pendingTurnoId, setPendingTurnoId] = useState(null)
+  const [submittingTurnoId, setSubmittingTurnoId] = useState(null)
+
+  const onDataChangedRef = useRef(onDataChanged)
+  useEffect(() => {
+    onDataChangedRef.current = onDataChanged
+  }, [onDataChanged])
+
+  const onOptimisticReservaRef = useRef(onOptimisticReserva)
+  useEffect(() => {
+    onOptimisticReservaRef.current = onOptimisticReserva
+  }, [onOptimisticReserva])
+
+  const onOptimisticCancelarRef = useRef(onOptimisticCancelar)
+  useEffect(() => {
+    onOptimisticCancelarRef.current = onOptimisticCancelar
+  }, [onOptimisticCancelar])
 
   // Reseta erros e autorização ao alternar de empresa
   useEffect(() => {
@@ -66,6 +89,7 @@ export function useColaborador({ empresa, showToast, confirm }) {
       const msg = error?.message || ''
       if (msg.includes('já possui')) {
         showToast?.('Você já tem uma vaga reservada neste horário!', 'warning')
+        onDataChangedRef.current?.(true)
         return
       }
 
@@ -91,6 +115,7 @@ export function useColaborador({ empresa, showToast, confirm }) {
         msg.includes('Limite por ponto')
       ) {
         showToast?.(msg, 'warning')
+        onDataChangedRef.current?.(true)
         return
       }
 
@@ -100,11 +125,13 @@ export function useColaborador({ empresa, showToast, confirm }) {
         msg.includes('pausado')
       ) {
         showToast?.(msg, 'error')
+        onDataChangedRef.current?.(true)
         return
       }
 
       console.error('Erro ao reservar:', error)
       showToast?.('Erro ao reservar vaga. Tente novamente.', 'error')
+      onDataChangedRef.current?.(true)
     },
     [showToast]
   )
@@ -112,6 +139,8 @@ export function useColaborador({ empresa, showToast, confirm }) {
   // ─── Ação: Reservar Vaga com dados explícitos ─────────────────
   const handleReservarComDados = useCallback(
     async (turnoId, nome, whatsapp, email) => {
+      if (submittingTurnoId === turnoId) return
+      setSubmittingTurnoId(turnoId)
       try {
         const { data, error } = await executarPublicoSeguro(() =>
           supabase.rpc('reservar_vaga', {
@@ -132,21 +161,29 @@ export function useColaborador({ empresa, showToast, confirm }) {
           setCadastroNaoAutorizado(false)
           setNomeModalError('')
           setPendingTurnoId(null)
+          onOptimisticReservaRef.current?.({ turnoId, corretorNome: nome, deviceId })
+          onDataChangedRef.current?.(true)
           showToast?.('Vaga garantida com sucesso! ✅', 'success')
         } else {
+          onDataChangedRef.current?.(true)
           showToast?.('Turno esgotado! Tente outro horário.', 'error')
         }
       } catch (err) {
         console.error('Erro ao reservar:', err)
         showToast?.('Erro ao reservar vaga. Tente novamente.', 'error')
+        onDataChangedRef.current?.(true)
+      } finally {
+        setSubmittingTurnoId(null)
       }
     },
-    [deviceId, empresa?.exigir_cadastro_previo, showToast, tratarErroReserva]
+    [deviceId, empresa?.exigir_cadastro_previo, showToast, tratarErroReserva, submittingTurnoId]
   )
 
   // ─── Ação: Reservar Vaga pelo botão principal ─────────────────
   const handleReservar = useCallback(
     async (turnoId) => {
+      if (submittingTurnoId === turnoId) return
+
       const tipoValidacao = empresa?.tipo_validacao_equipe || 'whatsapp'
       const precisaZap = tipoValidacao === 'whatsapp' || tipoValidacao === 'ambos'
       const precisaEmail = tipoValidacao === 'email' || tipoValidacao === 'ambos'
@@ -167,6 +204,7 @@ export function useColaborador({ empresa, showToast, confirm }) {
         return
       }
 
+      setSubmittingTurnoId(turnoId)
       try {
         const { data, error } = await executarPublicoSeguro(() =>
           supabase.rpc('reservar_vaga', {
@@ -186,16 +224,23 @@ export function useColaborador({ empresa, showToast, confirm }) {
         if (data === true) {
           setCadastroNaoAutorizado(false)
           setNomeModalError('')
+          onOptimisticReservaRef.current?.({ turnoId, corretorNome, deviceId })
+          onDataChangedRef.current?.(true)
           showToast?.('Vaga garantida com sucesso! ✅', 'success')
         } else {
+          onDataChangedRef.current?.(true)
           showToast?.('Turno esgotado! Tente outro horário.', 'error')
         }
       } catch (err) {
         console.error('Erro ao reservar:', err)
         showToast?.('Erro ao reservar vaga. Tente novamente.', 'error')
+        onDataChangedRef.current?.(true)
+      } finally {
+        setSubmittingTurnoId(null)
       }
     },
     [
+      submittingTurnoId,
       corretorNome,
       corretorWhatsapp,
       corretorEmail,
@@ -234,13 +279,17 @@ export function useColaborador({ empresa, showToast, confirm }) {
         if (error) throw error
 
         if (data === true) {
-          showToast?.('Reserva cancelada.', 'info')
+          onOptimisticCancelarRef.current?.(reservaId)
+          onDataChangedRef.current?.(true)
+          showToast?.('Sua vaga foi cancelada com sucesso.', 'info')
         } else {
+          onDataChangedRef.current?.(true)
           showToast?.('Não foi possível cancelar. Verifique se é sua reserva.', 'error')
         }
       } catch (err) {
         console.error('Erro ao cancelar:', err)
         showToast?.('Erro ao cancelar reserva.', 'error')
+        onDataChangedRef.current?.(true)
       }
     },
     [confirm, deviceId, corretorWhatsapp, corretorEmail, showToast]
@@ -266,6 +315,7 @@ export function useColaborador({ empresa, showToast, confirm }) {
         localStorage.removeItem('escala_corretor_email')
       }
       setShowNomeModal(false)
+      onDataChangedRef.current?.(true)
 
       const turnoParaReservar = pendingTurnoId
       if (turnoParaReservar) {
@@ -302,6 +352,7 @@ export function useColaborador({ empresa, showToast, confirm }) {
     nomeModalError,
     cadastroNaoAutorizado,
     pendingTurnoId,
+    submittingTurnoId,
     handleReservar,
     handleCancelar,
     handleNomeConfirm,

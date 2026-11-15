@@ -22,6 +22,7 @@ export default function PontoTurnosView({
   corretorWhatsapp,
   corretorEmail,
   cadastroNaoAutorizado = false,
+  submittingTurnoId = null,
   onEditarPerfil,
   onVoltar,
   onReservar,
@@ -128,6 +129,7 @@ export default function PontoTurnosView({
               corretorNome={corretorNome}
               corretorWhatsapp={corretorWhatsapp}
               corretorEmail={corretorEmail}
+              submittingTurnoId={submittingTurnoId}
               onReservar={onReservar}
               onCancelar={onCancelar}
               termos={termos}

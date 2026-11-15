@@ -17,6 +17,7 @@ export default function DiaAcordeonItem({
   corretorNome,
   corretorWhatsapp,
   corretorEmail,
+  submittingTurnoId = null,
   onReservar,
   onCancelar,
   termos = {},
@@ -116,6 +117,7 @@ export default function DiaAcordeonItem({
               corretorNome={corretorNome}
               corretorWhatsapp={corretorWhatsapp}
               corretorEmail={corretorEmail}
+              isSubmitting={submittingTurnoId === turno.id}
               onReservar={onReservar}
               onCancelar={onCancelar}
               acaoVaga={termos.acaoVaga}

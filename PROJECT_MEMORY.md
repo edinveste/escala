@@ -1259,6 +1259,41 @@ npm run build
 
 ---
 
+## 44. Sincronização em Tempo Real Resiliente, Optimistic UI e Heartbeat Polling — Fase 18 (Novembro/2026)
+- **Contexto e Causa Raiz do Bug Reportado**:
+  - O usuário reportou inconsistência crítica na visualização da escala pública:
+    1. Clicava em botão verde e recebia o toast *"Você já tem uma vaga reservada neste horário!"*, mas o card continuava verde e com contagem defasada (1/2) sem exibir a vaga e o botão de cancelar;
+    2. Clicava em botão verde de outro horário e recebia *"Turno esgotado! Tente outro horário."*, embora a tela exibisse 1/2 vagas livres;
+    3. Clicava em um terceiro horário e recebia *"Vaga garantida com sucesso! ✅"*, mas o botão continuava verde e não mudava de estado nem atualizava a contagem de vagas em tempo real;
+    4. Ao abrir a mesma escala em outro navegador, constatou que os turnos das 8h às 10h e das 10h às 12h estavam de fato esgotados (2/2) com reservas feitas anteriormente por ele e outros colaboradores, evidenciando que a aba do primeiro navegador estava com o estado completamente congelado e dessincronizado do PostgreSQL.
+  - **Diagnóstico de Engenharia Sênior**:
+    - **Falha 1 (Ausência de Callback de Atualização no Colaborador)**: `useColaborador.js` executava as RPCs `reservar_vaga` e `cancelar_vaga`, mas não invocava `fetchData` e nem aplicava mutação otimista no estado local do React. O frontend ficava 100% refém do evento de WebSocket para reagir à sua própria ação.
+    - **Falha 2 (Dormência de WebSocket / Background Tab Throttling)**: Quando o usuário alternava entre abas/navegadores para testar nomes diferentes, navegadores modernos (como Google Chrome) colocam WebSockets ociosos em segundo plano ou suspendem timers. Ao retornar à aba da escala, não havia listeners de ciclo de vida (`visibilitychange` ou `window focus`) para forçar a re-validação dos dados.
+    - **Falha 3 (Ausência de Polling de Contingência)**: Não havia mecanismo de fallback/heartbeat para assegurar a sincronia da escala sob micro-quedas de rede ou instabilidades temporárias do canal Realtime.
+    - **Falha 4 (Feedback Silencioso em Conflitos de Estado)**: Quando a RPC rejeitava uma reserva por duplicidade ("já possui vaga") ou esgotamento ("vagas esgotadas"), o frontend exibia o toast, mas não sincronizava a escala com o banco de dados, deixando o usuário preso numa visualização fantasma (*stale UI*).
+- **Soluções Arquiteturais Implementadas**:
+  1. `src/hooks/useEscalaData.js`:
+     - **Controle de Concorrência Assíncrona (`fetchCounterRef`)**: IDs incrementais em `fetchData` impedem que requisições antigas resolvidas fora de ordem sobrescrevam o estado mais recente.
+     - **Estabilização de Subscrição Realtime (`fetchDataRef`)**: O canal WebSocket escutando `escala_sync` agora utiliza referência estável, eliminando recriações e desconexões contínuas no Phoenix Channel do Supabase. Debounce reduzido para 60ms.
+     - **Monitoramento de Status do Canal**: Callback `.subscribe((status, err) => ...)` escuta `SUBSCRIBED`, `CHANNEL_ERROR`, `TIMED_OUT` e `CLOSED`, disparando sincronizações preventivas imediatas via HTTP caso o WebSocket oscile.
+     - **Re-sincronização Automática em Retorno de Visibilidade e Foco**: Listeners nativos de `document.addEventListener('visibilitychange')` e `window.addEventListener('focus')` revalidam instantaneamente a escala quando o usuário clica ou retorna à aba.
+     - **Heartbeat Polling de Contingência (15 segundos)**: Intervalo silencioso a cada 15 segundos executado apenas com a aba ativa/visível, garantindo tolerância a falhas de rede.
+  2. `src/hooks/useColaborador.js`:
+     - Recebe e integra `onDataChanged`, `onOptimisticReserva` e `onOptimisticCancelar` através de referências estáveis.
+     - **Optimistic UI Instantânea (0ms)**: Ao reservar com sucesso, injeta imediatamente a reserva com `eh_minha: true` e o nome do colaborador no estado do React, convertendo o botão para vermelho *"Cancelar Minha Vaga"* e avançando a barra de progresso no mesmo milissegundo, enquanto confirma silenciosamente com o banco via `onDataChanged`.
+     - **Cancelamento Instantâneo**: Remove otimisticamente a vaga do array local ao confirmar o cancelamento e sincroniza com o banco.
+     - **Alinhamento Imediato em Conflitos**: Sempre que uma reserva é rejeitada por *"já possui vaga"*, *"Turno esgotado"*, *"Conflito de horário"* ou *"Limite de vagas"*, o hook invoca `onDataChanged?.(true)` de imediato para trazer a verdade do banco para a tela.
+     - **Prevenção de Cliques Duplos (`submittingTurnoId`)**: Trava contra disparos simultâneos enquanto a requisição do turno está em processamento.
+  3. `src/components/corretor/TurnoCard.jsx`:
+     - Recebe `isSubmitting` e exibe spinner com texto *"Garantindo vaga..."* desabilitado durante o voo da requisição, impedindo *double-clicks*.
+  4. `src/App.jsx`:
+     - Orquestra a ponte reativa bidirecional entre `useColaborador` e `useEscalaData` com refs imunes a dependências circulares.
+- **Validação e Testes**:
+  - Testes de concorrência e canal Realtime via Node.js validados com evento `UPDATE` disparado por `reservar_vaga`.
+  - `npm run build` executado com sucesso e zero erros.
+
+---
+
 ## 36. Regras Inteligentes de Escala: Bloqueio de Conflito de Horário & Cotas Anti-Monopólio (Fase 15) — Novembro/2026
 - **Contexto e Objetivos**:
   1. **Bloqueio de Conflito de Horário**: Impedir que um colaborador reserve dois turnos que se sobrepõem no mesmo dia (mesmo em pontos de captação diferentes).
@@ -1320,6 +1355,41 @@ npm run build
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros (`vite build`).
 
+---
+
+## 44. Sincronização em Tempo Real Resiliente, Optimistic UI e Heartbeat Polling — Fase 18 (Novembro/2026)
+- **Contexto e Causa Raiz do Bug Reportado**:
+  - O usuário reportou inconsistência crítica na visualização da escala pública:
+    1. Clicava em botão verde e recebia o toast *"Você já tem uma vaga reservada neste horário!"*, mas o card continuava verde e com contagem defasada (1/2) sem exibir a vaga e o botão de cancelar;
+    2. Clicava em botão verde de outro horário e recebia *"Turno esgotado! Tente outro horário."*, embora a tela exibisse 1/2 vagas livres;
+    3. Clicava em um terceiro horário e recebia *"Vaga garantida com sucesso! ✅"*, mas o botão continuava verde e não mudava de estado nem atualizava a contagem de vagas em tempo real;
+    4. Ao abrir a mesma escala em outro navegador, constatou que os turnos das 8h às 10h e das 10h às 12h estavam de fato esgotados (2/2) com reservas feitas anteriormente por ele e outros colaboradores, evidenciando que a aba do primeiro navegador estava com o estado completamente congelado e dessincronizado do PostgreSQL.
+  - **Diagnóstico de Engenharia Sênior**:
+    - **Falha 1 (Ausência de Callback de Atualização no Colaborador)**: `useColaborador.js` executava as RPCs `reservar_vaga` e `cancelar_vaga`, mas não invocava `fetchData` e nem aplicava mutação otimista no estado local do React. O frontend ficava 100% refém do evento de WebSocket para reagir à sua própria ação.
+    - **Falha 2 (Dormência de WebSocket / Background Tab Throttling)**: Quando o usuário alternava entre abas/navegadores para testar nomes diferentes, navegadores modernos (como Google Chrome) colocam WebSockets ociosos em segundo plano ou suspendem timers. Ao retornar à aba da escala, não havia listeners de ciclo de vida (`visibilitychange` ou `window focus`) para forçar a re-validação dos dados.
+    - **Falha 3 (Ausência de Polling de Contingência)**: Não havia mecanismo de fallback/heartbeat para assegurar a sincronia da escala sob micro-quedas de rede ou instabilidades temporárias do canal Realtime.
+    - **Falha 4 (Feedback Silencioso em Conflitos de Estado)**: Quando a RPC rejeitava uma reserva por duplicidade ("já possui vaga") ou esgotamento ("vagas esgotadas"), o frontend exibia o toast, mas não sincronizava a escala com o banco de dados, deixando o usuário preso numa visualização fantasma (*stale UI*).
+- **Soluções Arquiteturais Implementadas**:
+  1. `src/hooks/useEscalaData.js`:
+     - **Controle de Concorrência Assíncrona (`fetchCounterRef`)**: IDs incrementais em `fetchData` impedem que requisições antigas resolvidas fora de ordem sobrescrevam o estado mais recente.
+     - **Estabilização de Subscrição Realtime (`fetchDataRef`)**: O canal WebSocket escutando `escala_sync` agora utiliza referência estável, eliminando recriações e desconexões contínuas no Phoenix Channel do Supabase. Debounce reduzido para 60ms.
+     - **Monitoramento de Status do Canal**: Callback `.subscribe((status, err) => ...)` escuta `SUBSCRIBED`, `CHANNEL_ERROR`, `TIMED_OUT` e `CLOSED`, disparando sincronizações preventivas imediatas via HTTP caso o WebSocket oscile.
+     - **Re-sincronização Automática em Retorno de Visibilidade e Foco**: Listeners nativos de `document.addEventListener('visibilitychange')` e `window.addEventListener('focus')` revalidam instantaneamente a escala quando o usuário clica ou retorna à aba.
+     - **Heartbeat Polling de Contingência (15 segundos)**: Intervalo silencioso a cada 15 segundos executado apenas com a aba ativa/visível, garantindo tolerância a falhas de rede.
+  2. `src/hooks/useColaborador.js`:
+     - Recebe e integra `onDataChanged`, `onOptimisticReserva` e `onOptimisticCancelar` através de referências estáveis.
+     - **Optimistic UI Instantânea (0ms)**: Ao reservar com sucesso, injeta imediatamente a reserva com `eh_minha: true` e o nome do colaborador no estado do React, convertendo o botão para vermelho *"Cancelar Minha Vaga"* e avançando a barra de progresso no mesmo milissegundo, enquanto confirma silenciosamente com o banco via `onDataChanged`.
+     - **Cancelamento Instantâneo**: Remove otimisticamente a vaga do array local ao confirmar o cancelamento e sincroniza com o banco.
+     - **Alinhamento Imediato em Conflitos**: Sempre que uma reserva é rejeitada por *"já possui vaga"*, *"Turno esgotado"*, *"Conflito de horário"* ou *"Limite de vagas"*, o hook invoca `onDataChanged?.(true)` de imediato para trazer a verdade do banco para a tela.
+     - **Prevenção de Cliques Duplos (`submittingTurnoId`)**: Trava contra disparos simultâneos enquanto a requisição do turno está em processamento.
+  3. `src/components/corretor/TurnoCard.jsx`:
+     - Recebe `isSubmitting` e exibe spinner com texto *"Garantindo vaga..."* desabilitado durante o voo da requisição, impedindo *double-clicks*.
+  4. `src/App.jsx`:
+     - Orquestra a ponte reativa bidirecional entre `useColaborador` e `useEscalaData` com refs imunes a dependências circulares.
+- **Validação e Testes**:
+  - Testes de concorrência e canal Realtime via Node.js validados com evento `UPDATE` disparado por `reservar_vaga`.
+  - `npm run build` executado com sucesso e zero erros.
+
 
 ---
 
@@ -1343,6 +1413,41 @@ npm run build
        - Botão *"Liberar Agora"* e botão *"Alterar Horário"* / *"Programar Abertura"* movidos para a área expandida com espaçamento adequado, touch targets confortáveis (min-h: 40px) e sem espremer o cabeçalho.
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros (`vite build`).
+
+---
+
+## 44. Sincronização em Tempo Real Resiliente, Optimistic UI e Heartbeat Polling — Fase 18 (Novembro/2026)
+- **Contexto e Causa Raiz do Bug Reportado**:
+  - O usuário reportou inconsistência crítica na visualização da escala pública:
+    1. Clicava em botão verde e recebia o toast *"Você já tem uma vaga reservada neste horário!"*, mas o card continuava verde e com contagem defasada (1/2) sem exibir a vaga e o botão de cancelar;
+    2. Clicava em botão verde de outro horário e recebia *"Turno esgotado! Tente outro horário."*, embora a tela exibisse 1/2 vagas livres;
+    3. Clicava em um terceiro horário e recebia *"Vaga garantida com sucesso! ✅"*, mas o botão continuava verde e não mudava de estado nem atualizava a contagem de vagas em tempo real;
+    4. Ao abrir a mesma escala em outro navegador, constatou que os turnos das 8h às 10h e das 10h às 12h estavam de fato esgotados (2/2) com reservas feitas anteriormente por ele e outros colaboradores, evidenciando que a aba do primeiro navegador estava com o estado completamente congelado e dessincronizado do PostgreSQL.
+  - **Diagnóstico de Engenharia Sênior**:
+    - **Falha 1 (Ausência de Callback de Atualização no Colaborador)**: `useColaborador.js` executava as RPCs `reservar_vaga` e `cancelar_vaga`, mas não invocava `fetchData` e nem aplicava mutação otimista no estado local do React. O frontend ficava 100% refém do evento de WebSocket para reagir à sua própria ação.
+    - **Falha 2 (Dormência de WebSocket / Background Tab Throttling)**: Quando o usuário alternava entre abas/navegadores para testar nomes diferentes, navegadores modernos (como Google Chrome) colocam WebSockets ociosos em segundo plano ou suspendem timers. Ao retornar à aba da escala, não havia listeners de ciclo de vida (`visibilitychange` ou `window focus`) para forçar a re-validação dos dados.
+    - **Falha 3 (Ausência de Polling de Contingência)**: Não havia mecanismo de fallback/heartbeat para assegurar a sincronia da escala sob micro-quedas de rede ou instabilidades temporárias do canal Realtime.
+    - **Falha 4 (Feedback Silencioso em Conflitos de Estado)**: Quando a RPC rejeitava uma reserva por duplicidade ("já possui vaga") ou esgotamento ("vagas esgotadas"), o frontend exibia o toast, mas não sincronizava a escala com o banco de dados, deixando o usuário preso numa visualização fantasma (*stale UI*).
+- **Soluções Arquiteturais Implementadas**:
+  1. `src/hooks/useEscalaData.js`:
+     - **Controle de Concorrência Assíncrona (`fetchCounterRef`)**: IDs incrementais em `fetchData` impedem que requisições antigas resolvidas fora de ordem sobrescrevam o estado mais recente.
+     - **Estabilização de Subscrição Realtime (`fetchDataRef`)**: O canal WebSocket escutando `escala_sync` agora utiliza referência estável, eliminando recriações e desconexões contínuas no Phoenix Channel do Supabase. Debounce reduzido para 60ms.
+     - **Monitoramento de Status do Canal**: Callback `.subscribe((status, err) => ...)` escuta `SUBSCRIBED`, `CHANNEL_ERROR`, `TIMED_OUT` e `CLOSED`, disparando sincronizações preventivas imediatas via HTTP caso o WebSocket oscile.
+     - **Re-sincronização Automática em Retorno de Visibilidade e Foco**: Listeners nativos de `document.addEventListener('visibilitychange')` e `window.addEventListener('focus')` revalidam instantaneamente a escala quando o usuário clica ou retorna à aba.
+     - **Heartbeat Polling de Contingência (15 segundos)**: Intervalo silencioso a cada 15 segundos executado apenas com a aba ativa/visível, garantindo tolerância a falhas de rede.
+  2. `src/hooks/useColaborador.js`:
+     - Recebe e integra `onDataChanged`, `onOptimisticReserva` e `onOptimisticCancelar` através de referências estáveis.
+     - **Optimistic UI Instantânea (0ms)**: Ao reservar com sucesso, injeta imediatamente a reserva com `eh_minha: true` e o nome do colaborador no estado do React, convertendo o botão para vermelho *"Cancelar Minha Vaga"* e avançando a barra de progresso no mesmo milissegundo, enquanto confirma silenciosamente com o banco via `onDataChanged`.
+     - **Cancelamento Instantâneo**: Remove otimisticamente a vaga do array local ao confirmar o cancelamento e sincroniza com o banco.
+     - **Alinhamento Imediato em Conflitos**: Sempre que uma reserva é rejeitada por *"já possui vaga"*, *"Turno esgotado"*, *"Conflito de horário"* ou *"Limite de vagas"*, o hook invoca `onDataChanged?.(true)` de imediato para trazer a verdade do banco para a tela.
+     - **Prevenção de Cliques Duplos (`submittingTurnoId`)**: Trava contra disparos simultâneos enquanto a requisição do turno está em processamento.
+  3. `src/components/corretor/TurnoCard.jsx`:
+     - Recebe `isSubmitting` e exibe spinner com texto *"Garantindo vaga..."* desabilitado durante o voo da requisição, impedindo *double-clicks*.
+  4. `src/App.jsx`:
+     - Orquestra a ponte reativa bidirecional entre `useColaborador` e `useEscalaData` com refs imunes a dependências circulares.
+- **Validação e Testes**:
+  - Testes de concorrência e canal Realtime via Node.js validados com evento `UPDATE` disparado por `reservar_vaga`.
+  - `npm run build` executado com sucesso e zero erros.
 
 ---
 
@@ -1394,3 +1499,38 @@ npm run build
      - Integrado `ColaboradoresEscalaManager` como o primeiro card de destaque da aba Equipe, recebendo reservas, turnos, pontos e ações de dados em tempo real.
 - **Validação de Build**:
   - `npm run build` executado com sucesso e zero erros (`vite build`).
+
+---
+
+## 44. Sincronização em Tempo Real Resiliente, Optimistic UI e Heartbeat Polling — Fase 18 (Novembro/2026)
+- **Contexto e Causa Raiz do Bug Reportado**:
+  - O usuário reportou inconsistência crítica na visualização da escala pública:
+    1. Clicava em botão verde e recebia o toast *"Você já tem uma vaga reservada neste horário!"*, mas o card continuava verde e com contagem defasada (1/2) sem exibir a vaga e o botão de cancelar;
+    2. Clicava em botão verde de outro horário e recebia *"Turno esgotado! Tente outro horário."*, embora a tela exibisse 1/2 vagas livres;
+    3. Clicava em um terceiro horário e recebia *"Vaga garantida com sucesso! ✅"*, mas o botão continuava verde e não mudava de estado nem atualizava a contagem de vagas em tempo real;
+    4. Ao abrir a mesma escala em outro navegador, constatou que os turnos das 8h às 10h e das 10h às 12h estavam de fato esgotados (2/2) com reservas feitas anteriormente por ele e outros colaboradores, evidenciando que a aba do primeiro navegador estava com o estado completamente congelado e dessincronizado do PostgreSQL.
+  - **Diagnóstico de Engenharia Sênior**:
+    - **Falha 1 (Ausência de Callback de Atualização no Colaborador)**: `useColaborador.js` executava as RPCs `reservar_vaga` e `cancelar_vaga`, mas não invocava `fetchData` e nem aplicava mutação otimista no estado local do React. O frontend ficava 100% refém do evento de WebSocket para reagir à sua própria ação.
+    - **Falha 2 (Dormência de WebSocket / Background Tab Throttling)**: Quando o usuário alternava entre abas/navegadores para testar nomes diferentes, navegadores modernos (como Google Chrome) colocam WebSockets ociosos em segundo plano ou suspendem timers. Ao retornar à aba da escala, não havia listeners de ciclo de vida (`visibilitychange` ou `window focus`) para forçar a re-validação dos dados.
+    - **Falha 3 (Ausência de Polling de Contingência)**: Não havia mecanismo de fallback/heartbeat para assegurar a sincronia da escala sob micro-quedas de rede ou instabilidades temporárias do canal Realtime.
+    - **Falha 4 (Feedback Silencioso em Conflitos de Estado)**: Quando a RPC rejeitava uma reserva por duplicidade ("já possui vaga") ou esgotamento ("vagas esgotadas"), o frontend exibia o toast, mas não sincronizava a escala com o banco de dados, deixando o usuário preso numa visualização fantasma (*stale UI*).
+- **Soluções Arquiteturais Implementadas**:
+  1. `src/hooks/useEscalaData.js`:
+     - **Controle de Concorrência Assíncrona (`fetchCounterRef`)**: IDs incrementais em `fetchData` impedem que requisições antigas resolvidas fora de ordem sobrescrevam o estado mais recente.
+     - **Estabilização de Subscrição Realtime (`fetchDataRef`)**: O canal WebSocket escutando `escala_sync` agora utiliza referência estável, eliminando recriações e desconexões contínuas no Phoenix Channel do Supabase. Debounce reduzido para 60ms.
+     - **Monitoramento de Status do Canal**: Callback `.subscribe((status, err) => ...)` escuta `SUBSCRIBED`, `CHANNEL_ERROR`, `TIMED_OUT` e `CLOSED`, disparando sincronizações preventivas imediatas via HTTP caso o WebSocket oscile.
+     - **Re-sincronização Automática em Retorno de Visibilidade e Foco**: Listeners nativos de `document.addEventListener('visibilitychange')` e `window.addEventListener('focus')` revalidam instantaneamente a escala quando o usuário clica ou retorna à aba.
+     - **Heartbeat Polling de Contingência (15 segundos)**: Intervalo silencioso a cada 15 segundos executado apenas com a aba ativa/visível, garantindo tolerância a falhas de rede.
+  2. `src/hooks/useColaborador.js`:
+     - Recebe e integra `onDataChanged`, `onOptimisticReserva` e `onOptimisticCancelar` através de referências estáveis.
+     - **Optimistic UI Instantânea (0ms)**: Ao reservar com sucesso, injeta imediatamente a reserva com `eh_minha: true` e o nome do colaborador no estado do React, convertendo o botão para vermelho *"Cancelar Minha Vaga"* e avançando a barra de progresso no mesmo milissegundo, enquanto confirma silenciosamente com o banco via `onDataChanged`.
+     - **Cancelamento Instantâneo**: Remove otimisticamente a vaga do array local ao confirmar o cancelamento e sincroniza com o banco.
+     - **Alinhamento Imediato em Conflitos**: Sempre que uma reserva é rejeitada por *"já possui vaga"*, *"Turno esgotado"*, *"Conflito de horário"* ou *"Limite de vagas"*, o hook invoca `onDataChanged?.(true)` de imediato para trazer a verdade do banco para a tela.
+     - **Prevenção de Cliques Duplos (`submittingTurnoId`)**: Trava contra disparos simultâneos enquanto a requisição do turno está em processamento.
+  3. `src/components/corretor/TurnoCard.jsx`:
+     - Recebe `isSubmitting` e exibe spinner com texto *"Garantindo vaga..."* desabilitado durante o voo da requisição, impedindo *double-clicks*.
+  4. `src/App.jsx`:
+     - Orquestra a ponte reativa bidirecional entre `useColaborador` e `useEscalaData` com refs imunes a dependências circulares.
+- **Validação e Testes**:
+  - Testes de concorrência e canal Realtime via Node.js validados com evento `UPDATE` disparado por `reservar_vaga`.
+  - `npm run build` executado com sucesso e zero erros.

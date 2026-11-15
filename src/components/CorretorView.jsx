@@ -23,6 +23,7 @@ export default function CorretorView({
   corretorWhatsapp,
   corretorEmail,
   cadastroNaoAutorizado = false,
+  submittingTurnoId = null,
   onEditarPerfil,
   onReservar,
   onCancelar,
@@ -237,6 +238,7 @@ export default function CorretorView({
           corretorWhatsapp={corretorWhatsapp}
           corretorEmail={corretorEmail}
           cadastroNaoAutorizado={cadastroNaoAutorizado}
+          submittingTurnoId={submittingTurnoId}
           onEditarPerfil={onEditarPerfil}
           onSelectPonto={setSelectedPontoId}
           onCopiar={handleCopiar}
@@ -261,6 +263,7 @@ export default function CorretorView({
           corretorWhatsapp={corretorWhatsapp}
           corretorEmail={corretorEmail}
           cadastroNaoAutorizado={cadastroNaoAutorizado}
+          submittingTurnoId={submittingTurnoId}
           onEditarPerfil={onEditarPerfil}
           onVoltar={() => setSelectedPontoId(null)}
           onReservar={onReservar}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTenant } from './contexts/TenantContext'
 import { useAuth } from './contexts/AuthContext'
 import { getPublicShareUrl } from './lib/tenantHelper'
@@ -60,6 +60,23 @@ export default function App() {
     setToast({ message, type })
   }, [])
 
+  // Referências estáveis para sincronização bidirecional entre Colaborador e Dados da Escala
+  const onDataChangedRef = useRef(null)
+  const onOptimisticReservaRef = useRef(null)
+  const onOptimisticCancelarRef = useRef(null)
+
+  const handleDataChanged = useCallback((silent = true) => {
+    return onDataChangedRef.current?.(silent)
+  }, [])
+
+  const handleOptimisticReserva = useCallback((dados) => {
+    return onOptimisticReservaRef.current?.(dados)
+  }, [])
+
+  const handleOptimisticCancelar = useCallback((reservaId) => {
+    return onOptimisticCancelarRef.current?.(reservaId)
+  }, [])
+
   // Hook de Identidade e Ações do Colaborador (Zero-Atrito)
   const {
     deviceId,
@@ -70,12 +87,20 @@ export default function App() {
     nomeModalError,
     cadastroNaoAutorizado,
     pendingTurnoId,
+    submittingTurnoId,
     handleReservar,
     handleCancelar,
     handleNomeConfirm,
     handleEditarPerfil,
     fecharNomeModal,
-  } = useColaborador({ empresa, showToast, confirm })
+  } = useColaborador({
+    empresa,
+    showToast,
+    confirm,
+    onDataChanged: handleDataChanged,
+    onOptimisticReserva: handleOptimisticReserva,
+    onOptimisticCancelar: handleOptimisticCancelar,
+  })
 
   // Navegação e Acesso Administrativo (exclusivamente Supabase Auth)
   const [view, setView] = useState(() => (isPortalDomain ? 'admin' : 'corretor'))
@@ -95,6 +120,7 @@ export default function App() {
     loading: escalaLoading,
     fetchData,
     handleLimparEscala,
+    setReservas,
   } = useEscalaData({
     empresa,
     isDemo,
@@ -103,6 +129,36 @@ export default function App() {
     showToast,
     confirm,
   })
+
+  // Conecta o fetchData e mutações otimistas ao hook de ações do colaborador
+  useEffect(() => {
+    onDataChangedRef.current = fetchData
+  }, [fetchData])
+
+  useEffect(() => {
+    onOptimisticReservaRef.current = ({ turnoId, corretorNome: nomeReserva, deviceId: devId }) => {
+      setReservas((prev) => {
+        if (prev.some((r) => r.turno_id === turnoId && (r.eh_minha || (devId && r.device_id === devId)))) {
+          return prev
+        }
+        return [
+          ...prev,
+          {
+            id: 'temp-' + Date.now(),
+            turno_id: turnoId,
+            empresa_id: empresa?.id,
+            corretor_nome: nomeReserva || 'Você',
+            eh_minha: true,
+            device_id: devId,
+            created_at: new Date().toISOString(),
+          },
+        ]
+      })
+    }
+    onOptimisticCancelarRef.current = (reservaId) => {
+      setReservas((prev) => prev.filter((r) => r.id !== reservaId))
+    }
+  }, [empresa?.id, setReservas])
 
   // Ajusta visão ao alternar de empresa ou status de autorização
   useEffect(() => {
@@ -274,6 +330,7 @@ export default function App() {
             corretorWhatsapp={corretorWhatsapp}
             corretorEmail={corretorEmail}
             cadastroNaoAutorizado={cadastroNaoAutorizado}
+            submittingTurnoId={submittingTurnoId}
             onEditarPerfil={handleEditarPerfil}
             onReservar={handleReservar}
             onCancelar={handleCancelar}

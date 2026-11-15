@@ -38,6 +38,7 @@ export default function TurnoCard({
   bloqueioRegra = null,
   escalaBloqueadaPorAgendamento = false,
   escalaAbreEm = null,
+  isSubmitting = false,
 }) {
   const vagasOcupadas = reservas.length
   const vagasTotal = turno.capacidade
@@ -201,10 +202,17 @@ export default function TurnoCard({
       ) : (
         <button
           onClick={() => onReservar(turno.id)}
-          className="btn-success w-full flex items-center justify-center gap-2 text-sm"
+          disabled={isSubmitting}
+          className={`btn-success w-full flex items-center justify-center gap-2 text-sm transition-all ${
+            isSubmitting ? 'opacity-70 cursor-wait' : ''
+          }`}
         >
-          <CheckCircle2 className="w-4.5 h-4.5" />
-          {acaoVaga || 'Garantir Vaga'}
+          {isSubmitting ? (
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <CheckCircle2 className="w-4.5 h-4.5" />
+          )}
+          {isSubmitting ? 'Garantindo vaga...' : (acaoVaga || 'Garantir Vaga')}
         </button>
       )}
     </div>

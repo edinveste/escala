@@ -43,6 +43,9 @@ export function useEscalaData({
   const prevEmpresaIdRef = useRef(null)
   const empresaRef = useRef(empresa)
   const temDadosRef = useRef(false)
+  const fetchCounterRef = useRef(0)
+  const fetchDataRef = useRef(null)
+
   useEffect(() => {
     empresaRef.current = empresa
   }, [empresa])
@@ -58,6 +61,8 @@ export function useEscalaData({
   const fetchData = useCallback(
     async (isSilent = true) => {
       if (!empresa?.id || isDemo || empresa.id === DEMO_EMPRESA.id) return
+
+      const currentFetchId = ++fetchCounterRef.current
 
       if (!isSilent) {
         setLoading(true)
@@ -83,6 +88,8 @@ export function useEscalaData({
               .order('created_at', { ascending: true }),
           ])
 
+          if (currentFetchId !== fetchCounterRef.current) return
+
           if (pontosRes.error) throw pontosRes.error
           if (turnosRes.error) throw turnosRes.error
           if (reservasRes.error) throw reservasRes.error
@@ -104,6 +111,8 @@ export function useEscalaData({
             p_device_id: deviceId || null,
           })
         )
+
+        if (currentFetchId !== fetchCounterRef.current) return
 
         if (!rpcErr && rpcData) {
           setPontos(mapearPontosComTermos(rpcData.pontos, empresaRef.current))
@@ -140,6 +149,8 @@ export function useEscalaData({
             ),
           ])
 
+          if (currentFetchId !== fetchCounterRef.current) return
+
           if (pontosRes.error) throw pontosRes.error
           if (turnosRes.error) throw turnosRes.error
           if (reservasRes.error) throw reservasRes.error
@@ -152,16 +163,22 @@ export function useEscalaData({
 
         throw rpcErr
       } catch (err) {
-        console.error('Erro ao carregar dados da empresa:', err)
-        showToast?.('Erro ao carregar escala desta empresa.', 'error')
+        if (currentFetchId === fetchCounterRef.current) {
+          console.error('Erro ao carregar dados da empresa:', err)
+          showToast?.('Erro ao carregar escala desta empresa.', 'error')
+        }
       } finally {
-        if (!isSilent) {
+        if (currentFetchId === fetchCounterRef.current && !isSilent) {
           setLoading(false)
         }
       }
     },
     [empresa?.id, isDemo, isGestor, deviceId, showToast]
   )
+
+  useEffect(() => {
+    fetchDataRef.current = fetchData
+  }, [fetchData])
 
   useEffect(() => {
     if (empresa?.id && !isDemo && empresa.id !== DEMO_EMPRESA.id) {
@@ -191,11 +208,19 @@ export function useEscalaData({
           () => {
             clearTimeout(debounceTimer)
             debounceTimer = setTimeout(() => {
-              fetchData(true)
-            }, 90)
+              fetchDataRef.current?.(true)
+            }, 60)
           }
         )
-        .subscribe()
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            // Canal confirmado ativo: sincroniza uma vez para garantir estado mais fresco
+            fetchDataRef.current?.(true)
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            console.warn(`[Escala Realtime] Canal ${status}, executando sincronização preventiva:`, err)
+            fetchDataRef.current?.(true)
+          }
+        })
 
       return () => {
         clearTimeout(debounceTimer)
@@ -270,12 +295,58 @@ export function useEscalaData({
             })
         }
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          fetchDataRef.current?.(true)
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn(`[Escala Realtime Gestor] Canal ${status}:`, err)
+          fetchDataRef.current?.(true)
+        }
+      })
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [empresa?.id, isDemo, modoSync, fetchData])
+  }, [empresa?.id, isDemo, modoSync])
+
+  // ─── Re-sincronização automática ao retornar foco/visibilidade ──
+  // Resolve o problema de navegadores modernos suspenderem WebSockets em abas de fundo
+  useEffect(() => {
+    if (!empresa?.id || isDemo || empresa.id === DEMO_EMPRESA.id) return
+
+    const handleSyncOnVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDataRef.current?.(true)
+      }
+    }
+
+    const handleFocus = () => {
+      fetchDataRef.current?.(true)
+    }
+
+    document.addEventListener('visibilitychange', handleSyncOnVisible)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleSyncOnVisible)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [empresa?.id, isDemo])
+
+  // ─── Polling de Contingência Inteligente (Heartbeat a cada 15s) ──
+  // Garante que, mesmo sob oscilações severas de rede ou bloqueios de firewall,
+  // as vagas nunca fiquem desatualizadas por mais de 15 segundos na tela ativa.
+  useEffect(() => {
+    if (!empresa?.id || isDemo || empresa.id === DEMO_EMPRESA.id) return
+
+    const intervalId = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchDataRef.current?.(true)
+      }
+    }, 15000)
+
+    return () => clearInterval(intervalId)
+  }, [empresa?.id, isDemo])
 
   // ─── Ação Administrativa: Limpar toda a escala ou por ponto ───
   const handleLimparEscala = useCallback(
