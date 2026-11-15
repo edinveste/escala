@@ -80,6 +80,7 @@ O **EscalaFácil - Controle de Captação** é uma plataforma SaaS Multi-Tenant 
    - `id` (uuid, PK)
    - `empresa_id` (uuid, FK `empresas.id` ON DELETE CASCADE)
    - `nome` (text)
+   - `endereco` (text nullable, endereço em texto ou link direto do Google Maps)
    - `ordem` (int)
    - `ativo` (boolean)
    - `created_at` (timestamptz)
@@ -194,6 +195,7 @@ e:\Escala\
 ├── supabase_migration_fase15_regras_escala.sql # Script de migração Fase 15: Bloqueio de Conflito de Horário & Cotas Anti-Monopólio
 ├── supabase_migration_fase16_abertura_programada.sql # Script de migração Fase 16: Abertura Programada com Contagem Regressiva e Destravamento Automático
 ├── supabase_migration_fase17_colaboradores_escala.sql # Script de migração Fase 17: Gestão Consolidada de Colaboradores na Escala e Renomeação em Lote
+├── supabase_migration_fase18_endereco_maps.sql # Script de migração Fase 18: Endereço e Redirecionamento Google Maps nos Pontos
 ├── supabase/
 │   └── functions/
 │       └── asaas-webhook/       # Supabase Edge Function Deno/TS de processamento do webhook Asaas
@@ -217,6 +219,7 @@ e:\Escala\
     │   ├── supabaseClient.js    # Instância do createClient configurada
     │   ├── supabasePublicHelper.js # Utilitários de execução pública segura (JWT expirado e fallback RPC)
     │   ├── tenantHelper.js      # Utilitários de extração de slug, subdomínio e URL compartilhável
+    │   ├── mapsHelper.js        # Utilitários de formatação de links e integração com Google Maps Search
     │   ├── diasSemana.js        # Utilitários, ordenação e normalização de dias da semana
     │   ├── horarioHelper.js     # Parsing de horários legados, detecção de conflitos e cálculo de cotas
     │   ├── agendaPdfHelper.js   # Geração direta de PDF vetorial via jsPDF sob demanda (dynamic import)
@@ -225,6 +228,8 @@ e:\Escala\
     │   ├── vocabularioHelper.js # Dicionário de presets, termos e helpers de vocabulário multi-nicho
     │   └── demoData.js          # Mock data e persistência local da escala demonstrativa sandbox (/demo)
     └── components/
+        ├── icons/
+        │   └── GoogleMapsIcon.jsx   # Ícone oficial vetorizado do Google Maps em 4 cores originais
         ├── AppHeader.jsx        # Barra superior com logo, badge do portal de gestão, tema e logout
         ├── LandingPage.jsx      # Página de vendas oficial de alta conversão (escalafacil.online/)
         ├── EmConstrucao.jsx     # Página temporária de manutenção e lançamento (chave EM_CONSTRUCAO / VITE_EM_CONSTRUCAO)
@@ -527,6 +532,30 @@ e:\Escala\
    - Colunas opcionais `limite_vagas_semana`, `limite_vagas_dia`, `limite_vagas_ponto` e `cotas_pontos_ids` (`NULL` = todos os pontos, ou UUIDs específicos) em `public.empresas`, configuradas via `RegrasEscalaCard.jsx` (`CotasPontosDropdown.jsx`) e RPC `atualizar_regras_escala`.
    - `reservar_vaga` utiliza `pg_advisory_xact_lock` ordenado por empresa + identificadores do colaborador (`device_id`, WhatsApp e E-mail) antes de `FOR UPDATE OF t`, impedindo sobreposição de horários (inclusive com virada de meia-noite) e burla simultânea de cotas.
    - Visão pública (`CorretorRegrasBanner.jsx`, `TurnoCard.jsx`, `useColaborador.js` e modo `/demo`) exibe saldo de vagas, sinaliza turnos conflitantes/bloqueados preventivamente e apresenta toasts contextuais claros.
+
+### 5.15. Abertura Programada com Contagem Regressiva e Destravamento Automático (Fase 16)
+1. **Agendamento Flexível**: Suporte a abertura futura global, por seleção de múltiplos pontos ou ponto individual.
+2. **Contagem Regressiva em Tempo Real**: Timer de alta precisão (`CountdownTimerBanner`, `CountdownBadge`) com destravamento automático no milissegundo exato sem necessidade de recarregar a página.
+3. **Blindagem Backend**: RPC `reservar_vaga` valida e bloqueia tentativas antecipadas com base no relógio do servidor PostgreSQL.
+
+### 5.16. Gestão Consolidada de Colaboradores na Escala e Renomeação em Lote (Fase 17)
+1. **Visão Centralizada da Escala**: `ColaboradoresEscalaManager` agrupa todos os colaboradores escalados na semana, exibindo seus turnos, contatos e quantidades de vagas ocupadas.
+2. **Renomeação em Lote**: RPC `renomear_colaborador_escala` atualiza todas as reservas ativas do colaborador de forma atômica, com opção de sincronizar com a equipe autorizada.
+
+### 5.17. Sincronização em Tempo Real Resiliente, Optimistic UI e Heartbeat Polling
+1. **Optimistic UI Instantânea (0ms)**: Ao garantir ou cancelar vaga, o estado do React reage no mesmo milissegundo (botão vira vermelho "Cancelar Minha Vaga" e contador incrementa imediatamente), confirmando com o banco em background.
+2. **Alinhamento Imediato em Rejeições**: Respostas de "já possui vaga" ou "turno esgotado" forçam sincronização instantânea via `fetchData(true)` para eliminar estados visuais fantasmas (*stale UI*).
+3. **Re-sincronização Automática em Retorno de Visibilidade e Foco**: Listeners de `visibilitychange` e `window focus` revalidam a escala no momento em que o usuário clica ou retorna à aba.
+4. **Heartbeat Polling de Contingência (15 segundos)**: Timer silencioso a cada 15 segundos para assegurar sincronia sob oscilações de rede ou suspensão de WebSockets.
+5. **Prevenção de Duplo Clique**: Estado `isSubmitting` trava e exibe spinner no botão durante o voo da requisição.
+
+### 5.18. Endereço e Redirecionamento Google Maps nos Pontos de Captação (Fase 18)
+1. **Ícone Oficial do Google Maps na Visão do Colaborador**: Em `PontoSelectorView` e `PontoTurnosView`, quando o ponto possui endereço ou link do Maps cadastrado, o ícone comum de alfinete é substituído pelo **ícone oficial vetorizado do Google Maps em 4 cores** (`GoogleMapsIcon`), transformando-se em um botão interativo (`target="_blank"`, `min-w-[44px] min-h-[44px]` touch-friendly), com efeito hover/scale, tooltip descritivo e `e.stopPropagation()` para não disparar a seleção do card.
+2. **Estado Inativo Neutro**: Quando o ponto não possui endereço cadastrado, o ícone permanece estático e decorativo, sem efeito de clique ou cursor pointer.
+3. **Campo Opcional na Criação e Edição**: No `FormAddPonto`, `PontoItem` (modo edição inline) e `DuplicarPontoModal`, o gestor conta com campo opcional de endereço compatível tanto com texto puro (ex: "Av. Paulista, 1000 - São Paulo, SP") quanto links diretos de compartilhamento do Google Maps (`https://maps.app.goo.gl/...`), com botão em tempo real "Testar no Maps".
+4. **Resiliência Multi-Tenant e Fallback Automático**: Caso a coluna `endereco` na tabela `public.pontos` ainda não tenha sido criada via migração, `usePontosManager` e `useEscalaData` persistem e recuperam o dado transparentemente dentro do JSONB `empresas.termos.enderecosPontos`.
+5. **Integração com Agenda, PDF e Calendário**: O endereço é propagado para o Google Calendar (`LOCATION`), arquivo `.ics` e exportação vetorial de agenda em PDF (`agendaPdfHelper`).
+
 
 
 

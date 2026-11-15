@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS public.pontos (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   empresa_id UUID NOT NULL REFERENCES public.empresas(id) ON DELETE CASCADE,
   nome       TEXT NOT NULL,              -- ex: 'Mercado Extra', 'Padaria Di Cunto'
+  endereco   TEXT DEFAULT NULL,          -- Endereço ou link do Google Maps
   ordem              INT  NOT NULL DEFAULT 0,
   ativo              BOOLEAN NOT NULL DEFAULT true,
   cabecalho_whatsapp    TEXT,
@@ -1338,6 +1339,7 @@ BEGIN
           'id', p.id,
           'empresa_id', p.empresa_id,
           'nome', p.nome,
+          'endereco', p.endereco,
           'ordem', p.ordem,
           'ativo', p.ativo,
           'cabecalho_whatsapp', p.cabecalho_whatsapp,

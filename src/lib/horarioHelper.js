@@ -244,6 +244,7 @@ export function calcularResumoColaborador({
       reservaId: r.id,
       dataReserva: r.created_at,
       pontoNome: ponto.nome,
+      pontoEndereco: ponto.endereco || null,
     })
 
     porPonto[turno.ponto_id] = (porPonto[turno.ponto_id] || 0) + 1

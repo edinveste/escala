@@ -1,7 +1,9 @@
 import { ArrowLeft, MapPin, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
+import GoogleMapsIcon from '../icons/GoogleMapsIcon'
 import CorretorIdentityHeader from './CorretorIdentityHeader'
 import DiaAcordeonItem from './DiaAcordeonItem'
 import CorretorCopyFooter from './CorretorCopyFooter'
+import { obterLinkGoogleMaps } from '../../lib/mapsHelper'
 
 /**
  * Visualização dos turnos do ponto selecionado na visão do colaborador.
@@ -51,16 +53,46 @@ export default function PontoTurnosView({
         </button>
 
         <div className="flex items-center gap-2.5 px-1">
-          <div className="p-2 rounded-xl bg-brand-500/10 border border-brand-500/20 flex-shrink-0">
-            <MapPin className="w-5 h-5 text-brand-400" />
-          </div>
+          {selectedPonto?.endereco ? (
+            <a
+              href={obterLinkGoogleMaps(selectedPonto.endereco)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative p-2 rounded-xl bg-surface-700/80 border border-surface-600/80 hover:bg-surface-600 hover:border-brand-500/50 hover:scale-105 active:scale-95 transition-all flex-shrink-0 min-w-[42px] min-h-[42px] flex items-center justify-center shadow-sm group/maps"
+              title={`Abrir no Google Maps:\n${selectedPonto.endereco}`}
+              aria-label={`Abrir no Google Maps: ${selectedPonto.endereco}`}
+            >
+              <GoogleMapsIcon className="w-5 h-5 transition-transform duration-200 group-hover/maps:-translate-y-0.5 drop-shadow-sm" />
+            </a>
+          ) : (
+            <div className="p-2 rounded-xl bg-brand-500/10 border border-brand-500/20 flex-shrink-0 min-w-[42px] min-h-[42px] flex items-center justify-center">
+              <MapPin className="w-5 h-5 text-brand-400" />
+            </div>
+          )}
           <div className="min-w-0">
             <h2 className="text-base font-bold text-gray-100 truncate">
               {selectedPonto?.nome}
             </h2>
-            <p className="text-xs text-gray-500">
-              {turnosFiltrados.length} turno{turnosFiltrados.length !== 1 ? 's' : ''} disponíve{turnosFiltrados.length !== 1 ? 'is' : 'l'}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap text-xs text-gray-500">
+              <span>
+                {turnosFiltrados.length} turno{turnosFiltrados.length !== 1 ? 's' : ''} disponíve{turnosFiltrados.length !== 1 ? 'is' : 'l'}
+              </span>
+              {selectedPonto?.endereco && (
+                <>
+                  <span>•</span>
+                  <a
+                    href={obterLinkGoogleMaps(selectedPonto.endereco)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-400 hover:text-brand-300 hover:underline truncate max-w-[200px] sm:max-w-[320px] inline-flex items-center gap-1.5"
+                    title={`Google Maps: ${selectedPonto.endereco}`}
+                  >
+                    <GoogleMapsIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{selectedPonto.endereco}</span>
+                  </a>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

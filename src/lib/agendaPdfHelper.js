@@ -86,7 +86,9 @@ export async function baixarAgendaPdf({ turnos = [], empresa = null, corretorNom
   const linhasTabela = turnos.map((turno) => [
     formatarDiaComData(turno.dia),
     turno.horario || 'Horário a definir',
-    turno.pontoNome || 'Local da Escala',
+    turno.pontoEndereco
+      ? `${turno.pontoNome || 'Local da Escala'}\n${turno.pontoEndereco}`
+      : (turno.pontoNome || 'Local da Escala'),
   ])
 
   autoTable(doc, {

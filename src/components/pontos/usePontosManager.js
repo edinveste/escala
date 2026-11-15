@@ -82,27 +82,74 @@ export function usePontosManager({
 
   // ─── Criação de Ponto ───────────────────────────────────────────
   const adicionarPonto = useCallback(
-    async (nome) => {
+    async (nome, endereco = null) => {
       if (!nome || !nome.trim()) {
         showToast('Preencha o nome do ponto.', 'error')
         return false
       }
 
       setAddingPonto(true)
+      const nomeLimpo = nome.trim()
+      const enderecoLimpo = endereco?.trim() ? endereco.trim() : null
+
       try {
         const proximaOrdem =
           pontos.length > 0
             ? Math.max(...pontos.map((p) => (Number.isFinite(p.ordem) ? p.ordem : 0))) + 1
             : 0
 
-        const { error } = await supabase.from('pontos').insert({
-          nome: nome.trim(),
-          ordem: proximaOrdem,
-          ativo: false, // Inicia oculto para corretores enquanto o gestor monta a grade!
-          ...(empresaId ? { empresa_id: empresaId } : {}),
-        })
+        let { data: novoPonto, error } = await supabase
+          .from('pontos')
+          .insert({
+            nome: nomeLimpo,
+            endereco: enderecoLimpo,
+            ordem: proximaOrdem,
+            ativo: false, // Inicia oculto para corretores enquanto o gestor monta a grade!
+            ...(empresaId ? { empresa_id: empresaId } : {}),
+          })
+          .select()
+          .single()
 
-        if (error) throw error
+        if (error && isMissingColumnError(error)) {
+          // Fallback caso a coluna endereco ainda não exista no banco
+          const fallbackRes = await supabase
+            .from('pontos')
+            .insert({
+              nome: nomeLimpo,
+              ordem: proximaOrdem,
+              ativo: false,
+              ...(empresaId ? { empresa_id: empresaId } : {}),
+            })
+            .select()
+            .single()
+
+          if (fallbackRes.error) throw fallbackRes.error
+          novoPonto = fallbackRes.data
+
+          if (novoPonto && enderecoLimpo && empresaId) {
+            const { data: empData } = await supabase
+              .from('empresas')
+              .select('termos')
+              .eq('id', empresaId)
+              .single()
+
+            const termosAtuais = empData?.termos || {}
+            const enderecosAtuais = { ...(termosAtuais.enderecosPontos || {}) }
+            enderecosAtuais[novoPonto.id] = enderecoLimpo
+
+            await supabase
+              .from('empresas')
+              .update({
+                termos: {
+                  ...termosAtuais,
+                  enderecosPontos: enderecosAtuais,
+                },
+              })
+              .eq('id', empresaId)
+          }
+        } else if (error) {
+          throw error
+        }
 
         showToast(
           'Ponto criado como rascunho (oculto)! Cadastre os turnos e clique no olho para publicar. 👁️',
@@ -121,32 +168,74 @@ export function usePontosManager({
     [pontos, empresaId, onDataChanged, showToast]
   )
 
-  // ─── Renomear Ponto ─────────────────────────────────────────────
+  // ─── Renomear / Editar Ponto ─────────────────────────────────────
   const renomearPonto = useCallback(
-    async (pontoId, novoNome) => {
+    async (pontoId, novoNome, novoEndereco = null) => {
       if (!novoNome || !novoNome.trim()) {
         showToast('O nome não pode ficar vazio.', 'warning')
         return false
       }
 
+      const nomeLimpo = novoNome.trim()
+      const enderecoLimpo = novoEndereco?.trim() ? novoEndereco.trim() : null
+
       try {
-        const { error } = await supabase
+        let { error } = await supabase
           .from('pontos')
-          .update({ nome: novoNome.trim() })
+          .update({
+            nome: nomeLimpo,
+            endereco: enderecoLimpo,
+          })
           .eq('id', pontoId)
 
-        if (error) throw error
+        if (error && isMissingColumnError(error)) {
+          // Fallback caso a coluna endereco ainda não exista no banco
+          const fallbackRes = await supabase
+            .from('pontos')
+            .update({ nome: nomeLimpo })
+            .eq('id', pontoId)
 
-        showToast('Nome do ponto atualizado! ✅', 'success')
+          if (fallbackRes.error) throw fallbackRes.error
+
+          if (empresaId) {
+            const { data: empData } = await supabase
+              .from('empresas')
+              .select('termos')
+              .eq('id', empresaId)
+              .single()
+
+            const termosAtuais = empData?.termos || {}
+            const enderecosAtuais = { ...(termosAtuais.enderecosPontos || {}) }
+            if (enderecoLimpo) {
+              enderecosAtuais[pontoId] = enderecoLimpo
+            } else {
+              delete enderecosAtuais[pontoId]
+            }
+
+            await supabase
+              .from('empresas')
+              .update({
+                termos: {
+                  ...termosAtuais,
+                  enderecosPontos: enderecosAtuais,
+                },
+              })
+              .eq('id', empresaId)
+          }
+        } else if (error) {
+          throw error
+        }
+
+        showToast('Ponto de captação atualizado! ✅', 'success')
         onDataChanged?.()
         return true
       } catch (err) {
-        console.error('Erro ao renomear ponto:', err)
-        showToast('Erro ao renomear ponto.', 'error')
+        console.error('Erro ao atualizar ponto:', err)
+        showToast('Erro ao atualizar ponto.', 'error')
         return false
       }
     },
-    [onDataChanged, showToast]
+    [empresaId, onDataChanged, showToast]
   )
 
   // ─── Excluir Ponto ──────────────────────────────────────────────
@@ -190,7 +279,7 @@ export function usePontosManager({
 
   // ─── Duplicar Ponto Inteiro ─────────────────────────────────────
   const duplicarPonto = useCallback(
-    async (nomeNovo) => {
+    async (nomeNovo, enderecoNovo = undefined) => {
       if (!modalDuplicarPonto || !nomeNovo || !nomeNovo.trim()) {
         showToast('Digite um nome para o novo ponto.', 'warning')
         return false
@@ -199,15 +288,21 @@ export function usePontosManager({
       setDuplicandoPonto(true)
       try {
         const pontoOrigem = modalDuplicarPonto.ponto
+        const enderecoFinal =
+          enderecoNovo !== undefined
+            ? (enderecoNovo?.trim() ? enderecoNovo.trim() : null)
+            : (pontoOrigem?.endereco || null)
+
         const proximaOrdem =
           pontos.length > 0
             ? Math.max(...pontos.map((p) => (Number.isFinite(p.ordem) ? p.ordem : 0))) + 1
             : 0
 
-        const { data: novoPonto, error: erroPonto } = await supabase
+        let { data: novoPonto, error: erroPonto } = await supabase
           .from('pontos')
           .insert({
             nome: nomeNovo.trim(),
+            endereco: enderecoFinal,
             ordem: proximaOrdem,
             ativo: false, // Inicia oculto para corretores até o gestor revisar!
             ...(empresaId ? { empresa_id: empresaId } : {}),
@@ -215,7 +310,45 @@ export function usePontosManager({
           .select()
           .single()
 
-        if (erroPonto) throw erroPonto
+        if (erroPonto && isMissingColumnError(erroPonto)) {
+          const fallbackRes = await supabase
+            .from('pontos')
+            .insert({
+              nome: nomeNovo.trim(),
+              ordem: proximaOrdem,
+              ativo: false,
+              ...(empresaId ? { empresa_id: empresaId } : {}),
+            })
+            .select()
+            .single()
+
+          if (fallbackRes.error) throw fallbackRes.error
+          novoPonto = fallbackRes.data
+
+          if (novoPonto && enderecoFinal && empresaId) {
+            const { data: empData } = await supabase
+              .from('empresas')
+              .select('termos')
+              .eq('id', empresaId)
+              .single()
+
+            const termosAtuais = empData?.termos || {}
+            const enderecosAtuais = { ...(termosAtuais.enderecosPontos || {}) }
+            enderecosAtuais[novoPonto.id] = enderecoFinal
+
+            await supabase
+              .from('empresas')
+              .update({
+                termos: {
+                  ...termosAtuais,
+                  enderecosPontos: enderecosAtuais,
+                },
+              })
+              .eq('id', empresaId)
+          }
+        } else if (erroPonto) {
+          throw erroPonto
+        }
 
         const turnosOrigem = turnos.filter((t) => t.ponto_id === pontoOrigem.id)
         if (turnosOrigem.length > 0) {

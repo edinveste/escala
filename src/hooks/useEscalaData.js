@@ -7,8 +7,10 @@ import { DEMO_EMPRESA } from '../lib/demoData'
 function mapearPontosComTermos(rawPontos, empresa) {
   return (rawPontos || []).map((p) => {
     const zapPonto = empresa?.termos?.whatsappPontos?.[p.id]
+    const enderecoTermos = empresa?.termos?.enderecosPontos?.[p.id]
     return {
       ...p,
+      endereco: p.endereco || enderecoTermos || null,
       cabecalho_whatsapp: p.cabecalho_whatsapp || zapPonto?.cabecalho || null,
       rodape_whatsapp: p.rodape_whatsapp || zapPonto?.rodape || null,
     }

@@ -7,7 +7,10 @@ import {
   Trash2,
   MessageSquare,
   CalendarClock,
+  MapPin,
 } from 'lucide-react'
+import GoogleMapsIcon from '../icons/GoogleMapsIcon'
+import { obterLinkGoogleMaps } from '../../lib/mapsHelper'
 
 export default function PontoMobileMenu({
   isOpen,
@@ -89,8 +92,21 @@ export default function PontoMobileMenu({
           className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-gray-200 hover:bg-surface-700/80 active:bg-surface-700 flex items-center gap-2.5 transition-colors"
         >
           <Pencil className="w-3.5 h-3.5 text-brand-400" />
-          Renomear
+          Editar Dados
         </button>
+
+        {ponto.endereco && (
+          <a
+            href={obterLinkGoogleMaps(ponto.endereco)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onClose}
+            className="w-full px-3.5 py-2.5 text-left text-xs font-medium text-gray-200 hover:bg-surface-700/80 active:bg-surface-700 flex items-center gap-2.5 transition-colors"
+          >
+            <GoogleMapsIcon className="w-3.5 h-3.5" />
+            Ver no Google Maps
+          </a>
+        )}
 
         <button
           type="button"

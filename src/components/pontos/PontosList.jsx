@@ -92,7 +92,7 @@ export default function PontosList({
               onToggleAtivo={() =>
                 onToggleAtivo(ponto.id, ponto.ativo !== false, ponto.nome)
               }
-              onRename={(novoNome) => onRename(ponto.id, novoNome)}
+              onRename={(novoNome, novoEndereco) => onRename(ponto.id, novoNome, novoEndereco)}
               onDelete={() => onDelete(ponto.id, ponto.nome)}
               onDuplicar={() => onDuplicar(ponto, qtdTurnos)}
               onLimparEscala={() => onLimparEscala(ponto.id)}

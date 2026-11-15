@@ -1294,6 +1294,40 @@ npm run build
 
 ---
 
+## 28. Fase 18 — Integração de Endereço e Google Maps nos Pontos de Captação (Novembro 2026)
+- **Contexto e Solicitação do Usuário**:
+  - Substituir o ícone de alfinete/mapa estático existente na lista de pontos da visualização do colaborador por um botão interativo que abra a localização diretamente no Google Maps quando houver endereço cadastrado.
+  - Disponibilizar um campo opcional de endereço na criação de novos pontos pelo gestor e na edição de pontos existentes.
+  - Quando o gestor preencher o endereço, o ícone do mapa fica ativo e interativo para redirecionar ao local; quando não preencher, o ícone permanece neutro e inativo.
+- **Decisões de Engenharia e Padrões de UX/UI**:
+  1. **Experiência do Colaborador (Mobile-First)**:
+     - Em `PontoSelectorView.jsx`, o card externo foi refatorado de `<button>` para `<div role="button" tabIndex={0}>` acessível, permitindo que o ícone do mapa seja um elemento interativo (`<a>` tag) com `e.stopPropagation()` para não disparar a seleção do card.
+     - Quando ativo:
+       - Área de toque touch-friendly (`min-w-[44px] min-h-[44px]`) em conformidade com as diretrizes do WCAG / Apple HIG / Material Design.
+       - Micro-badge no canto superior direito do ícone com `ExternalLink` indicando que se trata de um link externo.
+       - Microinterações polidas com leve elevação do alfinete (`group-hover:-translate-y-0.5`), transição suave e tooltip descritivo com o endereço.
+       - Abertura nativa: em dispositivos móveis (Android e iOS), o link padrão do Google Maps dispara o app nativo de mapas; em desktop, abre em nova aba (`target="_blank"`, `rel="noopener noreferrer"`).
+       - Exibição sutil do endereço truncado abaixo do nome do ponto no card.
+     - Quando inativo (sem endereço):
+       - Permanece o container estático e elegante como já existia, sem cursor de link ou hover effects enganosos.
+     - Em `PontoTurnosView.jsx`: o cabeçalho do ponto também incorpora o alfinete interativo e o link clicável do endereço.
+  2. **Experiência de Gestão (Admin)**:
+     - `FormAddPonto.jsx`: campo opcional para "Endereço ou Link do Google Maps", com ícone de `MapPin` e link dinâmico em tempo real *"Testar no Maps"* que surge assim que o gestor digita, permitindo validar o destino com 1 clique antes de salvar.
+     - `PontoItem.jsx`: modo de edição inline expandido com suporte a edição de Nome e Endereço, link *"Testar no Maps"* e badge elegante com endereço nos cards de pontos da lista do gestor.
+     - `PontoMobileMenu.jsx`: item de menu mobile *"Ver no Google Maps"* quando o ponto tiver endereço cadastrado.
+     - `DuplicarPontoModal.jsx`: suporte a clonar ou customizar o endereço do ponto duplicado.
+  3. **Resiliência e Tolerância a Falhas**:
+     - Utilitário `src/lib/mapsHelper.js` com `obterLinkGoogleMaps(endereco)` que suporta tanto endereços em texto corrido (gerando URLs canônicas via `encodeURIComponent`) quanto links diretos de compartilhamento (`maps.app.goo.gl` ou `google.com/maps`).
+     - `usePontosManager.js` e `useEscalaData.js` utilizam `isMissingColumnError` para salvar e recuperar endereços de forma transparente no JSONB `empresas.termos.enderecosPontos` caso a migração SQL ainda não tenha sido executada no banco.
+  4. **Integrações Complementares**:
+     - Propagação do endereço para exportação de `.ics` e Google Calendar (`LOCATION` em `icsHelper.js`).
+     - Exibição do endereço e link do Maps no modal `MinhaAgendaModal.jsx` e na geração de PDF vetorial via `agendaPdfHelper.js`.
+     - Script de migração `supabase_migration_fase18_endereco_maps.sql` adicionando coluna `endereco TEXT` em `public.pontos` e atualizando a RPC sanitizada `get_escala_publica`.
+- **Validação**:
+  - `npm run build` executado com sucesso e zero advertências/erros.
+
+---
+
 ## 36. Regras Inteligentes de Escala: Bloqueio de Conflito de Horário & Cotas Anti-Monopólio (Fase 15) — Novembro/2026
 - **Contexto e Objetivos**:
   1. **Bloqueio de Conflito de Horário**: Impedir que um colaborador reserve dois turnos que se sobrepõem no mesmo dia (mesmo em pontos de captação diferentes).
@@ -1390,6 +1424,40 @@ npm run build
   - Testes de concorrência e canal Realtime via Node.js validados com evento `UPDATE` disparado por `reservar_vaga`.
   - `npm run build` executado com sucesso e zero erros.
 
+---
+
+## 28. Fase 18 — Integração de Endereço e Google Maps nos Pontos de Captação (Novembro 2026)
+- **Contexto e Solicitação do Usuário**:
+  - Substituir o ícone de alfinete/mapa estático existente na lista de pontos da visualização do colaborador por um botão interativo que abra a localização diretamente no Google Maps quando houver endereço cadastrado.
+  - Disponibilizar um campo opcional de endereço na criação de novos pontos pelo gestor e na edição de pontos existentes.
+  - Quando o gestor preencher o endereço, o ícone do mapa fica ativo e interativo para redirecionar ao local; quando não preencher, o ícone permanece neutro e inativo.
+- **Decisões de Engenharia e Padrões de UX/UI**:
+  1. **Experiência do Colaborador (Mobile-First)**:
+     - Em `PontoSelectorView.jsx`, o card externo foi refatorado de `<button>` para `<div role="button" tabIndex={0}>` acessível, permitindo que o ícone do mapa seja um elemento interativo (`<a>` tag) com `e.stopPropagation()` para não disparar a seleção do card.
+     - Quando ativo:
+       - Área de toque touch-friendly (`min-w-[44px] min-h-[44px]`) em conformidade com as diretrizes do WCAG / Apple HIG / Material Design.
+       - Micro-badge no canto superior direito do ícone com `ExternalLink` indicando que se trata de um link externo.
+       - Microinterações polidas com leve elevação do alfinete (`group-hover:-translate-y-0.5`), transição suave e tooltip descritivo com o endereço.
+       - Abertura nativa: em dispositivos móveis (Android e iOS), o link padrão do Google Maps dispara o app nativo de mapas; em desktop, abre em nova aba (`target="_blank"`, `rel="noopener noreferrer"`).
+       - Exibição sutil do endereço truncado abaixo do nome do ponto no card.
+     - Quando inativo (sem endereço):
+       - Permanece o container estático e elegante como já existia, sem cursor de link ou hover effects enganosos.
+     - Em `PontoTurnosView.jsx`: o cabeçalho do ponto também incorpora o alfinete interativo e o link clicável do endereço.
+  2. **Experiência de Gestão (Admin)**:
+     - `FormAddPonto.jsx`: campo opcional para "Endereço ou Link do Google Maps", com ícone de `MapPin` e link dinâmico em tempo real *"Testar no Maps"* que surge assim que o gestor digita, permitindo validar o destino com 1 clique antes de salvar.
+     - `PontoItem.jsx`: modo de edição inline expandido com suporte a edição de Nome e Endereço, link *"Testar no Maps"* e badge elegante com endereço nos cards de pontos da lista do gestor.
+     - `PontoMobileMenu.jsx`: item de menu mobile *"Ver no Google Maps"* quando o ponto tiver endereço cadastrado.
+     - `DuplicarPontoModal.jsx`: suporte a clonar ou customizar o endereço do ponto duplicado.
+  3. **Resiliência e Tolerância a Falhas**:
+     - Utilitário `src/lib/mapsHelper.js` com `obterLinkGoogleMaps(endereco)` que suporta tanto endereços em texto corrido (gerando URLs canônicas via `encodeURIComponent`) quanto links diretos de compartilhamento (`maps.app.goo.gl` ou `google.com/maps`).
+     - `usePontosManager.js` e `useEscalaData.js` utilizam `isMissingColumnError` para salvar e recuperar endereços de forma transparente no JSONB `empresas.termos.enderecosPontos` caso a migração SQL ainda não tenha sido executada no banco.
+  4. **Integrações Complementares**:
+     - Propagação do endereço para exportação de `.ics` e Google Calendar (`LOCATION` em `icsHelper.js`).
+     - Exibição do endereço e link do Maps no modal `MinhaAgendaModal.jsx` e na geração de PDF vetorial via `agendaPdfHelper.js`.
+     - Script de migração `supabase_migration_fase18_endereco_maps.sql` adicionando coluna `endereco TEXT` em `public.pontos` e atualizando a RPC sanitizada `get_escala_publica`.
+- **Validação**:
+  - `npm run build` executado com sucesso e zero advertências/erros.
+
 
 ---
 
@@ -1448,6 +1516,40 @@ npm run build
 - **Validação e Testes**:
   - Testes de concorrência e canal Realtime via Node.js validados com evento `UPDATE` disparado por `reservar_vaga`.
   - `npm run build` executado com sucesso e zero erros.
+
+---
+
+## 28. Fase 18 — Integração de Endereço e Google Maps nos Pontos de Captação (Novembro 2026)
+- **Contexto e Solicitação do Usuário**:
+  - Substituir o ícone de alfinete/mapa estático existente na lista de pontos da visualização do colaborador por um botão interativo que abra a localização diretamente no Google Maps quando houver endereço cadastrado.
+  - Disponibilizar um campo opcional de endereço na criação de novos pontos pelo gestor e na edição de pontos existentes.
+  - Quando o gestor preencher o endereço, o ícone do mapa fica ativo e interativo para redirecionar ao local; quando não preencher, o ícone permanece neutro e inativo.
+- **Decisões de Engenharia e Padrões de UX/UI**:
+  1. **Experiência do Colaborador (Mobile-First)**:
+     - Em `PontoSelectorView.jsx`, o card externo foi refatorado de `<button>` para `<div role="button" tabIndex={0}>` acessível, permitindo que o ícone do mapa seja um elemento interativo (`<a>` tag) com `e.stopPropagation()` para não disparar a seleção do card.
+     - Quando ativo:
+       - Área de toque touch-friendly (`min-w-[44px] min-h-[44px]`) em conformidade com as diretrizes do WCAG / Apple HIG / Material Design.
+       - Micro-badge no canto superior direito do ícone com `ExternalLink` indicando que se trata de um link externo.
+       - Microinterações polidas com leve elevação do alfinete (`group-hover:-translate-y-0.5`), transição suave e tooltip descritivo com o endereço.
+       - Abertura nativa: em dispositivos móveis (Android e iOS), o link padrão do Google Maps dispara o app nativo de mapas; em desktop, abre em nova aba (`target="_blank"`, `rel="noopener noreferrer"`).
+       - Exibição sutil do endereço truncado abaixo do nome do ponto no card.
+     - Quando inativo (sem endereço):
+       - Permanece o container estático e elegante como já existia, sem cursor de link ou hover effects enganosos.
+     - Em `PontoTurnosView.jsx`: o cabeçalho do ponto também incorpora o alfinete interativo e o link clicável do endereço.
+  2. **Experiência de Gestão (Admin)**:
+     - `FormAddPonto.jsx`: campo opcional para "Endereço ou Link do Google Maps", com ícone de `MapPin` e link dinâmico em tempo real *"Testar no Maps"* que surge assim que o gestor digita, permitindo validar o destino com 1 clique antes de salvar.
+     - `PontoItem.jsx`: modo de edição inline expandido com suporte a edição de Nome e Endereço, link *"Testar no Maps"* e badge elegante com endereço nos cards de pontos da lista do gestor.
+     - `PontoMobileMenu.jsx`: item de menu mobile *"Ver no Google Maps"* quando o ponto tiver endereço cadastrado.
+     - `DuplicarPontoModal.jsx`: suporte a clonar ou customizar o endereço do ponto duplicado.
+  3. **Resiliência e Tolerância a Falhas**:
+     - Utilitário `src/lib/mapsHelper.js` com `obterLinkGoogleMaps(endereco)` que suporta tanto endereços em texto corrido (gerando URLs canônicas via `encodeURIComponent`) quanto links diretos de compartilhamento (`maps.app.goo.gl` ou `google.com/maps`).
+     - `usePontosManager.js` e `useEscalaData.js` utilizam `isMissingColumnError` para salvar e recuperar endereços de forma transparente no JSONB `empresas.termos.enderecosPontos` caso a migração SQL ainda não tenha sido executada no banco.
+  4. **Integrações Complementares**:
+     - Propagação do endereço para exportação de `.ics` e Google Calendar (`LOCATION` em `icsHelper.js`).
+     - Exibição do endereço e link do Maps no modal `MinhaAgendaModal.jsx` e na geração de PDF vetorial via `agendaPdfHelper.js`.
+     - Script de migração `supabase_migration_fase18_endereco_maps.sql` adicionando coluna `endereco TEXT` em `public.pontos` e atualizando a RPC sanitizada `get_escala_publica`.
+- **Validação**:
+  - `npm run build` executado com sucesso e zero advertências/erros.
 
 ---
 
@@ -1534,3 +1636,37 @@ npm run build
 - **Validação e Testes**:
   - Testes de concorrência e canal Realtime via Node.js validados com evento `UPDATE` disparado por `reservar_vaga`.
   - `npm run build` executado com sucesso e zero erros.
+
+---
+
+## 28. Fase 18 — Integração de Endereço e Google Maps nos Pontos de Captação (Novembro 2026)
+- **Contexto e Solicitação do Usuário**:
+  - Substituir o ícone de alfinete/mapa estático existente na lista de pontos da visualização do colaborador por um botão interativo que abra a localização diretamente no Google Maps quando houver endereço cadastrado.
+  - Disponibilizar um campo opcional de endereço na criação de novos pontos pelo gestor e na edição de pontos existentes.
+  - Quando o gestor preencher o endereço, o ícone do mapa fica ativo e interativo para redirecionar ao local; quando não preencher, o ícone permanece neutro e inativo.
+- **Decisões de Engenharia e Padrões de UX/UI**:
+  1. **Experiência do Colaborador (Mobile-First)**:
+     - Em `PontoSelectorView.jsx`, o card externo foi refatorado de `<button>` para `<div role="button" tabIndex={0}>` acessível, permitindo que o ícone do mapa seja um elemento interativo (`<a>` tag) com `e.stopPropagation()` para não disparar a seleção do card.
+     - Quando ativo:
+       - Área de toque touch-friendly (`min-w-[44px] min-h-[44px]`) em conformidade com as diretrizes do WCAG / Apple HIG / Material Design.
+       - Micro-badge no canto superior direito do ícone com `ExternalLink` indicando que se trata de um link externo.
+       - Microinterações polidas com leve elevação do alfinete (`group-hover:-translate-y-0.5`), transição suave e tooltip descritivo com o endereço.
+       - Abertura nativa: em dispositivos móveis (Android e iOS), o link padrão do Google Maps dispara o app nativo de mapas; em desktop, abre em nova aba (`target="_blank"`, `rel="noopener noreferrer"`).
+       - Exibição sutil do endereço truncado abaixo do nome do ponto no card.
+     - Quando inativo (sem endereço):
+       - Permanece o container estático e elegante como já existia, sem cursor de link ou hover effects enganosos.
+     - Em `PontoTurnosView.jsx`: o cabeçalho do ponto também incorpora o alfinete interativo e o link clicável do endereço.
+  2. **Experiência de Gestão (Admin)**:
+     - `FormAddPonto.jsx`: campo opcional para "Endereço ou Link do Google Maps", com ícone de `MapPin` e link dinâmico em tempo real *"Testar no Maps"* que surge assim que o gestor digita, permitindo validar o destino com 1 clique antes de salvar.
+     - `PontoItem.jsx`: modo de edição inline expandido com suporte a edição de Nome e Endereço, link *"Testar no Maps"* e badge elegante com endereço nos cards de pontos da lista do gestor.
+     - `PontoMobileMenu.jsx`: item de menu mobile *"Ver no Google Maps"* quando o ponto tiver endereço cadastrado.
+     - `DuplicarPontoModal.jsx`: suporte a clonar ou customizar o endereço do ponto duplicado.
+  3. **Resiliência e Tolerância a Falhas**:
+     - Utilitário `src/lib/mapsHelper.js` com `obterLinkGoogleMaps(endereco)` que suporta tanto endereços em texto corrido (gerando URLs canônicas via `encodeURIComponent`) quanto links diretos de compartilhamento (`maps.app.goo.gl` ou `google.com/maps`).
+     - `usePontosManager.js` e `useEscalaData.js` utilizam `isMissingColumnError` para salvar e recuperar endereços de forma transparente no JSONB `empresas.termos.enderecosPontos` caso a migração SQL ainda não tenha sido executada no banco.
+  4. **Integrações Complementares**:
+     - Propagação do endereço para exportação de `.ics` e Google Calendar (`LOCATION` em `icsHelper.js`).
+     - Exibição do endereço e link do Maps no modal `MinhaAgendaModal.jsx` e na geração de PDF vetorial via `agendaPdfHelper.js`.
+     - Script de migração `supabase_migration_fase18_endereco_maps.sql` adicionando coluna `endereco TEXT` em `public.pontos` e atualizando a RPC sanitizada `get_escala_publica`.
+- **Validação**:
+  - `npm run build` executado com sucesso e zero advertências/erros.

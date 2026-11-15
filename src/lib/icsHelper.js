@@ -102,7 +102,9 @@ export function gerarIcsEscala({ turnos = [], empresa = null, corretorNome = '' 
       const endUtc = formatarIcsDateUtc(datas.endDate)
       const uid = `escala-${turno.reservaId || turno.id || Math.random().toString(36).slice(2)}@escalafacil.online`
 
-      const local = turno.pontoNome || 'Local da Escala'
+      const local = turno.pontoEndereco
+        ? `${turno.pontoNome || 'Local da Escala'} (${turno.pontoEndereco})`
+        : (turno.pontoNome || 'Local da Escala')
       const horarioTxt = turno.horario || `${datas.horaInicio} às ${datas.horaFim}`
       const titulo = `${nomeEmpresa}: ${local} (${horarioTxt})`
 
@@ -166,7 +168,9 @@ export function gerarGoogleCalendarUrl({ turno, empresa = null, corretorNome = '
   const endIso = formatarIcsDateUtc(datas.endDate)
 
   const nomeEmpresa = empresa?.nome || 'EscalaFácil'
-  const local = turno.pontoNome || 'Local da Escala'
+  const local = turno.pontoEndereco
+    ? `${turno.pontoNome || 'Local da Escala'} (${turno.pontoEndereco})`
+    : (turno.pontoNome || 'Local da Escala')
   const horarioTxt = turno.horario || `${datas.horaInicio} às ${datas.horaFim}`
   const titulo = `${nomeEmpresa}: ${local} (${horarioTxt})`
 

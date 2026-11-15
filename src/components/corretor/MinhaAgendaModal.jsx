@@ -11,6 +11,8 @@ import {
 import { compararDias, formatarDiaComData } from '../../lib/diasSemana'
 import { gerarGoogleCalendarUrl } from '../../lib/icsHelper'
 import { baixarAgendaPdf } from '../../lib/agendaPdfHelper'
+import { obterLinkGoogleMaps } from '../../lib/mapsHelper'
+import GoogleMapsIcon from '../icons/GoogleMapsIcon'
 
 /**
  * MinhaAgendaModal — Visualização consolidada de todos os horários do colaborador
@@ -174,6 +176,17 @@ export default function MinhaAgendaModal({
                           <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
                             <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-500" />
                             <span className="truncate">{turno.pontoNome}</span>
+                            {turno.pontoEndereco && (
+                              <a
+                                href={obterLinkGoogleMaps(turno.pontoEndereco)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-brand-400 hover:text-brand-300 ml-1 inline-flex items-center gap-0.5"
+                                title={`Abrir no Google Maps: ${turno.pontoEndereco}`}
+                              >
+                                <GoogleMapsIcon className="w-3.5 h-3.5" />
+                              </a>
+                            )}
                           </div>
                         )}
                       </div>
