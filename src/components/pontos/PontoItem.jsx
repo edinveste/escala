@@ -16,6 +16,7 @@ import {
   MapPin,
 } from 'lucide-react'
 import GoogleMapsIcon from '../icons/GoogleMapsIcon'
+import EnderecoAutocompleteInput from './EnderecoAutocompleteInput'
 import PontoMobileMenu from './PontoMobileMenu'
 import { obterAberturaPonto, formatarDataAberturaCurta } from '../../lib/aberturaHelper'
 import { obterLinkGoogleMaps } from '../../lib/mapsHelper'
@@ -106,20 +107,16 @@ export default function PontoItem({
                 </a>
               )}
             </div>
-            <div className="relative">
-              <MapPin className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={editingEndereco}
-                onChange={(e) => setEditingEndereco(e.target.value)}
-                placeholder="Ex: Av. Paulista, 1000 ou link do Maps"
-                className="input-field py-1.5 pl-8 pr-3 text-xs w-full min-h-[36px]"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveRename()
-                  if (e.key === 'Escape') handleCancelEditing()
-                }}
-              />
-            </div>
+            <EnderecoAutocompleteInput
+              value={editingEndereco}
+              onChange={setEditingEndereco}
+              placeholder="Ex: Av. Paulista, 1000 ou Shopping Morumbi"
+              inputClassName="py-1.5 text-xs min-h-[36px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveRename()
+                if (e.key === 'Escape') handleCancelEditing()
+              }}
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-1">

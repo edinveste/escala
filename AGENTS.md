@@ -334,6 +334,7 @@ e:\Escala\
         │   ├── usePontosManager.js        # Hook customizado para reordenação, CRUD de pontos, duplicação e Supabase
         │   ├── PontosHeader.jsx           # Cabeçalho da seção com título e indicador de salvamento de ordem
         │   ├── FormAddPonto.jsx           # Formulário de cadastro de novo ponto com feedback de loading
+        │   ├── EnderecoAutocompleteInput.jsx # Campo com busca e autocompletar inteligente gratuito (Nominatim Brasil)
         │   ├── PontosList.jsx             # Lista reordenável via SortableJS com touch delay e fluidez mobile
         │   ├── PontoItem.jsx              # Card de ponto com drag-handle, vagas, edição inline e ações
         │   ├── PontoMobileMenu.jsx        # Menu dropdown suspenso touch-friendly com backdrop invisível
@@ -555,6 +556,8 @@ e:\Escala\
 3. **Campo Opcional na Criação e Edição**: No `FormAddPonto`, `PontoItem` (modo edição inline) e `DuplicarPontoModal`, o gestor conta com campo opcional de endereço compatível tanto com texto puro (ex: "Av. Paulista, 1000 - São Paulo, SP") quanto links diretos de compartilhamento do Google Maps (`https://maps.app.goo.gl/...`), com botão em tempo real "Testar no Maps".
 4. **Resiliência Multi-Tenant e Fallback Automático**: Caso a coluna `endereco` na tabela `public.pontos` ainda não tenha sido criada via migração, `usePontosManager` e `useEscalaData` persistem e recuperam o dado transparentemente dentro do JSONB `empresas.termos.enderecosPontos`.
 5. **Integração com Agenda, PDF e Calendário**: O endereço é propagado para o Google Calendar (`LOCATION`), arquivo `.ics` e exportação vetorial de agenda em PDF (`agendaPdfHelper`).
+6. **Autocompletar Inteligente de Endereços Sem Custos (`EnderecoAutocompleteInput`)**: Componente com busca debounced (350ms) e cancelamento via `AbortController`, consultando a API pública do OpenStreetMap Nominatim restrita ao Brasil (`countrycodes=br`). Oferece dropdown flutuante com sugestões de estabelecimentos e logradouros, formata automaticamente para padrão brasileiro e suporta navegação por teclado (Setas, Enter, Esc), sem necessidade de cartão de crédito ou chaves pagas do Google Cloud.
+
 
 
 

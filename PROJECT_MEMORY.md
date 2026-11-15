@@ -1323,6 +1323,12 @@ npm run build
      - Propagação do endereço para exportação de `.ics` e Google Calendar (`LOCATION` em `icsHelper.js`).
      - Exibição do endereço e link do Maps no modal `MinhaAgendaModal.jsx` e na geração de PDF vetorial via `agendaPdfHelper.js`.
      - Script de migração `supabase_migration_fase18_endereco_maps.sql` adicionando coluna `endereco TEXT` em `public.pontos` e atualizando a RPC sanitizada `get_escala_publica`.
+  5. **Autocompletar Inteligente de Endereços Sem Cartão (`EnderecoAutocompleteInput.jsx`)**:
+     - Campo reutilizável com debounced search (350ms) e cancelamento assíncrono via `AbortController`.
+     - Consulta a API pública gratuita do OpenStreetMap Nominatim restrita ao território brasileiro (`countrycodes=br`).
+     - Dropdown flutuante com sugestões formatadas no padrão nacional (*"Rua, Número - Bairro, Cidade - UF"*).
+     - Suporte total a navegação por teclado (Setas cima/baixo, Enter para selecionar e Esc para fechar) e clique externo para fechamento automático.
+     - Totalmente integrado ao `FormAddPonto.jsx`, `PontoItem.jsx` (modo edição inline) e `DuplicarPontoModal.jsx`.
 - **Validação**:
   - `npm run build` executado com sucesso e zero advertências/erros.
 
@@ -1455,6 +1461,12 @@ npm run build
      - Propagação do endereço para exportação de `.ics` e Google Calendar (`LOCATION` em `icsHelper.js`).
      - Exibição do endereço e link do Maps no modal `MinhaAgendaModal.jsx` e na geração de PDF vetorial via `agendaPdfHelper.js`.
      - Script de migração `supabase_migration_fase18_endereco_maps.sql` adicionando coluna `endereco TEXT` em `public.pontos` e atualizando a RPC sanitizada `get_escala_publica`.
+  5. **Autocompletar Inteligente de Endereços Sem Cartão (`EnderecoAutocompleteInput.jsx`)**:
+     - Campo reutilizável com debounced search (350ms) e cancelamento assíncrono via `AbortController`.
+     - Consulta a API pública gratuita do OpenStreetMap Nominatim restrita ao território brasileiro (`countrycodes=br`).
+     - Dropdown flutuante com sugestões formatadas no padrão nacional (*"Rua, Número - Bairro, Cidade - UF"*).
+     - Suporte total a navegação por teclado (Setas cima/baixo, Enter para selecionar e Esc para fechar) e clique externo para fechamento automático.
+     - Totalmente integrado ao `FormAddPonto.jsx`, `PontoItem.jsx` (modo edição inline) e `DuplicarPontoModal.jsx`.
 - **Validação**:
   - `npm run build` executado com sucesso e zero advertências/erros.
 
@@ -1548,6 +1560,12 @@ npm run build
      - Propagação do endereço para exportação de `.ics` e Google Calendar (`LOCATION` em `icsHelper.js`).
      - Exibição do endereço e link do Maps no modal `MinhaAgendaModal.jsx` e na geração de PDF vetorial via `agendaPdfHelper.js`.
      - Script de migração `supabase_migration_fase18_endereco_maps.sql` adicionando coluna `endereco TEXT` em `public.pontos` e atualizando a RPC sanitizada `get_escala_publica`.
+  5. **Autocompletar Inteligente de Endereços Sem Cartão (`EnderecoAutocompleteInput.jsx`)**:
+     - Campo reutilizável com debounced search (350ms) e cancelamento assíncrono via `AbortController`.
+     - Consulta a API pública gratuita do OpenStreetMap Nominatim restrita ao território brasileiro (`countrycodes=br`).
+     - Dropdown flutuante com sugestões formatadas no padrão nacional (*"Rua, Número - Bairro, Cidade - UF"*).
+     - Suporte total a navegação por teclado (Setas cima/baixo, Enter para selecionar e Esc para fechar) e clique externo para fechamento automático.
+     - Totalmente integrado ao `FormAddPonto.jsx`, `PontoItem.jsx` (modo edição inline) e `DuplicarPontoModal.jsx`.
 - **Validação**:
   - `npm run build` executado com sucesso e zero advertências/erros.
 
@@ -1668,5 +1686,11 @@ npm run build
      - Propagação do endereço para exportação de `.ics` e Google Calendar (`LOCATION` em `icsHelper.js`).
      - Exibição do endereço e link do Maps no modal `MinhaAgendaModal.jsx` e na geração de PDF vetorial via `agendaPdfHelper.js`.
      - Script de migração `supabase_migration_fase18_endereco_maps.sql` adicionando coluna `endereco TEXT` em `public.pontos` e atualizando a RPC sanitizada `get_escala_publica`.
+  5. **Autocompletar Inteligente de Endereços Sem Cartão (`EnderecoAutocompleteInput.jsx`)**:
+     - Campo reutilizável com debounced search (350ms) e cancelamento assíncrono via `AbortController`.
+     - Consulta a API pública gratuita do OpenStreetMap Nominatim restrita ao território brasileiro (`countrycodes=br`).
+     - Dropdown flutuante com sugestões formatadas no padrão nacional (*"Rua, Número - Bairro, Cidade - UF"*).
+     - Suporte total a navegação por teclado (Setas cima/baixo, Enter para selecionar e Esc para fechar) e clique externo para fechamento automático.
+     - Totalmente integrado ao `FormAddPonto.jsx`, `PontoItem.jsx` (modo edição inline) e `DuplicarPontoModal.jsx`.
 - **Validação**:
   - `npm run build` executado com sucesso e zero advertências/erros.

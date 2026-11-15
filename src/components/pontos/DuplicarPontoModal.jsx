@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Copy, X, MapPin } from 'lucide-react'
+import { Copy, X } from 'lucide-react'
+import EnderecoAutocompleteInput from './EnderecoAutocompleteInput'
 
 export default function DuplicarPontoModal({
   modalData,
@@ -112,16 +113,11 @@ export default function DuplicarPontoModal({
             <label className="text-xs font-semibold text-gray-300 mb-1.5 block">
               Endereço ou Link do Google Maps (Opcional):
             </label>
-            <div className="relative">
-              <MapPin className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={enderecoNovoPonto}
-                onChange={(e) => setEnderecoNovoPonto(e.target.value)}
-                placeholder="Ex: Av. Paulista, 1000 ou link do Maps"
-                className="input-field pl-9 text-sm"
-              />
-            </div>
+            <EnderecoAutocompleteInput
+              value={enderecoNovoPonto}
+              onChange={setEnderecoNovoPonto}
+              placeholder="Ex: Av. Paulista, 1000 ou Shopping Morumbi"
+            />
           </div>
 
           <div className="flex gap-3 pt-2">

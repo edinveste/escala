@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Plus, MapPin } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import GoogleMapsIcon from '../icons/GoogleMapsIcon'
+import EnderecoAutocompleteInput from './EnderecoAutocompleteInput'
 import { obterLinkGoogleMaps } from '../../lib/mapsHelper'
 
 export default function FormAddPonto({ onAdd, isAdding, termos = {} }) {
@@ -61,17 +62,12 @@ export default function FormAddPonto({ onAdd, isAdding, termos = {} }) {
             </a>
           )}
         </div>
-        <div className="relative">
-          <MapPin className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={endereco}
-            onChange={(e) => setEndereco(e.target.value)}
-            placeholder="Ex: Av. Paulista, 1000 ou link do Google Maps"
-            className="input-field w-full text-sm pl-9 pr-3"
-            maxLength={250}
-          />
-        </div>
+        <EnderecoAutocompleteInput
+          value={endereco}
+          onChange={setEndereco}
+          placeholder="Ex: Av. Paulista, 1000 ou Shopping Morumbi"
+          maxLength={250}
+        />
         <p className="text-[11px] text-gray-500 mt-1">
           💡 Quando preenchido, os corretores poderão abrir o local com um clique no Google Maps.
         </p>
