@@ -558,6 +558,21 @@ e:\Escala\
 5. **Integração com Agenda, PDF e Calendário**: O endereço é propagado para o Google Calendar (`LOCATION`), arquivo `.ics` e exportação vetorial de agenda em PDF (`agendaPdfHelper`).
 6. **Autocompletar Inteligente de Endereços Sem Custos (`EnderecoAutocompleteInput`)**: Componente com busca debounced (350ms) e cancelamento via `AbortController`, consultando a API pública do OpenStreetMap Nominatim restrita ao Brasil (`countrycodes=br`). Oferece dropdown flutuante com sugestões de estabelecimentos e logradouros, formata automaticamente para padrão brasileiro e suporta navegação por teclado (Setas, Enter, Esc), sem necessidade de cartão de crédito ou chaves pagas do Google Cloud.
 
+### 5.19. Equipe Autorizada, UX do Link Seguro e Sistema Multi-Layout de Pontos (Novembro 2026)
+1. **Renomeação de "Proteção contra Invasores" para "Equipe Autorizada"**:
+   - Ajuste em todos os componentes administrativos, mensagens de confirmação e landing page (`EquipeHeader`, `EquipeStatusBanner`, `TipoValidacaoSelector`, `useEquipe`, `AdminTabEquipe`, `LandingPage`).
+2. **Correção de UX no Link Seguro da Escala em Turnos (`AdminQuickLinkBar.jsx`)**:
+   - Botão com ícone `ExternalLink` alinhado ao padrão da web e grandes SaaS: agora abre a escala pública diretamente em nova aba (`target="_blank"`, `rel="noopener noreferrer"`), eliminando a quebra de modelo mental anterior em que redirecionava internamente para a aba de Configurações.
+3. **Sistema Multi-Layout de Seleção de Pontos (`layout_pontos: 'moderno' | 'classico'`)**:
+   - `PontoSelectorClassico.jsx`: Layout original e minimalista 100% preservado como template selecionável.
+   - `PontoSelectorModerno.jsx`: Novo layout rico com branding da empresa, barra com 3 estatísticas em tempo real (Locais, Turnos, Vagas Livres), campo de busca instantânea e cards com micro-barra de progresso de ocupação de vagas.
+   - `PontoSelectorView.jsx`: Ponto de entrada dinâmico que lê `empresa?.layout_pontos || empresa?.termos?.layout_pontos || 'moderno'`.
+   - `LayoutEscalaCard.jsx`: Card na aba de Configurações (`AdminTabConfiguracoes.jsx`) que permite ao gestor alternar entre os modelos com 1 clique, persistindo via RPC `atualizar_termos_empresa` em `termos.layout_pontos` e cache local imediato.
+4. **Card de Empresa e Agenda Adaptáveis aos Modos (`CorretorEmpresaCard.jsx`)**:
+   - No **Modo Clássico**: O card da empresa integra o botão compacto `[📅 X horários ›]` internamente à direita (`mostrarBotaoAgenda={true}`), sem o banner grande.
+   - No **Modo Moderno**: O card da empresa foca na identidade (`mostrarBotaoAgenda={false}`) e exibe logo abaixo o **Banner da Agenda em Destaque** (`SUA AGENDA CONFIRMADA`) com gradiente estilizado, destaque visual e atalho para ver a agenda completa.
+
+
 
 
 

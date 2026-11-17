@@ -1,6 +1,7 @@
 import LinkSeguroManager from './LinkSeguroManager'
 import EmpresaNomeCard from './EmpresaNomeCard'
 import EscalaPrivacidadeCard from './EscalaPrivacidadeCard'
+import LayoutEscalaCard from './LayoutEscalaCard'
 import RegrasEscalaCard from './RegrasEscalaCard'
 import AgendamentoAberturaCard from './abertura/AgendamentoAberturaCard'
 import VocabularioCard from './VocabularioCard'
@@ -39,6 +40,14 @@ export default function AdminTabConfiguracoes({
       />
 
       <EscalaPrivacidadeCard
+        empresa={empresa}
+        onEmpresaUpdated={onEmpresaUpdated}
+        showToast={showToast}
+        isFullAdmin={isFullAdmin}
+        termos={termos}
+      />
+
+      <LayoutEscalaCard
         empresa={empresa}
         onEmpresaUpdated={onEmpresaUpdated}
         showToast={showToast}

@@ -1722,3 +1722,31 @@ npm run build
 - **Refinamento Responsivo (Mobile & Desktop)**:
   - Botão de Expandir/Recolher adaptável: exibe `"Expandir todos"` / `"Recolher todos"` no desktop (breakpoint `sm:`), e de forma compacta `"Expandir"` / `"Recolher"` (sem `"todos"`) exclusivamente no celular via `<span className="hidden sm:inline"> todos</span>`.
   - Tratamento anti-quebra do nome do colaborador: container flex com `min-w-0 flex-1 overflow-hidden` e texto com `.truncate block whitespace-nowrap`, garantindo reticências automáticas (`...`) e zero quebra para segunda linha em qualquer dispositivo móvel.
+
+---
+
+## 30. Equipe Autorizada, UX do Link Seguro e Sistema Multi-Layout de Pontos (Novembro 2026)
+- **Contexto e Solicitações do Usuário**:
+  1. Alterar a nomenclatura "Proteção Contra Invasores" para "Equipe Autorizada" em todos os pontos do painel e landing page.
+  2. Corrigir a inconsistência de UX no botão com ícone de link externo (`ExternalLink`) da barra rápida de Turnos (`AdminQuickLinkBar`), que redirecionava internamente para Configurações em vez de abrir a página pública da escala.
+  3. Criar uma nova opção de layout visual mais rica, moderna e profissional para a lista de pontos na área pública do colaborador, preservando o layout original para que o gestor possa alternar nas configurações qual modelo prefere usar.
+  4. Exibir o card de identificação da empresa tanto no modo Moderno quanto no modo Clássico, integrando o botão de acesso aos horários agendados (`[📅 X horários ›]`) diretamente dentro do próprio card da empresa.
+- **Decisões de Engenharia e Padrões de UX/UI**:
+  1. **Padronização Semântica ("Equipe Autorizada")**:
+     - `EquipeHeader.jsx`, `EquipeStatusBanner.jsx`, `TipoValidacaoSelector.jsx`, `useEquipe.js`, `AdminTabEquipe.jsx` e `LandingPage.jsx` atualizados de forma uniforme e profissional.
+  2. **Alinhamento de Modelo Mental do Link Seguro (`AdminQuickLinkBar.jsx`)**:
+     - O botão de ação com ícone `ExternalLink` agora possui comportamento consistente com os padrões da web: abre a escala pública em nova aba (`target="_blank"`, `rel="noopener noreferrer"`) com tooltip *"Visualizar a escala exatamente como sua equipe a vê"*, idêntico ao botão do `LinkSeguroManager.jsx`.
+  3. **Modularidade Multi-Layout (`PontoSelectorView.jsx`)**:
+     - `PontoSelectorClassico.jsx`: template original preservado 100% de forma isolada e sem perdas funcionais.
+     - `PontoSelectorModerno.jsx`: novo design com branding oficial, barra com 3 estatísticas em tempo real (Locais, Turnos na Semana, Vagas Livres), campo de busca instantânea (por nome ou endereço) e cards com micro-barra de progresso de ocupação de vagas e percentuais.
+     - `PontoSelectorView.jsx`: componente orquestrador que renderiza o layout correspondente conforme `empresa?.layout_pontos || empresa?.termos?.layout_pontos || 'moderno'`.
+  4. **Controle no Painel de Configurações (`LayoutEscalaCard.jsx`)**:
+     - Novo card na aba de Configurações (`AdminTabConfiguracoes.jsx`) com seletores visuais entre "Moderno & Completo" e "Clássico & Minimalista".
+     - Persistência robusta via RPC `atualizar_termos_empresa` (`SECURITY DEFINER`), fallback direto em `termos` JSONB e sincronização em cache local (`localStorage`), garantindo que tanto a sessão do gestor quanto a visão pública do colaborador atualizem imediatamente sem depender de coluna extra na tabela `empresas`.
+     - `PontoSelectorView.jsx` resolve a preferência verificando `empresa?.termos?.layout_pontos`, `termos?.layout_pontos` e fallback local por tenant.
+  5. **Card de Empresa e Agenda Adaptáveis aos Modos (`CorretorEmpresaCard.jsx`)**:
+     - No **Modo Clássico (Minimalista)**: O card da empresa embute o botão compacto `[📅 X horários ›]` internamente à direita (`mostrarBotaoAgenda={true}`), mantendo a interface compacta e sem banners adicionais.
+     - No **Modo Moderno (Completo)**: O card da empresa permanece com foco no branding (`mostrarBotaoAgenda={false}`) e exibe logo abaixo o **Banner da Agenda em Destaque** com gradiente rico, contagem de turnos reservados, chamada para ação destacada e microinterações de hover.
+- **Validação**:
+  - `npm run build` executado com sucesso e zero erros em 19.30s.
+
