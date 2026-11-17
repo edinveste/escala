@@ -18,12 +18,12 @@ export default function EquipeStatusBanner({ exigirCadastro, termos = {} }) {
         <p>
           <strong className={exigirCadastro ? 'text-emerald-200' : 'text-gray-100'}>
             {exigirCadastro
-              ? 'Proteção Ativada (Acesso Restrito):'
-              : 'Proteção Desativada (Acesso Livre):'}
+              ? 'Equipe Autorizada Ativada (Acesso Restrito):'
+              : 'Equipe Autorizada Desativada (Acesso Livre):'}
           </strong>{' '}
           {exigirCadastro
             ? `Apenas ${termos.pessoas?.toLowerCase() || 'colaboradores'} cadastrados e com status ativo nesta lista conseguem garantir vagas na escala.`
-            : 'Qualquer pessoa com o link público pode reservar vagas normalmente. Cadastre a equipe abaixo e ative a chave no topo quando desejar bloquear invasores.'}
+            : 'Qualquer pessoa com o link público pode reservar vagas normalmente. Cadastre a equipe abaixo e ative a chave no topo quando desejar restringir o acesso à equipe autorizada.'}
         </p>
       </div>
     </div>

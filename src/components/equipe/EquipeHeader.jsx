@@ -29,7 +29,7 @@ export default function EquipeHeader({
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-base font-bold text-gray-100">
-              Proteção Contra Invasores
+              Equipe Autorizada
             </h2>
             <span
               className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
@@ -61,8 +61,8 @@ export default function EquipeHeader({
             !isFullAdmin
               ? 'Apenas administradores podem alternar esta chave'
               : exigirCadastro
-              ? 'Clique para desativar proteção (abrir reservas a todos)'
-              : 'Clique para ativar proteção (restringir à equipe cadastrada)'
+              ? 'Clique para desativar (abrir reservas a todos)'
+              : 'Clique para ativar (restringir à equipe autorizada)'
           }
           role="switch"
           aria-checked={exigirCadastro}

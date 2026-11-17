@@ -103,7 +103,7 @@ export default function EquipeManager({
 
   return (
     <div className="card space-y-4">
-      {/* ═══ CABEÇALHO UNIFICADO: PROTEÇÃO CONTRA INVASORES ═══ */}
+      {/* ═══ CABEÇALHO UNIFICADO: EQUIPE AUTORIZADA ═══ */}
       <EquipeHeader
         exigirCadastro={exigirCadastro}
         totalAtivos={totalAtivos}

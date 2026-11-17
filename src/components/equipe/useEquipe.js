@@ -269,7 +269,7 @@ export function useEquipe({
   const deleteColaborador = async (colaborador) => {
     const ok = await confirm({
       title: 'Remover colaborador da equipe?',
-      message: `Tem certeza que deseja remover "${colaborador.nome}" da equipe autorizada?\n\nEle não terá mais permissão para garantir vagas quando a proteção contra invasores estiver ativa.`,
+      message: `Tem certeza que deseja remover "${colaborador.nome}" da equipe autorizada?\n\nEle não terá mais permissão para garantir vagas quando a equipe autorizada estiver ativa.`,
       confirmText: 'Remover Colaborador',
       cancelText: 'Cancelar',
       variant: 'danger',

@@ -6,7 +6,7 @@ import GestoresManager from '../GestoresManager'
  * Seção / Aba de Gestão de Equipe e Coordenadores.
  * Apresenta:
  * 1. Colaboradores na Escala (vagas marcadas ativas, horários e edição de nome)
- * 2. Proteção Contra Invasores (equipe pré-autorizada / whitelist)
+ * 2. Equipe Autorizada (equipe pré-autorizada / whitelist)
  * 3. Coordenadores & Gestores (gestores administrativos com RBAC)
  */
 export default function AdminTabEquipe({
@@ -39,7 +39,7 @@ export default function AdminTabEquipe({
         termos={termos}
       />
 
-      {/* ═══ 2. PROTEÇÃO CONTRA INVASORES (EQUIPE PRÉ-AUTORIZADA) ═══ */}
+      {/* ═══ 2. EQUIPE AUTORIZADA (EQUIPE PRÉ-AUTORIZADA) ═══ */}
       <EquipeManager
         empresaId={empresaId}
         empresaNome={empresaNome}

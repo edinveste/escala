@@ -98,18 +98,17 @@ export default function AdminQuickLinkBar({
           <Share2 className="w-4 h-4" />
         </button>
 
-        {/* Botão Detalhes / Configurações */}
-        {onIrConfiguracoes && (
-          <button
-            type="button"
-            onClick={onIrConfiguracoes}
-            className="p-2.5 rounded-xl text-gray-400 hover:text-gray-200 bg-surface-700/60 hover:bg-surface-700 border border-surface-600 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0"
-            title="Gerenciar link seguro nas configurações"
-            aria-label="Gerenciar link seguro nas configurações"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </button>
-        )}
+        {/* Botão Abrir Visualização Pública em Nova Aba */}
+        <a
+          href={shareUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-2.5 rounded-xl text-gray-400 hover:text-gray-200 bg-surface-700/60 hover:bg-surface-700 border border-surface-600 active:scale-95 transition-all min-h-[40px] min-w-[40px] flex items-center justify-center flex-shrink-0"
+          title="Visualizar a escala exatamente como sua equipe a vê"
+          aria-label="Visualizar a escala em nova aba"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
       </div>
     </div>
   )

@@ -140,9 +140,9 @@ const FAQ_ITEMS = [
       'Nosso sistema utiliza travas transacionais de banco de dados (Row-Level Locking). Em milissegundos, quem clicou primeiro garante a vaga e a tela de todos os outros usuários atualiza na mesma fração de segundo via WebSockets.',
   },
   {
-    pergunta: 'Como evito que pessoas de fora ou invasores reservem vagas?',
+    pergunta: 'Como evito que pessoas não autorizadas reservem vagas?',
     resposta:
-      'Você tem à disposição a chave "Proteção Contra Invasores". Quando ativada, apenas os números de WhatsApp e nomes previamente autorizados por você na sua lista de equipe conseguem assumir horários.',
+      'Você tem à disposição a chave "Equipe Autorizada". Quando ativada, apenas os números de WhatsApp e nomes previamente autorizados por você na sua lista de equipe conseguem assumir horários.',
   },
   {
     pergunta: 'Posso personalizar para o meu nicho (médicos, promotores, freelas)?',
@@ -604,7 +604,7 @@ export default function LandingPage({ onOpenDemo, onOpenLogin }) {
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4">
               <Shield className="w-5 h-5" />
             </div>
-            <h3 className="font-bold text-base text-text mb-2">Proteção Anti-Invasores</h3>
+            <h3 className="font-bold text-base text-text mb-2">Equipe Autorizada</h3>
             <p className="text-xs text-text-muted leading-relaxed">
               Ative a chave de segurança para restringir as reservas estritamente aos membros
               autorizados cadastrados pela sua gerência.
@@ -955,7 +955,7 @@ export default function LandingPage({ onOpenDemo, onOpenLogin }) {
                   <li className="flex items-start gap-2 text-text">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <span>
-                      <strong className="text-text font-semibold">Proteção anti-invasores</strong> (equipe autorizada)
+                      <strong className="text-text font-semibold">Equipe autorizada</strong> (restrição de acesso)
                     </span>
                   </li>
                   <li className="flex items-start gap-2 text-text">
